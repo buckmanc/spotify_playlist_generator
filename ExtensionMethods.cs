@@ -74,5 +74,34 @@ namespace spotify_playlist_generator
             foreach (var item in collection)
                 values.Remove(item);
         }
+        /// <summary>
+        /// Add elements from one dictionary to another.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="values"></param>
+        /// <param name="collection"></param>
+        public static void AddRange<T>(this Dictionary<string, T> dictionaryTo, Dictionary<string, T> dictionaryFrom)
+        {
+            //pulled from https://stackoverflow.com/a/6695211 
+            dictionaryFrom.ToList().ForEach(x => dictionaryTo.Add(x.Key, x.Value));
+        }
+
+        public static string FindTextBetween(this string text, string left, string right)
+        {
+            // pulled from https://stackoverflow.com/a/43273574
+            // TODO: Validate input arguments
+
+            int beginIndex = text.IndexOf(left); // find occurence of left delimiter
+            if (beginIndex == -1)
+                return string.Empty; // or throw exception?
+
+            beginIndex += left.Length;
+
+            int endIndex = text.IndexOf(right, beginIndex); // find occurence of right delimiter
+            if (endIndex == -1)
+                return string.Empty; // or throw exception?
+
+            return text.Substring(beginIndex, endIndex - beginIndex).Trim();
+        }
     }
 }

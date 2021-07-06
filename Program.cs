@@ -16,7 +16,6 @@ namespace spotify_playlist_generator
             public static string _PlaylistFolderPath;
             public static bool _NewPlaylistsPrivate;
             public static bool _RecreatePlaylists;
-            public static bool _DeleteOrphanedPlaylists;
             public static bool _VerboseDebug = false;
             public static bool _TestValues = false;
         }
@@ -75,10 +74,15 @@ namespace spotify_playlist_generator
             Console.WriteLine();
 
             //get inputs
-            var genreBreakdowns = GetGenreBreakdowns(spotify);
             var likedTracks = await GetLikedTracks(spotify);
+
+            //get various playlist definitions
+            //that is, a name and a list of tracks
+            var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
+            playlistBreakdowns.AddRange(GetLikesByArtistPlaylistBreakdowns(spotify, likedTracks));
+
             //do work!
-            await UpdatePlaylists(spotify, genreBreakdowns, likedTracks);
+            await UpdatePlaylists(spotify, playlistBreakdowns);
 
 
 
@@ -99,7 +103,6 @@ namespace spotify_playlist_generator
                 newFile["SETTINGS"]["PlaylistFolderPath"] = AssemblyDirectory;
                 newFile["SETTINGS"]["NewPlaylistsPrivate"] = "false";
                 newFile["SETTINGS"]["RecreatePlaylists"] = "false";
-                newFile["SETTINGS"]["DeleteOrphanedPlaylists"] = "false";
                 iniParser.WriteFile(configIniPath, newFile);
             }
 
@@ -110,7 +113,6 @@ namespace spotify_playlist_generator
             Settings._PlaylistFolderPath = configIni["SETTINGS"]["PlaylistFolderPath"];
             Settings._NewPlaylistsPrivate = bool.Parse(configIni["SETTINGS"]["NewPlaylistsPrivate"]);
             Settings._RecreatePlaylists = bool.Parse(configIni["SETTINGS"]["RecreatePlaylists"]);
-            Settings._DeleteOrphanedPlaylists = bool.Parse(configIni["SETTINGS"]["DeleteOrphanedPlaylists"]);
 
             //lazy developer shortcut for sharing files between two machines
             if (System.Diagnostics.Debugger.IsAttached)
@@ -121,17 +123,17 @@ namespace spotify_playlist_generator
 
         }
 
-        //static async System.Threading.Tasks.Task<Dictionary<string, List<string>>> GetGenreBreakdowns(SpotifyClient spotify)
-        static Dictionary<string, List<string>> GetGenreBreakdowns(SpotifyClient spotify)
+        //static async System.Threading.Tasks.Task<Dictionary<string, List<string>>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
+        static Dictionary<string, List<FullTrack>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify, List<FullTrack> likedTracks)
         {
 
-            var byArtistPaths = System.IO.Path.Join(Settings._PlaylistFolderPath, "By Artist");
+            var likesByArtistPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Artist");
 
-            if (!System.IO.Directory.Exists(byArtistPaths))
-                System.IO.Directory.CreateDirectory(byArtistPaths);
+            if (!System.IO.Directory.Exists(likesByArtistPath))
+                System.IO.Directory.CreateDirectory(likesByArtistPath);
 
 
-            var files = System.IO.Directory.GetFiles(byArtistPaths);
+            var files = System.IO.Directory.GetFiles(likesByArtistPath);
 
             //write an example file for bupkiss
             if (!files.Any())
@@ -145,13 +147,13 @@ namespace spotify_playlist_generator
                     ;
 
                 //write the example file
-                System.IO.File.WriteAllText(System.IO.Path.Join(byArtistPaths, "Nordic Folk.txt"), exampleArtists);
+                System.IO.File.WriteAllText(System.IO.Path.Join(likesByArtistPath, "Nordic Folk.txt"), exampleArtists);
                 //re-read files to pick up the example
-                files = System.IO.Directory.GetFiles(byArtistPaths);
+                files = System.IO.Directory.GetFiles(likesByArtistPath);
             }
 
-            //read in genre breakdowns
-            var genreBreakdowns = files.ToDictionary(
+            //read in playlist breakdowns
+            var playlistsByArtists = files.ToDictionary(
                 path => System.IO.Path.GetFileNameWithoutExtension(path),
                 path => System.IO.File.ReadAllLines(path).ToList()
                 );
@@ -160,20 +162,20 @@ namespace spotify_playlist_generator
             if (Settings._TestValues)
             {
                 //hardcoded test values to get this running before building out the text file support
-                genreBreakdowns = new Dictionary<string, List<string>>();
-                genreBreakdowns.Add("Nordic Folk", new List<string>());
-                genreBreakdowns["Nordic Folk"].Add("Heilung");
-                genreBreakdowns["Nordic Folk"].Add("Danheim");
-                genreBreakdowns["Nordic Folk"].Add("Nytt Land");
-                genreBreakdowns["Nordic Folk"].Add("1B8vQacVN5UXO4C4x9kthJ");
-                genreBreakdowns["Nordic Folk"].Add("37i9dQZF1DWXhcuQw7KIeM");
+                playlistsByArtists = new Dictionary<string, List<string>>();
+                playlistsByArtists.Add("Nordic Folk", new List<string>());
+                playlistsByArtists["Nordic Folk"].Add("Heilung");
+                playlistsByArtists["Nordic Folk"].Add("Danheim");
+                playlistsByArtists["Nordic Folk"].Add("Nytt Land");
+                playlistsByArtists["Nordic Folk"].Add("1B8vQacVN5UXO4C4x9kthJ");
+                playlistsByArtists["Nordic Folk"].Add("37i9dQZF1DWXhcuQw7KIeM");
             }
 
             var regex = new Regex(@"[a-zA-Z0-9]{22}");
-            foreach (var genreName in genreBreakdowns.Keys)
+            foreach (var playlistName in playlistsByArtists.Keys)
             {
                 //check for any URIs in the artist name list
-                var playlistURIs = genreBreakdowns[genreName]
+                var playlistURIs = playlistsByArtists[playlistName]
                     .Where(artistName => regex.Match(artistName).Success)
                     .ToList();
 
@@ -188,8 +190,8 @@ namespace spotify_playlist_generator
                         Console.WriteLine(
                             "Found " +
                             playlistURIs.Count().ToString("#,##0") + 
-                            " playlist URIs under the \"" + genreName + 
-                            "\" genre definition"
+                            " playlist URIs under the \"" + playlistName + 
+                            "\" playlist definition"
                             );
                     }
 
@@ -203,32 +205,62 @@ namespace spotify_playlist_generator
                     ;
 
                     //add in the artist names, then remove duplicates
-                    genreBreakdowns[genreName].AddRange(playlistArtistNames);
-                    genreBreakdowns[genreName] = genreBreakdowns[genreName].Distinct().ToList();
+                    playlistsByArtists[playlistName].AddRange(playlistArtistNames);
+                    playlistsByArtists[playlistName] = playlistsByArtists[playlistName].Distinct().ToList();
 
                 }
 
-                var removeArtists = genreBreakdowns[genreName]
+                var removeArtists = playlistsByArtists[playlistName]
                     .Where(artistName => artistName.StartsWith("-"))
                     .Select(artistName => artistName.Substring(1))
                     .ToList();
 
                 if (removeArtists.Any())
-                    genreBreakdowns[genreName].RemoveRange(removeArtists);
+                    playlistsByArtists[playlistName].RemoveRange(removeArtists);
 
             }
 
             Console.WriteLine(
                 "Found " +
-                genreBreakdowns.Keys.Count().ToString("#,##0") +
-                " genres with an average of " +
-                genreBreakdowns.Values.Average(x => x.Count).ToString("#,##0.00") +
+                playlistsByArtists.Keys.Count().ToString("#,##0") +
+                " playlists by artist with an average of " +
+                playlistsByArtists.Values.Average(x => x.Count).ToString("#,##0.00") +
                 " artists each."
                 );
 
+            var preface = "#Liked - ";
+            var otherPlaylistName = "Z$ Other";
+
+            //find liked artists whose playlist name hasn't been specified by the user
+            var missingArtists = likedTracks
+                .SelectMany(t => t.Artists.Select(a => a.Name))
+                .Where(x => !playlistsByArtists.Values.SelectMany(y => y).Any(y => y == x))
+                .OrderByDescending(x => likedTracks.Where(t => t.Artists.Any(a => a.Name == x)).Count()) //TODO ordering here does nothing
+                .ToList();
+
+            //consider writing the artist list to an "other" liked by artist playlist file
+            //but that's complicated, as you'd have to not read it in on subsequent runs
+            //or just explicitly ignore/remove it
+
+            //add an "other" liked playlist, unless it already exists
+            if (!playlistsByArtists.Keys.Any(x => x == otherPlaylistName))
+                playlistsByArtists.Add(otherPlaylistName, new List<string>());
+
+            playlistsByArtists[otherPlaylistName].AddRange(missingArtists);
+
+            var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
+
+            foreach (var playlistBreakdown in playlistsByArtists)
+            {
+
+                //add all liked tracks to the playlist breakdown
+                var artistLikedTracks = likedTracks.Where(t => t.Artists.Any(a => playlistBreakdown.Value.Any(playlistArtist => playlistArtist == a.Name))).ToList();
+                playlistBreakdowns.Add(preface + playlistBreakdown.Key, artistLikedTracks);
+
+            }
 
 
-            return genreBreakdowns;
+            return playlistBreakdowns;
         }
 
         static async System.Threading.Tasks.Task<List<FullTrack>> GetLikedTracks(SpotifyClient spotify)
@@ -256,26 +288,53 @@ namespace spotify_playlist_generator
 
         }
 
-
-        static async System.Threading.Tasks.Task UpdatePlaylists(SpotifyClient spotify, Dictionary<string, List<string>> genreBreakdowns, List<FullTrack> likedTracks)
+        static async System.Threading.Tasks.Task<List<FullPlaylist>> GetAllPlaylists(SpotifyClient spotify)
         {
-            var preface = "#Liked - ";
-            var otherPlaylistName = "Z$ Other";
-
             var allPlaylists = (await spotify.Paginate(await spotify.Playlists.CurrentUsers()).ToListAsync())
                 .Select(p => spotify.Playlists.Get(p.Id).Result) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
                 .ToList();
 
-            //handle these settings together as they're similar
-            if (Settings._RecreatePlaylists || Settings._DeleteOrphanedPlaylists)
-            {
-                var removePlaylists = allPlaylists.Where(p => p.Name.StartsWith(preface)).ToList();
+            return allPlaylists;
+        }
 
-                //limit to only orphaned playlists unless we're already dumping all of them
-                if (Settings._DeleteOrphanedPlaylists && !Settings._RecreatePlaylists)
-                    removePlaylists = removePlaylists.Where(p =>
-                    !genreBreakdowns.Any(b => p.Name == preface + b.Key)
-                    && p.Name != preface + otherPlaylistName
+        static async System.Threading.Tasks.Task UpdatePlaylists(SpotifyClient spotify, Dictionary<string, List<FullTrack>> playlistBreakdowns)
+        {
+
+            var allPlaylists = await GetAllPlaylists(spotify);
+
+            var prefixes = new string[] { "#Liked" };
+            var prefixesInProd = playlistBreakdowns.Keys.Select(playlistName => "#" + playlistName.FindTextBetween("#", " - "))
+                .Distinct()
+                .ToList();
+
+            if (System.Diagnostics.Debugger.IsAttached && prefixesInProd.Any(p => !prefixes.Contains(p)))
+                throw new Exception("Missing hardcoded playlist prefix");
+
+            //dump all playlists here if settings say to recreate them
+            if (Settings._RecreatePlaylists)
+            {
+                var removePlaylists = allPlaylists.Where(p => prefixes.Any(prefix => p.Name.StartsWith(prefix))).ToList();
+
+                //dump the playlists
+                foreach (var playlist in removePlaylists)
+                {
+                    await spotify.Follow.UnfollowPlaylist(playlist.Id);
+                    allPlaylists.RemoveRange(removePlaylists);
+                }
+
+                if (removePlaylists.Any())
+                    Console.WriteLine("Removed " + removePlaylists.Count.ToString("#,##0") + " playlists.");
+
+            }
+            //remove orphaned playlists
+            else
+            {
+                var playlistsToSkip = new string[] { "#Liked - Z$ Other" }; //is there a better way to do this than hardcoding the name?
+
+                var removePlaylists = allPlaylists.Where(p => 
+                    prefixes.Any(prefix =>  p.Name.StartsWith(prefix)) &&
+                    !playlistBreakdowns.Any(b => p.Name == b.Key) &&
+                    !playlistsToSkip.Contains(p.Name)
                     ).ToList();
 
                 //dump the playlists
@@ -290,69 +349,38 @@ namespace spotify_playlist_generator
 
             }
 
-            //find liked artists whose genre hasn't been specified by the user
-            var missingArtists = likedTracks
-                .SelectMany(t => t.Artists.Select(a => a.Name))
-                .Where(x => !genreBreakdowns.Values.SelectMany(y => y).Any(y => y == x))
-                .OrderByDescending(x => likedTracks.Where(t => t.Artists.Any(a => a.Name == x)).Count()) //TODO ordering here does nothing
-                .ToList();
-
-            //consider writing the artist list to an "other" genre file
-            //but that's complicated, as you'd have to not read it in on subsequent runs
-            //or just explicitly ignore/remove it
-
-            //add an "other" liked playlist, unless it already exists
-            if (!genreBreakdowns.Keys.Any(x => x == otherPlaylistName))
-                genreBreakdowns.Add(otherPlaylistName, new List<string>());
-
-            genreBreakdowns[otherPlaylistName].AddRange(missingArtists);
-
-            if (Settings._VerboseDebug)
-            {
-                var allPlaylistsBreakdown = allPlaylists.Select(p =>
-                    p.Name +
-                    ", ID: " + p.Id +
-                    ", URI: " + p.Uri
-                    ).Join(Environment.NewLine);
-                Console.WriteLine();
-                Console.WriteLine(allPlaylistsBreakdown);
-                Console.WriteLine();
-            }
-
             var createPlaylistCounter = 0;
             var removedTracksCounter = 0;
             var addedTracksCounter = 0;
 
             //iterating through rather than running in bulk with linq to *hopefully* be a little more memory efficient
-            //order by descending genre name to get alphabetical playlists in the Spotify interface
-            foreach (var genre in genreBreakdowns.OrderByDescending(kvp => kvp.Key).ToList())
+            //order by descending playlist name to get alphabetical playlists in the Spotify interface
+            foreach (var playlistBreakdown in playlistBreakdowns.OrderByDescending(kvp => kvp.Key).ToList())
             {
-                //get the playlist for this genre
-                var genrePlaylist = allPlaylists.Where(p => p.Name == preface + genre.Key).SingleOrDefault();
-                //create genre playlist if missing
-                if (genrePlaylist is null)
+                //get the playlist for this playlist name
+                var playlist = allPlaylists.Where(p => p.Name == playlistBreakdown.Key).SingleOrDefault();
+                //create playlist if missing
+                if (playlist is null)
                 {
-                    var playlistRequest = new PlaylistCreateRequest(preface + genre.Key);
-                    playlistRequest.Description = "Automatically generated by spotify_playlist_generator based on my liked tracks.";
+                    var playlistRequest = new PlaylistCreateRequest(playlistBreakdown.Key);
+                    playlistRequest.Description = "Automatically generated by spotify_playlist_generator.";
                     playlistRequest.Public = !Settings._NewPlaylistsPrivate;
                     var newPlaylist = await spotify.Playlists.Create(spotify.UserProfile.Current().Result.Id, playlistRequest);
 
-                    genrePlaylist = newPlaylist;
+                    playlist = newPlaylist;
 
                     createPlaylistCounter += 1;
                 }
 
-                //get all the tracks that SHOULD be in the playlist
-                var genreLikedTracks = likedTracks.Where(t => t.Artists.Any(a => genre.Value.Any(genreArtist => genreArtist == a.Name))).ToArray();
                 //get all the tracks that ARE in the playlist - doing this here as they have to be casted from PlaylistTrack to FullTrack to be useful
-                var genrePlaylistTracks = (await spotify.Paginate(genrePlaylist.Tracks).ToListAsync())
+                var playlistTracksCurrent = (await spotify.Paginate(playlist.Tracks).ToListAsync())
                     .Select(x => (FullTrack)x.Track)
                     .ToList()
                     ;
 
                 //main work part 1 - remove existing playlist tracks that no longer belong
-                var removeTrackRequestItems = genrePlaylistTracks
-                    .Where(gpt => !genreLikedTracks.Any(glt => glt.Id == gpt.Id))
+                var removeTrackRequestItems = playlistTracksCurrent
+                    .Where(gpt => !playlistBreakdown.Value.Any(glt => glt.Id == gpt.Id))
                     .Select(gpt => new PlaylistRemoveItemsRequest.Item() { Uri = gpt.Uri })
                     .ToList();
 
@@ -365,7 +393,7 @@ namespace spotify_playlist_generator
                         .ToList();
 
                     foreach (var removeRequest in removeRequests)
-                        await spotify.Playlists.RemoveItems(genrePlaylist.Id, removeRequest);
+                        await spotify.Playlists.RemoveItems(playlist.Id, removeRequest);
 
                     removedTracksCounter += removeTrackRequestItems.Count();
                 }
@@ -373,8 +401,8 @@ namespace spotify_playlist_generator
 
 
                 //main work part 2 - add new tracks to playlists
-                var addTrackURIs = genreLikedTracks
-                    .Where(glt => !genrePlaylistTracks.Any(gpt => gpt.Id == glt.Id))
+                var addTrackURIs = playlistBreakdown.Value
+                    .Where(glt => !playlistTracksCurrent.Any(gpt => gpt.Id == glt.Id))
                     //.Select(glt => new PlaylistAddItemsRequest.Item() { Uri = glt.Uri }) //add track requires URIs, whereas remove track requires a custom object based on URIs
                     .Select(glt => glt.Uri)
                     .ToList();
@@ -388,7 +416,7 @@ namespace spotify_playlist_generator
 
                         .ToList();
                     foreach (var addRequest in addRequests)
-                        await spotify.Playlists.AddItems(genrePlaylist.Id, addRequest);
+                        await spotify.Playlists.AddItems(playlist.Id, addRequest);
 
                     addedTracksCounter += addTrackURIs.Count();
                 }
