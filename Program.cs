@@ -14,8 +14,10 @@ namespace spotify_playlist_generator
         {
             public static string _configFolder;
             public static string _PlaylistFolderPath;
+            public static string _CommentString = "#"; //TODO consider pulling this from a config file
             public static bool _NewPlaylistsPrivate;
             public static bool _RecreatePlaylists;
+            public static bool _DeleteOrphanedPlaylists;
             public static bool _VerboseDebug = false;
             public static bool _TestValues = false;
         }
@@ -64,7 +66,17 @@ namespace spotify_playlist_generator
                 Environment.Exit(-1);
             }
 
-            var spotify = new SpotifyClient(accessToken);
+            var config = SpotifyClientConfig
+              .CreateDefault()
+              .WithRetryHandler(new CustomRetryHandler()
+              {
+                  //RetryAfter = TimeSpan.FromSeconds(4),
+                  //TooManyRequestsConsumesARetry = true
+              })
+              .WithToken(accessToken)
+              ;
+
+            var spotify = new SpotifyClient(config);
 
 
 
@@ -73,13 +85,11 @@ namespace spotify_playlist_generator
             Console.WriteLine("----------------------");
             Console.WriteLine();
 
-            //get inputs
-            var likedTracks = await GetLikedTracks(spotify);
-
             //get various playlist definitions
             //that is, a name and a list of tracks
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
-            playlistBreakdowns.AddRange(GetLikesByArtistPlaylistBreakdowns(spotify, likedTracks));
+            playlistBreakdowns.AddRange(await GetLikesByArtistPlaylistBreakdowns(spotify));
+            playlistBreakdowns.AddRange(await GetFullArtistDiscographyBreakdowns(spotify));
 
             //do work!
             await UpdatePlaylists(spotify, playlistBreakdowns);
@@ -103,6 +113,7 @@ namespace spotify_playlist_generator
                 newFile["SETTINGS"]["PlaylistFolderPath"] = AssemblyDirectory;
                 newFile["SETTINGS"]["NewPlaylistsPrivate"] = "false";
                 newFile["SETTINGS"]["RecreatePlaylists"] = "false";
+                newFile["SETTINGS"]["DeleteOrphanedPlaylists"] = "true";
                 iniParser.WriteFile(configIniPath, newFile);
             }
 
@@ -113,6 +124,8 @@ namespace spotify_playlist_generator
             Settings._PlaylistFolderPath = configIni["SETTINGS"]["PlaylistFolderPath"];
             Settings._NewPlaylistsPrivate = bool.Parse(configIni["SETTINGS"]["NewPlaylistsPrivate"]);
             Settings._RecreatePlaylists = bool.Parse(configIni["SETTINGS"]["RecreatePlaylists"]);
+            Settings._DeleteOrphanedPlaylists = bool.Parse(configIni["SETTINGS"]["DeleteOrphanedPlaylists"]);
+
 
             //lazy developer shortcut for sharing files between two machines
             if (System.Diagnostics.Debugger.IsAttached)
@@ -123,53 +136,48 @@ namespace spotify_playlist_generator
 
         }
 
-        //static async System.Threading.Tasks.Task<Dictionary<string, List<string>>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
-        static Dictionary<string, List<FullTrack>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify, List<FullTrack> likedTracks)
+        static Dictionary<string, List<string>> GetArtistPlaylistSetup(SpotifyClient spotify, string directoryPath)
         {
 
-            var likesByArtistPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Artist");
-
-            if (!System.IO.Directory.Exists(likesByArtistPath))
-                System.IO.Directory.CreateDirectory(likesByArtistPath);
+            if (!System.IO.Directory.Exists(directoryPath))
+                System.IO.Directory.CreateDirectory(directoryPath);
 
 
-            var files = System.IO.Directory.GetFiles(likesByArtistPath);
+            var files = System.IO.Directory.GetFiles(directoryPath);
 
             //write an example file for bupkiss
+            //TODO only write this example file when creating a missing directory
+            //this will prevent the file and playlist from being created over and over if the user doesn't want it
             if (!files.Any())
             {
                 var exampleArtists =
+                    Settings._CommentString + " artist names to use in this playlist should be specified here" + Environment.NewLine +
                     "Heilung" + Environment.NewLine +
                     "Danheim" + Environment.NewLine +
                     "Nytt Land" + Environment.NewLine +
-                    "1B8vQacVN5UXO4C4x9kthJ" + Environment.NewLine +
-                    "37i9dQZF1DWXhcuQw7KIeM" + Environment.NewLine
+                    Environment.NewLine +
+                    Settings._CommentString + " playlist IDs can be used as well, to pull artist names from" + Environment.NewLine +
+                    Settings._CommentString + " The playlist ID can be found by navigating to the playlist on open.spotify.com and pulling it from the URL" + Environment.NewLine +
+                    "1B8vQacVN5UXO4C4x9kthJ " + Settings._CommentString + "# Nordic folk music" + Environment.NewLine +
+                    "37i9dQZF1DWXhcuQw7KIeM " + Settings._CommentString + "# Northern Spirits" + Environment.NewLine
                     ;
 
                 //write the example file
-                System.IO.File.WriteAllText(System.IO.Path.Join(likesByArtistPath, "Nordic Folk.txt"), exampleArtists);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Nordic Folk.txt"), exampleArtists);
                 //re-read files to pick up the example
-                files = System.IO.Directory.GetFiles(likesByArtistPath);
+                files = System.IO.Directory.GetFiles(directoryPath);
             }
 
             //read in playlist breakdowns
             var playlistsByArtists = files.ToDictionary(
                 path => System.IO.Path.GetFileNameWithoutExtension(path),
-                path => System.IO.File.ReadAllLines(path).ToList()
+                path => System.IO.File.ReadAllLines(path)
+                        .Select(line => line.RemoveAfterString(Settings._CommentString).Trim()) //remove comments
+                        .Where(line => !string.IsNullOrWhiteSpace(line)) //remove blank lines
+                        .Distinct() //keep unique lines
+                        .ToList()
+                        
                 );
-
-            //test values
-            if (Settings._TestValues)
-            {
-                //hardcoded test values to get this running before building out the text file support
-                playlistsByArtists = new Dictionary<string, List<string>>();
-                playlistsByArtists.Add("Nordic Folk", new List<string>());
-                playlistsByArtists["Nordic Folk"].Add("Heilung");
-                playlistsByArtists["Nordic Folk"].Add("Danheim");
-                playlistsByArtists["Nordic Folk"].Add("Nytt Land");
-                playlistsByArtists["Nordic Folk"].Add("1B8vQacVN5UXO4C4x9kthJ");
-                playlistsByArtists["Nordic Folk"].Add("37i9dQZF1DWXhcuQw7KIeM");
-            }
 
             var regex = new Regex(@"[a-zA-Z0-9]{22}");
             foreach (var playlistName in playlistsByArtists.Keys)
@@ -189,8 +197,8 @@ namespace spotify_playlist_generator
                     {
                         Console.WriteLine(
                             "Found " +
-                            playlistURIs.Count().ToString("#,##0") + 
-                            " playlist URIs under the \"" + playlistName + 
+                            playlistURIs.Count().ToString("#,##0") +
+                            " playlist URIs under the \"" + playlistName +
                             "\" playlist definition"
                             );
                     }
@@ -198,7 +206,7 @@ namespace spotify_playlist_generator
                     //pull out artist names from tracks in these playlists URIs
                     var playlistArtistNames = playlistURIs
                         .Select(uri => spotify.Playlists.Get(uri).Result)
-                        .SelectMany(p => spotify.Paginate(p.Tracks).ToListAsync().Result)
+                        .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime:500)).ToListAsync().Result)
                         .SelectMany(playableItem => ((FullTrack)playableItem.Track).Artists.Select(a => a.Name))
                         .Distinct()
                         .ToList();
@@ -228,8 +236,19 @@ namespace spotify_playlist_generator
                 " artists each."
                 );
 
+            return playlistsByArtists;
+        }
+
+        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
+        //static Dictionary<string, List<FullTrack>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
+        {
             var preface = "#Liked - ";
             var otherPlaylistName = "Z$ Other";
+
+            var likesByArtistPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Artist");
+
+            var playlistsByArtists = GetArtistPlaylistSetup(spotify, likesByArtistPath);
+            var likedTracks = await GetLikedTracks(spotify);
 
             //find liked artists whose playlist name hasn't been specified by the user
             var missingArtists = likedTracks
@@ -259,6 +278,97 @@ namespace spotify_playlist_generator
 
             }
 
+
+            return playlistBreakdowns;
+        }
+
+        //static Dictionary<string, List<FullTrack>> GetFullArtistDiscographyBreakdowns(SpotifyClient spotify)
+        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetFullArtistDiscographyBreakdowns(SpotifyClient spotify)
+        {
+
+            var directoryPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Full Discography By Artist");
+            var playlistsByArtists = GetArtistPlaylistSetup(spotify, directoryPath);
+            var preface = "#Full Discog - ";
+
+            var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
+
+            foreach (var playlistByArtist in playlistsByArtists)
+            {
+                //the only example of searching with the API wrapper
+                //https://johnnycrazy.github.io/SpotifyAPI-NET/docs/pagination
+
+                //query examples found here
+                //https://developer.spotify.com/documentation/web-api/reference/#writing-a-query---guidelines
+
+                //"search" for artists, then correct results to actually the artists named
+                var artists = playlistByArtist.Value
+                    .Select(artistName => new SearchRequest(SearchRequest.Types.Artist, "artist:" + artistName))
+                    .Select(request => spotify.Search.Item(request).Result)
+                    .Select(item => spotify.Paginate(item.Artists, s => s.Artists, new WaitPaginator(WaitTime: 500))
+                        .ToListAsync(Take: 40).Result // would like this to be 1, but the sought for artists are missing with less than 40
+                        .Where(artist => playlistByArtist.Value.Contains(artist.Name)) // can't do a test on this specific artist name without a lot more mess
+                        .FirstOrDefault()
+                        )
+                    .Where(artist => artist != null)
+                    .ToList();
+
+                //get all albums for the artists found
+                var albums = artists.Select(artist => spotify.Artists.GetAlbums(artist.Id).Result)
+                    .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                    .OrderBy(album => album.ReleaseDate)
+                    .ToList();
+
+                //remove a particular album which is 1) a duplicate and 2) behaves erratically
+                //only remove if the set contains both this album and its pair
+                if (albums.Any(album => album.Id == "3jRsMOSeikuwpE9Q75Ij7I" && albums.Any(album => album.Id == "3BhDAfxJZ7Ng8oNGy3XS1v")))
+                {
+                    albums.Remove(albums.Where(album => album.Id == "3jRsMOSeikuwpE9Q75Ij7I").SingleOrDefault());
+                }
+
+                //the Track.Album.AlbumGroup is always null (specifically when pulled from the track object), so it can't be used below
+                //therefore the data point is pulled here directly from the album object
+                var appearsOnAlbums = albums
+                    .Where(a => a.AlbumGroup == "appears_on")
+                    .Select(a => a.Id)
+                    .ToList();
+
+                //identify tracks in those albums
+                var trackIDs = albums.Select(album => spotify.Albums.GetTracks(album.Id).Result)
+                    .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                    .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                    .ToList();
+
+                //get the tracks
+                var tracks = new List<FullTrack>();
+                foreach (var idChunk in trackIDs.ChunkBy(50))
+                {
+                    var chunkTracks = (await spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Tracks
+                        //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
+                        //this includes tracks that are on split albums, collaborations, and the like
+                        .Where(t => !appearsOnAlbums.Contains(t.Album.Id) || t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName)))
+                        ////only include tracks strictly by artists specified
+                        //.Where(t => t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName)))
+                        .ToList();
+
+                    tracks.AddRange(chunkTracks);
+                }
+
+                if (Settings._VerboseDebug)
+                {
+                    var heyoJankyos = playlistByArtist.Value.Where(artistName => !artists.Any(a => a.Name == artistName)).ToList();
+                    if (heyoJankyos.Any())
+                        Console.WriteLine("Could not find the following artists for \"" + playlistByArtist.Key + "\": " + heyoJankyos.Join(", "));
+
+                    Console.WriteLine("found " + 
+                        artists.Count.ToString("#,##0") + " artists, " +
+                        albums.Count.ToString("#,##0") + " albums, and " +
+                        tracks.Count.ToString("#,##0") + " tracks " +
+                        "in full discog search");
+                }
+
+                //add the playlist
+                playlistBreakdowns.Add(preface + playlistByArtist.Key, tracks);
+            }
 
             return playlistBreakdowns;
         }
@@ -302,7 +412,7 @@ namespace spotify_playlist_generator
 
             var allPlaylists = await GetAllPlaylists(spotify);
 
-            var prefixes = new string[] { "#Liked" };
+            var prefixes = new string[] { "#Liked", "#Full Discog" };
             var prefixesInProd = playlistBreakdowns.Keys.Select(playlistName => "#" + playlistName.FindTextBetween("#", " - "))
                 .Distinct()
                 .ToList();
@@ -327,7 +437,7 @@ namespace spotify_playlist_generator
 
             }
             //remove orphaned playlists
-            else
+            else if (Settings._DeleteOrphanedPlaylists)
             {
                 var playlistsToSkip = new string[] { "#Liked - Z$ Other" }; //is there a better way to do this than hardcoding the name?
 
@@ -348,6 +458,34 @@ namespace spotify_playlist_generator
                     Console.WriteLine("Removed " + removePlaylists.Count.ToString("#,##0") + " playlists.");
 
             }
+
+            foreach (var playlistBreakdown in playlistBreakdowns)
+            {
+                //complicated logic for determining duplicates
+                var dupes = playlistBreakdown.Value
+                    .GroupBy(track =>track.Name + " $$$ " + track.Artists.Select(a => a.Name).Join(", ")) //same track name, same artist
+                    .Where(group =>
+                        group.Count() > 1 && // only dupes
+                        group.Select(track => track.Album.Name).Distinct().Count() > 1 // not from the same album
+                        //do a time comparison as well to test for fundamental differences, but think about how this effects live albums
+                        )
+                    .Select(group => group
+                        .OrderByDescending(track => track.Album.AlbumType == "album") //albums first
+                        .ThenBy(track => track.Album.ReleaseDate) // older albums first; this should help de-prioritize deluxe releases and live albums
+                        //TODO put some serious thought into how to best handle live albums
+                        .ToList()
+                        )
+                    .ToList();
+
+                var removeTracks = dupes
+                    .SelectMany(group => group.Where(track => track != group.First()))
+                    .ToList();
+                playlistBreakdown.Value.RemoveRange(removeTracks);
+
+                if (Settings._VerboseDebug && dupes.Any())
+                    Console.WriteLine("Excluding " + removeTracks.Count().ToString("#,##0") + " dupes from " + playlistBreakdown.Key);
+            }
+
 
             var createPlaylistCounter = 0;
             var removedTracksCounter = 0;

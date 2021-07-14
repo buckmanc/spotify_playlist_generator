@@ -14,15 +14,28 @@ namespace spotify_playlist_generator
         /// <typeparam name="T"></typeparam>
         /// <param name="values"></param>
         /// <returns></returns>
-        public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> values)
+        public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> values, int Take = -1)
         {
             //force iteration
             var returnValues = new List<T>();
-            await foreach (var value in values)
-            {
-                returnValues.Add(value);
-            }
+            var itemCount = 0;
 
+            try
+            {
+                await foreach (var value in values)
+                {
+
+                    if (Take > -1 && itemCount >= Take)
+                        break;
+
+                    returnValues.Add(value);
+                    itemCount += 1;
+                }
+            }
+            catch (SpotifyAPI.Web.APIException ex)
+            {
+                //if the spotify api throws an exception, just eat it
+            }
             return returnValues;
 
         }
@@ -32,6 +45,7 @@ namespace spotify_playlist_generator
         /// <param name="value"></param>
         /// <param name="separator"></param>
         /// <returns></returns>
+        /// emulates an old VB function, which was very convenient
         public static string Join(this IEnumerable<string> value, string separator)
         {
             return string.Join(separator, value.ToArray());
@@ -42,6 +56,7 @@ namespace spotify_playlist_generator
         /// <param name="value"></param>
         /// <param name="separator"></param>
         /// <returns></returns>
+        /// emulates an old VB function, which was very convenient
         public static string Join(this IEnumerable<string> value)
         {
             return string.Join(string.Empty, value.ToArray());
@@ -102,6 +117,19 @@ namespace spotify_playlist_generator
                 return string.Empty; // or throw exception?
 
             return text.Substring(beginIndex, endIndex - beginIndex).Trim();
+        }
+
+        public static string RemoveAfterString(this string value, string RemoveAfter)
+        {
+            //based on https://stackoverflow.com/a/2660734 
+            if (string.IsNullOrEmpty(value))
+                return value;
+
+            int index = value.IndexOf(RemoveAfter);
+            if (index >= 0)
+                return value.Substring(0, index);
+
+            return value;
         }
     }
 }
