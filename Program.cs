@@ -18,10 +18,11 @@ namespace spotify_playlist_generator
             public static bool _NewPlaylistsPrivate;
             public static bool _RecreatePlaylists;
             public static bool _DeleteOrphanedPlaylists;
-            public static bool _VerboseDebug = false;
-            public static bool _TestValues = false;
+            public static bool _VerboseDebug;
         }
 
+        private static int MaxPlaylistSize = 11000; //max playlist size as of 2021-07-15; the api throws an error once you pass this
+        private static Regex idRegex = new Regex(@"[a-zA-Z0-9]{22}");
         public static string AssemblyDirectory
         {
             get
@@ -32,6 +33,60 @@ namespace spotify_playlist_generator
                 //string path = Uri.UnescapeDataString(uri.Path);
                 //return System.IO.Path.GetDirectoryName(path);
                 return System.IO.Path.GetDirectoryName(loc);
+            }
+        }
+
+        //having this as an extension method would make for much tighter organization, but CS0721 prevents this; no static types as parameters
+        public static void ClearLineAfterCursor(int UpdateCursorLeftPosition)
+        {
+            ConsoleUpdateCursorLeft(UpdateCursorLeftPosition);
+            Console.Write(new string(' ', Console.BufferWidth - UpdateCursorLeftPosition));
+            ConsoleUpdateCursorLeft(UpdateCursorLeftPosition);
+        }
+        public static void ClearLineAfterCursor()
+        {
+            var cursorLeft = Console.GetCursorPosition().Left;
+            ClearLineAfterCursor(cursorLeft);
+        }
+        //a method of convenience to avoid multi-line lambdas later on
+        public static void ConsoleWriteAndClearLine(string value)
+        {
+            Console.Write(value);
+            ClearLineAfterCursor();
+        }
+        public static void ConsoleWriteAndClearLine(int LeftPosition, string value)
+        {
+            Console.SetCursorPosition(LeftPosition, Console.GetCursorPosition().Top);
+            ConsoleWriteAndClearLine(value);
+        }
+        public static void ConsoleUpdateCursorLeft(int CursorLeft)
+        {
+            Console.SetCursorPosition(CursorLeft, Console.GetCursorPosition().Top);
+        }
+        public static string AddOrdinal(int num)
+        {
+            //https://stackoverflow.com/a/20175
+
+            if (num <= 0) return num.ToString();
+
+            switch (num % 100)
+            {
+                case 11:
+                case 12:
+                case 13:
+                    return num + "th";
+            }
+
+            switch (num % 10)
+            {
+                case 1:
+                    return num + "st";
+                case 2:
+                    return num + "nd";
+                case 3:
+                    return num + "rd";
+                default:
+                    return num + "th";
             }
         }
 
@@ -83,7 +138,6 @@ namespace spotify_playlist_generator
             var me = await spotify.UserProfile.Current();
             Console.WriteLine($"Hello there, {me.DisplayName}");
             Console.WriteLine("----------------------");
-            Console.WriteLine();
 
             //get various playlist definitions
             //that is, a name and a list of tracks
@@ -114,6 +168,7 @@ namespace spotify_playlist_generator
                 newFile["SETTINGS"]["NewPlaylistsPrivate"] = "false";
                 newFile["SETTINGS"]["RecreatePlaylists"] = "false";
                 newFile["SETTINGS"]["DeleteOrphanedPlaylists"] = "true";
+                newFile["SETTINGS"]["Verbose"] = "false";
                 iniParser.WriteFile(configIniPath, newFile);
             }
 
@@ -125,6 +180,7 @@ namespace spotify_playlist_generator
             Settings._NewPlaylistsPrivate = bool.Parse(configIni["SETTINGS"]["NewPlaylistsPrivate"]);
             Settings._RecreatePlaylists = bool.Parse(configIni["SETTINGS"]["RecreatePlaylists"]);
             Settings._DeleteOrphanedPlaylists = bool.Parse(configIni["SETTINGS"]["DeleteOrphanedPlaylists"]);
+            Settings._VerboseDebug = bool.Parse(configIni["SETTINGS"]["Verbose"]);
 
 
             //lazy developer shortcut for sharing files between two machines
@@ -179,12 +235,13 @@ namespace spotify_playlist_generator
                         
                 );
 
-            var regex = new Regex(@"[a-zA-Z0-9]{22}");
+            var pp = new ProgressPrinter(playlistsByArtists.Count(), (perc, time) => ConsoleWriteAndClearLine("\rReading playlist definitions: " + perc + ", " + time + " remaining"));
             foreach (var playlistName in playlistsByArtists.Keys)
             {
+
                 //check for any URIs in the artist name list
                 var playlistURIs = playlistsByArtists[playlistName]
-                    .Where(artistName => regex.Match(artistName).Success)
+                    .Where(artistName => idRegex.Match(artistName).Success)
                     .ToList();
 
                 //deliberately not removing raw URIs from the artist list as one could *theoretically* also be an artist name
@@ -192,16 +249,6 @@ namespace spotify_playlist_generator
                 //only do more work if we found any playlist URIs
                 if (playlistURIs.Any())
                 {
-
-                    if (Settings._VerboseDebug)
-                    {
-                        Console.WriteLine(
-                            "Found " +
-                            playlistURIs.Count().ToString("#,##0") +
-                            " playlist URIs under the \"" + playlistName +
-                            "\" playlist definition"
-                            );
-                    }
 
                     //pull out artist names from tracks in these playlists URIs
                     var playlistArtistNames = playlistURIs
@@ -226,8 +273,11 @@ namespace spotify_playlist_generator
                 if (removeArtists.Any())
                     playlistsByArtists[playlistName].RemoveRange(removeArtists);
 
+                pp.PrintProgress();
+
             }
 
+            Console.WriteLine();
             Console.WriteLine(
                 "Found " +
                 playlistsByArtists.Keys.Count().ToString("#,##0") +
@@ -242,9 +292,11 @@ namespace spotify_playlist_generator
         static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
         //static Dictionary<string, List<FullTrack>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
         {
+            Console.WriteLine();
+            Console.WriteLine("---likes by artist playlists---");
+
             var preface = "#Liked - ";
             var otherPlaylistName = "Z$ Other";
-
             var likesByArtistPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Artist");
 
             var playlistsByArtists = GetArtistPlaylistSetup(spotify, likesByArtistPath);
@@ -269,15 +321,23 @@ namespace spotify_playlist_generator
 
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
 
+            var pp = new ProgressPrinter(playlistsByArtists.Count(), (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc + ", " + time + " remaining"));
             foreach (var playlistBreakdown in playlistsByArtists)
             {
 
                 //add all liked tracks to the playlist breakdown
                 var artistLikedTracks = likedTracks.Where(t => t.Artists.Any(a => playlistBreakdown.Value.Any(playlistArtist => playlistArtist == a.Name))).ToList();
                 playlistBreakdowns.Add(preface + playlistBreakdown.Key, artistLikedTracks);
-
+                pp.PrintProgress();
             }
 
+            Console.WriteLine();
+            Console.WriteLine("Assembled " +
+                playlistBreakdowns.Count().ToString("#,##0") +
+                " playlists with " +
+                playlistBreakdowns.Values.Sum(x => x.Count()).ToString("#,##0") +
+                " tracks."
+                );
 
             return playlistBreakdowns;
         }
@@ -285,15 +345,24 @@ namespace spotify_playlist_generator
         //static Dictionary<string, List<FullTrack>> GetFullArtistDiscographyBreakdowns(SpotifyClient spotify)
         static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetFullArtistDiscographyBreakdowns(SpotifyClient spotify)
         {
+            Console.WriteLine();
+            Console.WriteLine("---full discography by artist playlists---");
 
             var directoryPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Full Discography By Artist");
             var playlistsByArtists = GetArtistPlaylistSetup(spotify, directoryPath);
             var preface = "#Full Discog - ";
 
+            var missingArtists = new List<string>();
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
+            var playlistCount = 1;
+            var tooLargePlaylistCount = 0;
+            var verboseDebugOutput = new List<string>();
 
+            var pp = new ProgressPrinter(playlistsByArtists.Count(), (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc));
             foreach (var playlistByArtist in playlistsByArtists)
             {
+                var cursorLeft = Console.GetCursorPosition().Left;
+
                 //the only example of searching with the API wrapper
                 //https://johnnycrazy.github.io/SpotifyAPI-NET/docs/pagination
 
@@ -301,6 +370,7 @@ namespace spotify_playlist_generator
                 //https://developer.spotify.com/documentation/web-api/reference/#writing-a-query---guidelines
 
                 //"search" for artists, then correct results to actually the artists named
+                var ppArtists = new ProgressPrinter(playlistByArtist.Value.Count(), (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting artists: " + perc + ", " + time + " remaining"));
                 var artists = playlistByArtist.Value
                     .Select(artistName => new SearchRequest(SearchRequest.Types.Artist, "artist:" + artistName))
                     .Select(request => spotify.Search.Item(request).Result)
@@ -309,13 +379,19 @@ namespace spotify_playlist_generator
                         .Where(artist => playlistByArtist.Value.Contains(artist.Name)) // can't do a test on this specific artist name without a lot more mess
                         .FirstOrDefault()
                         )
-                    .Where(artist => artist != null)
+                    .Where(artist => ppArtists.PrintProgress() && artist != null)
                     .ToList();
+                ConsoleUpdateCursorLeft(cursorLeft);
 
                 //get all albums for the artists found
+                var ppAlbums = new ProgressPrinter(Total: artists.Count(),
+                                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting albums: " + perc + ", " + time + " remaining")
+                                                   );
                 var albums = artists.Select(artist => spotify.Artists.GetAlbums(artist.Id).Result)
+                    .Where(x => ppAlbums.PrintProgress())
                     .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                     .OrderBy(album => album.ReleaseDate)
+                    .Take(MaxPlaylistSize) //no point in taking more albums than the amount of tracks that are allowed
                     .ToList();
 
                 //remove a particular album which is 1) a duplicate and 2) behaves erratically
@@ -332,11 +408,20 @@ namespace spotify_playlist_generator
                     .Select(a => a.Id)
                     .ToList();
 
+                var ppTracks = new ProgressPrinter(Total: Math.Max(albums.Count(), MaxPlaylistSize),
+                                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
+                                                   );
                 //identify tracks in those albums
                 var trackIDs = albums.Select(album => spotify.Albums.GetTracks(album.Id).Result)
+                    .Where(x => ppTracks.PrintProgress())
                     .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                     .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                    .Take(MaxPlaylistSize) //no point in taking more tracks than the max
                     .ToList();
+
+                //technically this will flag at one track BEFORE passing the max, but I think the loss of precision is worth the simplicity
+                if (trackIDs.Count >= MaxPlaylistSize)
+                    tooLargePlaylistCount += 1;
 
                 //get the tracks
                 var tracks = new List<FullTrack>();
@@ -353,22 +438,46 @@ namespace spotify_playlist_generator
                     tracks.AddRange(chunkTracks);
                 }
 
-                if (Settings._VerboseDebug)
-                {
-                    var heyoJankyos = playlistByArtist.Value.Where(artistName => !artists.Any(a => a.Name == artistName)).ToList();
-                    if (heyoJankyos.Any())
-                        Console.WriteLine("Could not find the following artists for \"" + playlistByArtist.Key + "\": " + heyoJankyos.Join(", "));
+                verboseDebugOutput.Add(playlistByArtist.Key + " full discog: " +
+                    artists.Count().ToString("#,##0") + " artists, " +
+                    albums.Count().ToString("#,##0") + " albums, " +
+                    tracks.Count().ToString("#,##0") + " tracks"
+                    );
 
-                    Console.WriteLine("found " + 
-                        artists.Count.ToString("#,##0") + " artists, " +
-                        albums.Count.ToString("#,##0") + " albums, and " +
-                        tracks.Count.ToString("#,##0") + " tracks " +
-                        "in full discog search");
-                }
+                //track artists that couldn't be found for reporting later
+                var missingArtistsInThisPlaylist = playlistByArtist.Value.Where(artistName => !artists.Any(a => a.Name == artistName)).ToList();
+                missingArtists.AddRange(missingArtistsInThisPlaylist);
 
                 //add the playlist
                 playlistBreakdowns.Add(preface + playlistByArtist.Key, tracks);
+                playlistCount += 1;
+                pp.PrintProgress();
             }
+
+            missingArtists = missingArtists
+                .Where(s => !s.StartsWith("-") && !idRegex.Match(s).Success)
+                .ToList();
+
+            Console.WriteLine();
+            if (missingArtists.Any())
+                Console.WriteLine("Could not find the following artists: " + missingArtists.Join(", "));
+
+            if (tooLargePlaylistCount > 0)
+                Console.WriteLine(tooLargePlaylistCount.ToString("#,##0") +
+                    " playlist" + (tooLargePlaylistCount == 1 ? "" : "s") +
+                    " reached Spotify's max playlist size of " +
+                    MaxPlaylistSize.ToString("#,##0") + " tracks"
+                    );
+
+            if (Settings._VerboseDebug)
+                Console.WriteLine(verboseDebugOutput.Join(Environment.NewLine));
+
+            Console.WriteLine("Assembled " +
+                playlistBreakdowns.Count().ToString("#,##0") +
+                " playlists with " +
+                playlistBreakdowns.Values.Sum(x => x.Count()).ToString("#,##0") +
+                " tracks."
+                );
 
             return playlistBreakdowns;
         }
@@ -381,18 +490,13 @@ namespace spotify_playlist_generator
                 .Select(x => x.Track)
                 .ToList();
 
-            if (Settings._VerboseDebug)
-            {
-                var likedTracksBreakdown = tracks.Select(track =>
-                    string.Join(", ", track.Artists.Select(x => x.Name).ToArray()) + " - " +
-                    track.Name
-                    ).Join(Environment.NewLine);
-                Console.WriteLine();
-                Console.WriteLine(likedTracksBreakdown);
-                Console.WriteLine();
-            }
-
-            Console.WriteLine("Found " + tracks.Count().ToString("#,##0") + " liked tracks.");
+            Console.WriteLine(
+                "Found " + 
+                tracks.Count().ToString("#,##0") + 
+                " liked tracks from " + 
+                tracks.SelectMany(t => t.Artists.Select(a => a.Name)).Distinct().Count().ToString("#,##0") +
+                " artists."
+                );
 
             return tracks;
 
@@ -409,6 +513,8 @@ namespace spotify_playlist_generator
 
         static async System.Threading.Tasks.Task UpdatePlaylists(SpotifyClient spotify, Dictionary<string, List<FullTrack>> playlistBreakdowns)
         {
+            Console.WriteLine();
+            Console.WriteLine("---playlist management---");
 
             var allPlaylists = await GetAllPlaylists(spotify);
 
@@ -433,7 +539,7 @@ namespace spotify_playlist_generator
                 }
 
                 if (removePlaylists.Any())
-                    Console.WriteLine("Removed " + removePlaylists.Count.ToString("#,##0") + " playlists.");
+                    Console.WriteLine("Removed " + removePlaylists.Count.ToString("#,##0") + " playlists for re-creation.");
 
             }
             //remove orphaned playlists
@@ -455,7 +561,7 @@ namespace spotify_playlist_generator
                 }
 
                 if (removePlaylists.Any())
-                    Console.WriteLine("Removed " + removePlaylists.Count.ToString("#,##0") + " playlists.");
+                    Console.WriteLine("Removed " + removePlaylists.Count.ToString("#,##0") + " orphaned playlists.");
 
             }
 
@@ -493,6 +599,7 @@ namespace spotify_playlist_generator
 
             //iterating through rather than running in bulk with linq to *hopefully* be a little more memory efficient
             //order by descending playlist name to get alphabetical playlists in the Spotify interface
+            var pp = new ProgressPrinter(playlistBreakdowns.Count(), (perc, time) => ConsoleWriteAndClearLine("\rCreating playlists: " + perc + ", " + time + " remaining"));
             foreach (var playlistBreakdown in playlistBreakdowns.OrderByDescending(kvp => kvp.Key).ToList())
             {
                 //get the playlist for this playlist name
@@ -559,9 +666,10 @@ namespace spotify_playlist_generator
                     addedTracksCounter += addTrackURIs.Count();
                 }
 
-                //TODO percent progress counter
+                pp.PrintProgress();
             }
 
+            Console.WriteLine();
             Console.WriteLine("Removed " + removedTracksCounter.ToString("#,##0") + " existing tracks.");
             Console.WriteLine("Added " + addedTracksCounter.ToString("#,##0") + " new tracks.");
             Console.WriteLine();

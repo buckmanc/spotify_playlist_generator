@@ -143,4 +143,48 @@ namespace spotify_playlist_generator
             return response;
         }
     }
+
+    public class ProgressPrinter
+    {
+        private System.Diagnostics.Stopwatch _sw;
+        private double _progress = 0;
+        private int _total = 0;
+        private Action<string, string> _Update;
+
+        public ProgressPrinter(int Total, Action<string, string> Update)
+        {
+            _total = Total;
+            _Update = Update;
+            this.Start();
+        }
+
+        public ProgressPrinter(int Total, Action<string> Update)
+        {
+            _total = Total;
+            _Update = (x, y) => Update(x);
+            this.Start();
+        }
+
+        private void Start()
+        {
+            _sw = System.Diagnostics.Stopwatch.StartNew();
+            _Update("0%", "");
+        }
+
+        public bool PrintProgress()
+        {
+            _progress += 1;
+            var percentProgress = _progress / _total;
+            var ticksRemaining = ((1 - percentProgress) * _sw.Elapsed.Ticks) / percentProgress;
+            var tsRemaining = double.IsInfinity(ticksRemaining) || double.IsNaN(ticksRemaining)
+                ? new TimeSpan(0)
+                : new TimeSpan(System.Convert.ToInt64(ticksRemaining));
+
+            _Update(string.Format("{0:0.00%}", percentProgress), tsRemaining.ToHumanTimeString());
+
+            return true;
+        }
+
+
+    }
 }

@@ -35,6 +35,7 @@ namespace spotify_playlist_generator
             catch (SpotifyAPI.Web.APIException ex)
             {
                 //if the spotify api throws an exception, just eat it
+                //TODO either refine this a bit or supress the compiler warning
             }
             return returnValues;
 
@@ -130,6 +131,25 @@ namespace spotify_playlist_generator
                 return value.Substring(0, index);
 
             return value;
+        }
+
+        public static string ToHumanTimeString(this TimeSpan span, int decimalPlaces = 2)
+        {
+            //inspired by this one, but more readable
+            //https://www.extensionmethod.net/csharp/timespan/timespan-tohumantimestring
+            var format = "N" + decimalPlaces;
+            string returnString;
+
+            if (span.TotalMinutes < 1)
+                returnString = span.TotalSeconds.ToString(format) + " seconds";
+            else if (span.TotalHours < 1)
+                returnString = span.TotalMinutes.ToString(format) + " minutes";
+            else if (span.TotalDays < 1)
+                returnString = span.TotalHours.ToString(format) + " hours";
+            else
+                returnString = span.TotalDays.ToString(format) + " days";
+
+            return returnString;
         }
     }
 }
