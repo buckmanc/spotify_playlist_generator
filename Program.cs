@@ -451,7 +451,7 @@ namespace spotify_playlist_generator
             {
 
                 //add all liked tracks to the playlist breakdown
-                var artistLikedTracks = likedTracks.Where(t => t.Artists.Any(a => playlistBreakdown.Value.Any(playlistArtist => playlistArtist == a.Name))).ToList();
+                var artistLikedTracks = likedTracks.Where(t => t.Artists.Any(a => playlistBreakdown.Value.Any(playlistArtist => playlistArtist.ToLower() == a.Name.ToLower()))).ToList();
                 playlistBreakdowns.Add(preface + playlistBreakdown.Key, artistLikedTracks);
                 pp.PrintProgress();
             }
@@ -503,7 +503,7 @@ namespace spotify_playlist_generator
                     .Select(request => spotify.Search.Item(request).Result)
                     .Select(item => spotify.Paginate(item.Artists, s => s.Artists, new WaitPaginator(WaitTime: 500))
                         .ToListAsync(Take: 40).Result // would like this to be 1, but the sought for artists are missing with less than 40
-                        .Where(artist => playlistByArtist.Value.Contains(artist.Name)) // can't do a test on this specific artist name without a lot more mess
+                        .Where(artist => playlistByArtist.Value.Contains(artist.Name, StringComparer.InvariantCultureIgnoreCase)) // can't do a test on this specific artist name without a lot more mess
                         .FirstOrDefault()
                         )
                     .Where(artist => ppArtists.PrintProgress() && artist != null)
@@ -583,9 +583,9 @@ namespace spotify_playlist_generator
                     var chunkTracks = (await spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Tracks
                         //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
                         //this includes tracks that are on split albums, collaborations, and the like
-                        .Where(t => !appearsOnAlbums.Contains(t.Album.Id) || t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName)))
+                        .Where(t => !appearsOnAlbums.Contains(t.Album.Id) || t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
                         ////only include tracks strictly by artists specified
-                        //.Where(t => t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName)))
+                        //.Where(t => t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
                         .ToList();
 
                     tracks.AddRange(chunkTracks);
@@ -598,7 +598,8 @@ namespace spotify_playlist_generator
                     );
 
                 //track artists that couldn't be found for reporting later
-                var missingArtistsInThisPlaylist = playlistByArtist.Value.Where(artistName => !artists.Any(a => a.Name == artistName)).ToList();
+                //TODO update this for album/track exclusion logic
+                var missingArtistsInThisPlaylist = playlistByArtist.Value.Where(artistName => !artists.Any(a => a.Name.ToLower() == artistName.ToLower())).ToList();
                 missingArtists.AddRange(missingArtistsInThisPlaylist);
 
                 //add the playlist
