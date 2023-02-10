@@ -571,7 +571,10 @@ namespace spotify_playlist_generator
 
                 //technically this will flag at one track BEFORE passing the max, but I think the loss of precision is worth the simplicity
                 if (trackIDs.Count >= MaxPlaylistSize)
+                {
                     tooLargePlaylistCount += 1;
+                    verboseDebugOutput.Add(playlistByArtist.Key + " playlist has tracks beyond the max");
+                }
 
                 //get the tracks
                 var tracks = new List<FullTrack>();
