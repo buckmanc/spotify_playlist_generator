@@ -14,7 +14,9 @@ namespace spotify_playlist_generator
         {
             public static string _configFolder;
             public static string _PlaylistFolderPath;
-            public static string _CommentString = "#"; //TODO consider pulling this from a config file
+            public static string _CommentString = "#";      //TODO consider pulling this from a config file
+            public static string _ExclusionString = "-";    //TODO consider pulling this from a config file
+            public static string _SeparatorString = "-";    //TODO consider pulling this from a config file
             public static bool _NewPlaylistsPrivate;
             public static bool _RecreatePlaylists;
             public static bool _DeleteOrphanedPlaylists;
@@ -238,6 +240,17 @@ namespace spotify_playlist_generator
             var pp = new ProgressPrinter(playlistsByArtists.Count(), (perc, time) => ConsoleWriteAndClearLine("\rReading playlist definitions: " + perc + ", " + time + " remaining"));
             foreach (var playlistName in playlistsByArtists.Keys)
             {
+                //pull out the artist name for positive album/track specifications here
+                //format being "artist name - album name - track name"
+                //the excess tracks are removed downline by HandleExclusions()
+                var artistsOnly = playlistsByArtists[playlistName]
+                    .Where(artistName => !artistName.StartsWith(Settings._ExclusionString) && artistName.Contains(Settings._SeparatorString))
+                    .Select(artistName => artistName.Split(Settings._SeparatorString).First().Trim())
+                    .ToList();
+
+                //adding these instead of editing to better handle possible artists that include the exclusion character
+                playlistsByArtists[playlistName].AddRange(artistsOnly);
+
 
                 //check for any URIs in the artist name list
                 var playlistURIs = playlistsByArtists[playlistName]
@@ -277,13 +290,16 @@ namespace spotify_playlist_generator
 
                 }
 
-                var removeArtists = playlistsByArtists[playlistName]
-                    .Where(artistName => artistName.StartsWith("-"))
-                    .Select(artistName => artistName.Substring(1))
+                // handle artists to exclude
+                // not ignoring album/track exclusions here as the risk of artists containing the separator character is bigger
+                // TODO consider outsourcing this to a HandleExclusions overload then calling it here for organization purposes
+                var excludeArtist = playlistsByArtists[playlistName]
+                    .Where(artistName => artistName.StartsWith(Settings._ExclusionString))
+                    .Select(artistName => artistName.Substring(Settings._ExclusionString.Length))
                     .ToList();
 
-                if (removeArtists.Any())
-                    playlistsByArtists[playlistName].RemoveRange(removeArtists);
+                if (excludeArtist.Any())
+                    playlistsByArtists[playlistName].RemoveRange(excludeArtist);
 
                 pp.PrintProgress();
 
@@ -299,6 +315,103 @@ namespace spotify_playlist_generator
                 );
 
             return playlistsByArtists;
+        }
+        static void HandleExclusions(Dictionary<string, List<FullTrack>> playlistBreakdowns, Dictionary<string, List<string>> playlistArtists)
+        {
+
+            //temp measure to keep this runable
+            return;
+
+            //right now this logic is excluding nearly everything
+            //because you're excluding every artist that isn't explicitly included
+            //need to work out a better way to do this
+            //the slightly more intuitive way would be to go line by line applying the logic in that order... but that may be too hard
+
+            //foreach (var playlistBreakdown in playlistBreakdowns)
+            //{
+            //    //TODO add a missing check here, though it should never occur without coder error
+            //    //the split here is terrible, but should work fine as we're only dealing with one type of playlist at a time
+            //    //TODO consider refactoring this if practical
+            //    var artistNames = playlistArtists[playlistBreakdown.Key.Split("-",2)[1].Trim()]
+            //            .Where(artistName => artistName.Contains(Settings._SeparatorString))
+            //            .ToList();
+
+            //    if (!artistNames.Any())
+            //        continue;
+
+            //    //model the include/exclude breakdown in an object
+            //    var includeExcludeBreakdown = artistNames.Select(artistName => new
+            //    {
+            //        Exclude = artistName.StartsWith(Settings._ExclusionString),
+            //        ArtistName = artistName.TrimStart(Settings._ExclusionString).Trim()
+            //    })
+            //        .Select(x => new
+            //        {
+            //            x.Exclude,
+            //            ArtistName = x.ArtistName.Split(Settings._SeparatorString)[0].Trim(),
+            //            AlbumName = (x.ArtistName.CountOccurrences(Settings._SeparatorString) >= 1 ? x.ArtistName.Split(Settings._SeparatorString)[1].Trim() : null),
+            //            TrackName = (x.ArtistName.CountOccurrences(Settings._SeparatorString) >= 2 ? x.ArtistName.Split(Settings._SeparatorString, 3)[2].Trim() : null) //it's very likely that tracks will include the separator character, so only split to three elements
+            //        })
+            //        .ToList();
+
+            //    var tracks =
+            //        playlistBreakdown.Value
+            //        //inclusions
+            //        .Where(track =>
+            //        includeExcludeBreakdown.Where(ie => !ie.Exclude).Any(ie =>
+            //            (track.Artists.Any(artist => artist.Name == ie.ArtistName) && ie.AlbumName == null)
+            //            || (track.Artists.Any(artist => artist.Name == ie.ArtistName) && track.Album.Name == ie.AlbumName && ie.TrackName == null)
+            //            || (track.Artists.Any(artist => artist.Name == ie.ArtistName) && track.Album.Name == ie.AlbumName && track.Name == ie.TrackName )
+            //            )
+            //    )
+            //        //then exclusions
+            //        .Where(track =>
+            //        !includeExcludeBreakdown.Where(ie => ie.Exclude).Any(ie =>
+            //            (track.Artists.Any(artist => artist.Name == ie.ArtistName) && ie.AlbumName == null)
+            //            || (track.Artists.Any(artist => artist.Name == ie.ArtistName) && track.Album.Name == ie.AlbumName && ie.TrackName == null)
+            //            || (track.Artists.Any(artist => artist.Name == ie.ArtistName) && track.Album.Name == ie.AlbumName && track.Name == ie.TrackName)
+            //            )
+            //    )
+            //        .ToList();
+
+            //    //for testing only
+            //    var excludedTracks = playlistBreakdown.Value.Where(track => !tracks.Any(x => x.Id == track.Id))
+            //        .Select(track => new
+            //        {
+            //            ArtistNames = track.Artists.Select(a => a.Name).Join(", "),
+            //            AlbumName = track.Album.Name,
+            //            TrackName = track.Name
+            //        })
+            //        .ToList();
+
+
+            //    foreach (var artistName in artistNames)
+            //    {
+            //        //positive album
+            //        if (!artistName.StartsWith(Settings._ExclusionString) && artistName.TrimStart(Settings._ExclusionString).CountOccurrences(Settings._SeparatorString) == 1)
+            //        {
+
+            //        }
+            //        //positive track
+            //        //doing a > 1 count here to include tracks with the separator character in them
+            //        //account for this logic when parsing out the artist/album/track names
+            //        else if (!artistName.StartsWith(Settings._ExclusionString) && artistName.TrimStart(Settings._ExclusionString).CountOccurrences(Settings._SeparatorString) > 1)
+            //        {
+
+            //        }
+            //        //negative album
+            //        else if (artistName.StartsWith(Settings._ExclusionString) && artistName.TrimStart(Settings._ExclusionString).CountOccurrences(Settings._SeparatorString) == 1)
+            //        {
+
+            //        }
+            //        //negative track
+            //        else if (artistName.StartsWith(Settings._ExclusionString) && artistName.TrimStart(Settings._ExclusionString).CountOccurrences(Settings._SeparatorString) > 1)
+            //        {
+
+            //        }
+            //    }
+
+            //}
         }
 
         static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
@@ -342,6 +455,8 @@ namespace spotify_playlist_generator
                 playlistBreakdowns.Add(preface + playlistBreakdown.Key, artistLikedTracks);
                 pp.PrintProgress();
             }
+
+            HandleExclusions(playlistBreakdowns, playlistsByArtists);
 
             Console.WriteLine();
             Console.WriteLine("Assembled " +
@@ -425,7 +540,7 @@ namespace spotify_playlist_generator
                     .Where(x => ppAlbums.PrintProgress())
                     .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                     .OrderBy(album => album.ReleaseDate)
-                    .Take(MaxPlaylistSize) //no point in taking more albums than the amount of tracks that are allowed
+                    .Take(MaxPlaylistSize) //no point in taking more albums than the amount of tracks that are allowed TODO update for album/track exclusions
                     .ToList();
 
                 //remove a particular album which is 1) a duplicate and 2) behaves erratically
@@ -442,6 +557,7 @@ namespace spotify_playlist_generator
                     .Select(a => a.Id)
                     .ToList();
 
+                //TODO update for album/track exclusions
                 var ppTracks = new ProgressPrinter(Total: Math.Max(albums.Count(), MaxPlaylistSize),
                                                    Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
                                                    );
@@ -450,7 +566,7 @@ namespace spotify_playlist_generator
                     .Where(x => ppTracks.PrintProgress())
                     .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                     .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
-                    .Take(MaxPlaylistSize) //no point in taking more tracks than the max
+                    .Take(MaxPlaylistSize) //no point in taking more tracks than the max TODO update for album/track exclusions
                     .ToList();
 
                 //technically this will flag at one track BEFORE passing the max, but I think the loss of precision is worth the simplicity
@@ -487,6 +603,8 @@ namespace spotify_playlist_generator
                 playlistCount += 1;
                 pp.PrintProgress();
             }
+
+            HandleExclusions(playlistBreakdowns, playlistsByArtists);
 
             missingArtists = missingArtists
                 .Where(s => !s.StartsWith("-") && !idRegex.Match(s).Success)

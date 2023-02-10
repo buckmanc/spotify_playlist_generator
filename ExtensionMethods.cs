@@ -62,6 +62,42 @@ namespace spotify_playlist_generator
         {
             return string.Join(string.Empty, value.ToArray());
         }
+
+        /// <summary>
+        /// Removes the specified string from the beginning of a string.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="trimString"></param>
+        /// <returns></returns>
+        public static string TrimStart(this string value, string trimString = " ")
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(trimString)) return value;
+
+            while (value.StartsWith(trimString))
+            {
+                value = value.Substring(trimString.Length);
+            }
+
+            return value;
+
+        }
+
+        /// <summary>
+        /// Count how often one string occurs in another.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="search"></param>
+        /// <returns></returns>
+        public static int CountOccurrences(this string value, string search)
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(search) || !value.Contains(search))  return 0;
+
+            var iReturn = (value.Length - value.Replace(search, string.Empty).Length) / search.Length;
+
+            return iReturn;
+
+        }
+
         /// <summary>
         /// 
         /// </summary>
