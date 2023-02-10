@@ -151,5 +151,23 @@ namespace spotify_playlist_generator
 
             return returnString;
         }
+
+        public static T ResultSafe<T>(this Task<T> value)
+        {
+            try
+            {
+                value.Wait();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine();
+                //if the exception is an invalid playlist/artist uri exception from SpotifyAPI, ignore it
+                if (!ex.Message.Contains("Not found") && !ex.Message.Contains("non existing id"))
+                    throw;
+                return default(T);
+            }
+
+            return value.Result;
+        }
     }
 }

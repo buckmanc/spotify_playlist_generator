@@ -246,18 +246,30 @@ namespace spotify_playlist_generator
 
                 //deliberately not removing raw URIs from the artist list as one could *theoretically* also be an artist name
 
+
+
+                //TODO load playlist artists from a file here
+                //something like Nordic Folk - Artists From Playlist.txt
+                //to preserve artist names from living playlists
+                //maybe draw a bit setting for this from the playlist file itself
+                //load into a playlist artist archive variable so it can be compared when saving the playlist artists below
+
                 //only do more work if we found any playlist URIs
+                //TODO are collisions with artist URIs a concern?
                 if (playlistURIs.Any())
                 {
 
                     //pull out artist names from tracks in these playlists URIs
                     var playlistArtistNames = playlistURIs
-                        .Select(uri => spotify.Playlists.Get(uri).Result)
+                        .Select(uri => spotify.Playlists.Get(uri).ResultSafe())
+                        .Where(p => p != null)
                         .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime:500)).ToListAsync().Result)
                         .SelectMany(playableItem => ((FullTrack)playableItem.Track).Artists.Select(a => a.Name))
                         .Distinct()
                         .ToList();
                     ;
+
+                    //TODO save playlist artists to a file here
 
                     //add in the artist names, then remove duplicates
                     playlistsByArtists[playlistName].AddRange(playlistArtistNames);
@@ -309,7 +321,7 @@ namespace spotify_playlist_generator
                 .OrderByDescending(x => likedTracks.Where(t => t.Artists.Any(a => a.Name == x)).Count()) //TODO ordering here does nothing
                 .ToList();
 
-            //consider writing the artist list to an "other" liked by artist playlist file
+            //TODO consider writing the artist list to an "other" liked by artist playlist file
             //but that's complicated, as you'd have to not read it in on subsequent runs
             //or just explicitly ignore/remove it
 
@@ -382,6 +394,28 @@ namespace spotify_playlist_generator
                     .Where(artist => ppArtists.PrintProgress() && artist != null)
                     .ToList();
                 ConsoleUpdateCursorLeft(cursorLeft);
+
+
+                //check for any URIs in the artist name list
+                //this will pick up playlist URIs every time, but they'll be filtered out below
+                var artistURIs = playlistByArtist.Value
+                    .Where(artistName => idRegex.Match(artistName).Success)
+                    .ToList();
+
+                //only do more work if we found any artist URIs
+                //TODO are collisions with playlist URIs a concern?
+                if (artistURIs.Any())
+                {
+
+                    //pull out artist names from tracks in these artists URIs
+                    var artistsByURI = artistURIs
+                        .Select(uri => spotify.Artists.Get(uri).ResultSafe())
+                        .Where(p => p != null)
+                        .Distinct()
+                        .ToList();
+
+                    artists.AddRange(artistsByURI);
+                };
 
                 //get all albums for the artists found
                 var ppAlbums = new ProgressPrinter(Total: artists.Count(),
@@ -569,10 +603,10 @@ namespace spotify_playlist_generator
             {
                 //complicated logic for determining duplicates
                 var dupes = playlistBreakdown.Value
-                    .GroupBy(track =>track.Name + " $$$ " + track.Artists.Select(a => a.Name).Join(", ")) //same track name, same artist
+                    .GroupBy(track => track.Name.ToLower() + " $$$ " + track.Artists.Select(a => a.Name).Join(", ")) //same track name, same artist
                     .Where(group =>
                         group.Count() > 1 && // only dupes
-                        group.Select(track => track.Album.Name).Distinct().Count() > 1 // not from the same album
+                        group.Select(track => track.Album.Id).Distinct().Count() > 1 // not from the same album
                         //do a time comparison as well to test for fundamental differences, but think about how this effects live albums
                         )
                     .Select(group => group
@@ -584,7 +618,7 @@ namespace spotify_playlist_generator
                     .ToList();
 
                 var removeTracks = dupes
-                    .SelectMany(group => group.Where(track => track != group.First()))
+                    .SelectMany(group => group.Where(track => track != group.First())) // remove all but the first track per group
                     .ToList();
                 playlistBreakdown.Value.RemoveRange(removeTracks);
 
