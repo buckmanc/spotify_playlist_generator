@@ -32,7 +32,7 @@ namespace spotify_playlist_generator
                     itemCount += 1;
                 }
             }
-            catch (SpotifyAPI.Web.APIException ex)
+            catch (SpotifyAPI.Web.APIException)
             {
                 //if the spotify api throws an exception, just eat it
                 //TODO either refine this a bit or supress the compiler warning
@@ -200,7 +200,7 @@ namespace spotify_playlist_generator
                 //if the exception is an invalid playlist/artist uri exception from SpotifyAPI, ignore it
                 if (!ex.Message.Contains("Not found") && !ex.Message.Contains("non existing id"))
                     throw;
-                return default(T);
+                return default;
             }
 
             return value.Result;

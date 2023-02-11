@@ -4,6 +4,7 @@ using IniParser;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace spotify_playlist_generator
 {
@@ -100,7 +101,10 @@ namespace spotify_playlist_generator
         static async System.Threading.Tasks.Task MainAsync(string[] args)
         {
             Console.WriteLine();
+            Console.WriteLine("Starting at " + DateTime.Now.ToString());
             Console.WriteLine("Welcome to C# Spotify Playlist Generator! Please don't expect too much, but also be impressed.");
+
+            var sw = Stopwatch.StartNew();
 
             //default to looking for settings in the same dir as the program
             if (args.Any() && System.IO.Directory.Exists(args[0]))
@@ -147,6 +151,7 @@ namespace spotify_playlist_generator
             playlistBreakdowns.AddRange(await GetLikesByArtistPlaylistBreakdowns(spotify));
             playlistBreakdowns.AddRange(await GetFullArtistDiscographyBreakdowns(spotify));
 
+
             //do work!
             await UpdatePlaylists(spotify, playlistBreakdowns);
 
@@ -154,6 +159,8 @@ namespace spotify_playlist_generator
 
             Console.WriteLine();
             Console.WriteLine("All done, get jammin'!");
+
+            Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString());
         }
 
         //static async System.Threading.Tasks.Task GetConfig()
@@ -234,7 +241,7 @@ namespace spotify_playlist_generator
                         .Where(line => !string.IsNullOrWhiteSpace(line)) //remove blank lines
                         .Distinct() //keep unique lines
                         .ToList()
-                        
+
                 );
 
             var pp = new ProgressPrinter(playlistsByArtists.Count(), (perc, time) => ConsoleWriteAndClearLine("\rReading playlist definitions: " + perc + ", " + time + " remaining"));
@@ -276,7 +283,7 @@ namespace spotify_playlist_generator
                     var playlistArtistNames = playlistURIs
                         .Select(uri => spotify.Playlists.Get(uri).ResultSafe())
                         .Where(p => p != null)
-                        .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime:500)).ToListAsync().Result)
+                        .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                         .SelectMany(playableItem => ((FullTrack)playableItem.Track).Artists.Select(a => a.Name))
                         .Distinct()
                         .ToList();
@@ -566,6 +573,7 @@ namespace spotify_playlist_generator
                     .Where(x => ppTracks.PrintProgress())
                     .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                     .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                    .Distinct()
                     .Take(MaxPlaylistSize) //no point in taking more tracks than the max TODO update for album/track exclusions
                     .ToList();
 
