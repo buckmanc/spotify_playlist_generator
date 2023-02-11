@@ -105,7 +105,7 @@ namespace spotify_playlist_generator
         /// <param name="source"></param>
         /// <param name="chunkSize"></param>
         /// <returns></returns>
-        public static List<List<T>> ChunkBy<T>(this List<T> source, int chunkSize)
+        public static List<List<T>> ChunkBy<T>(this IEnumerable<T> source, int chunkSize)
         {
             //pulled from https://stackoverflow.com/questions/11463734/split-a-list-into-smaller-lists-of-n-size
             return source

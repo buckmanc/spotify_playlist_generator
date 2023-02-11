@@ -163,9 +163,7 @@ namespace spotify_playlist_generator
             await UpdatePlaylists(spotify, playlistBreakdowns);
 
             //wait for the reporting thread to complete before continuing
-            //thread.Join() doesn't work for some reason
-            while (threadReporting.IsAlive)
-                System.Threading.Thread.Sleep(1000);
+            threadReporting.Join();
 
 
 

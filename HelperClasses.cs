@@ -125,7 +125,7 @@ namespace spotify_playlist_generator
             var secondsToWait = ParseTooManyRetries(response);
             if (secondsToWait != null && (!TooManyRequestsConsumesARetry || triesLeft > 0))
             {
-                Console.WriteLine("Received 429 error, waiting " + secondsToWait.ToString() + " before retry.");
+                Console.WriteLine("Received 429 error, waiting " + secondsToWait.Value.ToHumanTimeString() + " before retry.");
                 await _sleep(secondsToWait.Value).ConfigureAwait(false);
                 response = await retry(request).ConfigureAwait(false);
                 var newTriesLeft = TooManyRequestsConsumesARetry ? triesLeft - 1 : triesLeft;
