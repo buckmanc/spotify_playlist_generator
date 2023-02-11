@@ -139,21 +139,33 @@ namespace spotify_playlist_generator
 
             var spotify = new SpotifyClient(config);
 
-
-
             var me = await spotify.UserProfile.Current();
             Console.WriteLine($"Hello there, {me.DisplayName}");
             Console.WriteLine("----------------------");
 
+            //start reports on a different thread
+            //hopefully this doesn't cause api problems lol
+            var threadReporting = new System.Threading.Thread(() =>
+            {
+                LikedGenreReport(spotify).Wait();
+            });
+            threadReporting.Start();
+
             //get various playlist definitions
             //that is, a name and a list of tracks
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
+            playlistBreakdowns.AddRange(await GetLikedTracksByGenre(spotify));
             playlistBreakdowns.AddRange(await GetLikesByArtistPlaylistBreakdowns(spotify));
             playlistBreakdowns.AddRange(await GetFullArtistDiscographyBreakdowns(spotify));
 
 
             //do work!
             await UpdatePlaylists(spotify, playlistBreakdowns);
+
+            //wait for the reporting thread to complete before continuing
+            //thread.Join() doesn't work for some reason
+            while (threadReporting.IsAlive)
+                System.Threading.Thread.Sleep(1000);
 
 
 
@@ -199,6 +211,129 @@ namespace spotify_playlist_generator
             if (!System.IO.Directory.Exists(Settings._PlaylistFolderPath))
                 System.IO.Directory.CreateDirectory(Settings._PlaylistFolderPath);
 
+        }
+
+        static Dictionary<string, List<string>> GetGenrePlaylistSetup(SpotifyClient spotify, string directoryPath)
+        {
+
+            if (!System.IO.Directory.Exists(directoryPath))
+                System.IO.Directory.CreateDirectory(directoryPath);
+
+            var files = System.IO.Directory.GetFiles(directoryPath);
+
+            //write an example file for bupkiss
+            //TODO only write this example file when creating a missing directory
+            //this will prevent the file and playlist from being created over and over if the user doesn't want it
+            if (!files.Any())
+            {
+                var exampleGenres =
+                    Settings._CommentString + " genres to be used in this playlist should be specified here" + Environment.NewLine +
+                    "dark clubbing" + Environment.NewLine +
+                    "darksynth" + Environment.NewLine +
+                    "dark electro" + Environment.NewLine +
+                    "dark step" + Environment.NewLine
+                    //Environment.NewLine +
+                    //Settings._CommentString + " playlist IDs can be used as well, to pull artist names from" + Environment.NewLine +
+                    //Settings._CommentString + " The playlist ID can be found by navigating to the playlist on open.spotify.com and pulling it from the URL" + Environment.NewLine +
+                    //"1B8vQacVN5UXO4C4x9kthJ " + Settings._CommentString + "# Nordic folk music" + Environment.NewLine +
+                    //"37i9dQZF1DWXhcuQw7KIeM " + Settings._CommentString + "# Northern Spirits" + Environment.NewLine
+                    ;
+
+                //write the example file
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Dark Synth.txt"), exampleGenres);
+                //re-read files to pick up the example
+                files = System.IO.Directory.GetFiles(directoryPath);
+            }
+
+            //read in playlist breakdowns
+            var playlistsByGenre = files.ToDictionary(
+                path => System.IO.Path.GetFileNameWithoutExtension(path),
+                path => System.IO.File.ReadAllLines(path)
+                        .Select(line => line.RemoveAfterString(Settings._CommentString).Trim()) //remove comments
+                        .Where(line => !string.IsNullOrWhiteSpace(line)) //remove blank lines
+                        .Distinct() //keep unique lines
+                        .ToList()
+                        
+                );
+
+            //loading genres from playlists seems minimally useful
+            //without that exclusions don't make sense at this location either
+            //keeping this here just in case we want to add this feature int he future
+            //var pp = new ProgressPrinter(playlistsByGenre.Count(), (perc, time) => ConsoleWriteAndClearLine("\rReading playlist definitions: " + perc + ", " + time + " remaining"));
+            //foreach (var playlistName in playlistsByGenre.Keys)
+            //{
+            //    var genresOnly = playlistsByGenre[playlistName]
+            //        .Where(genreName => !genreName.StartsWith(Settings._ExclusionString))
+            //        .ToList();
+
+            //    //adding these instead of editing to better handle possible artists that include the exclusion character
+            //    playlistsByGenre[playlistName].AddRange(genresOnly);
+
+            //    //not a lot of point in pulling genre names from playlists, but it could be done
+            //    //check for any URIs in the artist name list
+            //    var playlistURIs = playlistsByGenre[playlistName]
+            //        .Where(artistName => idRegex.Match(artistName).Success)
+            //        .ToList();
+
+            //    //deliberately not removing raw URIs from the artist list as one could *theoretically* also be an artist name
+
+
+
+            //    //TODO load playlist artists from a file here
+            //    //something like Nordic Folk - Artists From Playlist.txt
+            //    //to preserve artist names from living playlists
+            //    //maybe draw a bit setting for this from the playlist file itself
+            //    //load into a playlist artist archive variable so it can be compared when saving the playlist artists below
+
+            //    //only do more work if we found any playlist URIs
+            //    //TODO are collisions with artist URIs a concern?
+            //    if (playlistURIs.Any())
+            //    {
+
+            //        //pull out artist names from tracks in these playlists URIs
+            //        var playlistArtistNames = playlistURIs
+            //            .Select(uri => spotify.Playlists.Get(uri).ResultSafe())
+            //            .Where(p => p != null)
+            //            .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+            //            .SelectMany(playableItem => ((FullTrack)playableItem.Track).Artists.Select(a => a.Name))
+            //            .Distinct()
+            //            .ToList();
+            //        ;
+
+            //        //TODO save playlist artists to a file here
+
+            //        //add in the artist names, then remove duplicates
+            //        playlistsByGenre[playlistName].AddRange(playlistArtistNames);
+            //        playlistsByGenre[playlistName] = playlistsByGenre[playlistName].Distinct().ToList();
+
+            //    }
+
+            //    //exclusions don't make sense unless we're loading genres from playlists
+            //    // handle artists to exclude
+            //    // not ignoring album/track exclusions here as the risk of artists containing the separator character is bigger
+            //    // TODO consider outsourcing this to a HandleExclusions overload then calling it here for organization purposes
+            //    var excludeGenre = playlistsByGenre[playlistName]
+            //        .Where(genreName => genreName.StartsWith(Settings._ExclusionString))
+            //        .Select(genreName => genreName.Substring(Settings._ExclusionString.Length))
+            //        .ToList();
+
+            //    if (excludeGenre.Any())
+            //        playlistsByGenre[playlistName].RemoveRange(excludeGenre);
+
+            //    pp.PrintProgress();
+
+            //}
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "Found " +
+                playlistsByGenre.Keys.Count().ToString("#,##0") +
+                " playlists by genre with an average of " +
+                playlistsByGenre.Values.Average(x => x.Count).ToString("#,##0.00") +
+                " genres each."
+                );
+
+            return playlistsByGenre;
         }
 
         static Dictionary<string, List<string>> GetArtistPlaylistSetup(SpotifyClient spotify, string directoryPath)
@@ -646,8 +781,89 @@ namespace spotify_playlist_generator
             return playlistBreakdowns;
         }
 
+        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetLikedTracksByGenre(SpotifyClient spotify)
+        //static Dictionary<string, List<FullTrack>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
+        {
+            Console.WriteLine();
+            Console.WriteLine("---likes by genre playlists---");
+
+            var preface = "#Liked - ";
+            var likesByGenrePath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Genre");
+
+            var playlistsByGenre = GetGenrePlaylistSetup(spotify, likesByGenrePath);
+            var likedTracks = await GetLikedTracks(spotify);
+
+            var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
+
+            //TODO this is a duplicate api call for what generates the reports; consolidate and/or cache this
+            var artistIDs = likedTracks.SelectMany(t => t.Artists.Select(a => a.Id))
+                .Distinct()
+                .ToList();
+
+            //get the artists
+            var artists = new List<FullArtist>();
+            foreach (var idChunk in artistIDs.ChunkBy(50))
+            {
+                var chunkArtists = (await spotify.Artists.GetSeveral(new ArtistsRequest(idChunk))).Artists
+                    .ToList();
+
+                artists.AddRange(chunkArtists);
+            }
+
+            var trackGenres = likedTracks.SelectMany(t => t.Artists.Select(a => new
+            {
+                TrackID = t.Id,
+                Genres = artists.Where(ax => ax.Id == a.Id).Single().Genres
+            }))
+                .SelectMany(x => x.Genres.Select(g => new GenreReportRecord
+                {
+                    ItemID = x.TrackID,
+                    GenreName = g
+                }))
+                .ToArray();
+
+            var pp = new ProgressPrinter(playlistsByGenre.Count(), (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc + ", " + time + " remaining"));
+            foreach (var playlistBreakdown in playlistsByGenre)
+            {
+                var stringsToRemove = new string[] { " ", "-" };
+                //TODO add a keyword/symbol for "contains" (that could work for any playlists)
+                var trackIDs = trackGenres
+                    .Where(x => playlistBreakdown.Value.Any(genreName => x.GenreName.ToLower().Remove(stringsToRemove) == genreName.ToLower().Remove(stringsToRemove)))
+                    .Select(x => x.ItemID)
+                    .ToArray();
+
+                //add all liked tracks to the playlist breakdown
+                var genreLikedTracks = likedTracks.Where(t => trackIDs.Contains(t.Id)).ToList();
+                playlistBreakdowns.Add(preface + playlistBreakdown.Key, genreLikedTracks);
+                pp.PrintProgress();
+            }
+
+            HandleExclusions(playlistBreakdowns, playlistsByGenre);
+
+            Console.WriteLine("Assembled " +
+                playlistBreakdowns.Count().ToString("#,##0") +
+                " playlists with " +
+                playlistBreakdowns.Values.Sum(x => x.Count()).ToString("#,##0") +
+                " tracks."
+                );
+
+            return playlistBreakdowns;
+        }
+
+        private static List<FullTrack> _likedTracks;
+        private static bool _getLikedTracksRunning;
         static async System.Threading.Tasks.Task<List<FullTrack>> GetLikedTracks(SpotifyClient spotify)
         {
+            //threadsafe this sucker
+            //well *mostly* threadsafe
+            while (_getLikedTracksRunning)
+                System.Threading.Thread.Sleep(1000);
+
+            if (_likedTracks != null)
+                return _likedTracks;
+
+            _getLikedTracksRunning = true;
+
             var tracks = spotify.Paginate(await spotify.Library.GetTracks())
                 .ToListAsync()
                 .Result
@@ -661,6 +877,10 @@ namespace spotify_playlist_generator
                 tracks.SelectMany(t => t.Artists.Select(a => a.Name)).Distinct().Count().ToString("#,##0") +
                 " artists."
                 );
+
+            _likedTracks = tracks;
+
+            _getLikedTracksRunning = false;
 
             return tracks;
 
@@ -841,6 +1061,138 @@ namespace spotify_playlist_generator
 
         }
 
+        static async System.Threading.Tasks.Task LikedGenreReport(SpotifyClient spotify)
+        {
+            var likedTracks = await GetLikedTracks(spotify);
 
+            // these properties return SimpleAlbum and SimpleArtist
+            // therefore we're gathering IDs and converting to the full versions with genre properties below
+            var albumIDs = likedTracks.Select(t => t.Album.Id)
+                .Distinct()
+                .ToList();
+            var artistIDs = likedTracks.SelectMany(t => t.Artists.Select(a => a.Id))
+                .Distinct()
+                .ToList();
+
+            //album genre is always null, so don't bother there
+            ////get the albums
+            //var albums = new List<FullAlbum>();
+            //foreach (var idChunk in albumIDs.ChunkBy(12))
+            //{
+            //    var chunkAlbums = (await spotify.Albums.GetSeveral(new AlbumsRequest(idChunk))).Albums
+            //        .ToList();
+
+            //    albums.AddRange(chunkAlbums);
+            //}
+
+            //get the artists
+            var artists = new List<FullArtist>();
+            foreach (var idChunk in artistIDs.ChunkBy(50))
+            {
+                var chunkArtists = (await spotify.Artists.GetSeveral(new ArtistsRequest(idChunk))).Artists
+                    .ToList();
+
+                artists.AddRange(chunkArtists);
+            }
+
+            //report records, assemble!
+
+            var artistAllGenres = artists.SelectMany(a => a.Genres.Select(g => new GenreReportRecord
+            {
+                ItemID = a.Id,
+                GenreName = g
+            }))
+                .ToArray();
+
+            var artistFirstGenres = artists.Select(a => new GenreReportRecord
+            {
+                ItemID = a.Id,
+                GenreName = a.Genres.FirstOrDefault()
+            })
+                .ToArray();
+
+            //var albumAllGenres = albums.SelectMany(a => a.Genres.Select(g => new GenreReportRecord
+            //{
+            //    ItemID = a.Id,
+            //    GenreName = g
+            //}))
+            //    .ToArray();
+
+            //var albumFirstGenres = albums.Select(a => new GenreReportRecord
+            //{
+            //    ItemID = a.Id,
+            //    GenreName = a.Genres.FirstOrDefault()
+            //})
+            //    .ToArray();
+
+            var trackAllGenres = likedTracks.SelectMany(t => t.Artists.Select(a => new
+            {
+                TrackID = t.Id,
+                Genres = artists.Where(ax => ax.Id == a.Id).Single().Genres
+            }))
+                .SelectMany(x => x.Genres.Select(g => new GenreReportRecord
+                {
+                    ItemID = x.TrackID,
+                    GenreName = g
+                }))
+                .ToArray();
+
+            var trackFirstGenres = likedTracks.SelectMany(t => t.Artists.Select(a => new GenreReportRecord
+            {
+                ItemID = t.Id,
+                GenreName = artists.Where(ax => ax.Id == a.Id).Single().Genres.FirstOrDefault()
+            }))
+                .ToArray();
+
+            //write reports!
+            WriteGenreReport(artistAllGenres, System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports", "All Artist Genres"));
+            WriteGenreReport(artistFirstGenres, System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports", "First Artist Genres"));
+            //WriteGenreReport(albumAllGenres, System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports", "All Album Genres"));
+            //WriteGenreReport(albumFirstGenres, System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports", "First Album Genres"));
+            WriteGenreReport(trackAllGenres, System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports", "All Track Genres"));
+            WriteGenreReport(trackFirstGenres, System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports", "First Track Genres"));
+
+        }
+    
+        private static void WriteGenreReport(IEnumerable<GenreReportRecord> records, string path)
+        {
+            //gronk checks
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!System.IO.Directory.Exists(dir))
+                System.IO.Directory.CreateDirectory(dir);
+
+            var ext = System.IO.Path.GetExtension(path);
+            if (string.IsNullOrWhiteSpace(ext))
+                path = System.IO.Path.ChangeExtension(path, ".txt");
+
+            var nullReplacementString = "[null]";
+
+            var maxNameLength = records.Max(r => (r.GenreName ?? nullReplacementString).Length);
+
+            //format report
+            var reportLines = records
+                .Where(x => x.GenreName != null)
+                .GroupBy(x => x.GenreName)
+                .Select(g => new
+                {
+                    GenreName = g.Key,
+                    RecordCount = g.Count(),
+                })
+                .OrderByDescending(x => x.RecordCount)
+                .ThenBy(x => x.GenreName)
+                .Select(g =>
+                    (g.GenreName ?? nullReplacementString) + new String(' ', maxNameLength - g.GenreName.Length) + " -- " + g.RecordCount.ToString("#,##0")
+                )
+                .ToArray()
+                ;
+
+            //write report
+            System.IO.File.WriteAllLines(path, reportLines);
+        }
+        private class GenreReportRecord
+        {
+            public string GenreName { get; set; }
+            public string ItemID { get; set; }
+        }
     }
 }

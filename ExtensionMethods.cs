@@ -205,5 +205,18 @@ namespace spotify_playlist_generator
 
             return value.Result;
         }
+
+        public static string Remove(this string value, IEnumerable<string> stringsToRemove)
+        {
+            if (string.IsNullOrEmpty(value))
+                return value;
+
+            foreach(var removey in stringsToRemove)
+            {
+                value = value.Replace(removey, string.Empty);
+            }
+
+            return value;
+        }
     }
 }
