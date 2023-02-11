@@ -33,16 +33,16 @@ namespace spotify_playlist_generator
             return this.BasePaginator.Paginate(firstPage, mapper, connector, cancel);
         }
 
-        public Task<IList<T>> PaginateAll<T>(IPaginatable<T> firstPage, IAPIConnector connector)
+        public Task<IList<T>> PaginateAll<T>(IPaginatable<T> firstPage, IAPIConnector connector, CancellationToken cancellationToken)
         {
             System.Threading.Thread.Sleep(WaitTime);
-            return this.BasePaginator.PaginateAll(firstPage, connector);
+            return this.BasePaginator.PaginateAll(firstPage, connector, cancellationToken);
         }
 
-        public Task<IList<T>> PaginateAll<T, TNext>(IPaginatable<T, TNext> firstPage, Func<TNext, IPaginatable<T, TNext>> mapper, IAPIConnector connector)
+        public Task<IList<T>> PaginateAll<T, TNext>(IPaginatable<T, TNext> firstPage, Func<TNext, IPaginatable<T, TNext>> mapper, IAPIConnector connector, CancellationToken cancellationToken)
         {
             System.Threading.Thread.Sleep(WaitTime);
-            return this.BasePaginator.PaginateAll(firstPage, mapper, connector);
+            return this.BasePaginator.PaginateAll(firstPage, mapper, connector, cancellationToken);
         }
     }
 
@@ -108,7 +108,7 @@ namespace spotify_playlist_generator
             throw new APIException("429 received, but unable to parse Retry-After Header. This should not happen!");
         }
 
-        public Task<IResponse> HandleRetry(IRequest request, IResponse response, IRetryHandler.RetryFunc retry)
+        public Task<IResponse> HandleRetry(IRequest request, IResponse response, IRetryHandler.RetryFunc retry, CancellationToken cancellationToken)
         {
             //Ensure.ArgumentNotNull(response, nameof(response));
             //Ensure.ArgumentNotNull(retry, nameof(retry));
