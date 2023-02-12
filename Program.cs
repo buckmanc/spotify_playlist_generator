@@ -5,6 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace spotify_playlist_generator
 {
@@ -118,26 +119,8 @@ namespace spotify_playlist_generator
             //TODO note where you did weird casts and stuff because of the API library
 
             GetConfig();
-            var accessToken = await UpdateTokens();
 
-            //exit for token problems
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                Console.WriteLine("Problem with the access tokens! Make sure client ID and client secret are in tokens.ini");
-                Environment.Exit(-1);
-            }
-
-            var config = SpotifyClientConfig
-              .CreateDefault()
-              .WithRetryHandler(new CustomRetryHandler()
-              {
-                  //RetryAfter = TimeSpan.FromSeconds(4),
-                  //TooManyRequestsConsumesARetry = true
-              })
-              .WithToken(accessToken)
-              ;
-
-            var spotify = new SpotifyClient(config);
+            var spotify = await GetNewSpotifyClient();
 
             var me = await spotify.UserProfile.Current();
             Console.WriteLine($"Hello there, {me.DisplayName}");
@@ -154,9 +137,13 @@ namespace spotify_playlist_generator
             //get various playlist definitions
             //that is, a name and a list of tracks
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
-            playlistBreakdowns.AddRange(await GetLikedTracksByGenre(spotify));
+            playlistBreakdowns.AddRange(await GetLikedTracksByGenrePlaylistBreakdowns(spotify));
             playlistBreakdowns.AddRange(await GetLikesByArtistPlaylistBreakdowns(spotify));
-            playlistBreakdowns.AddRange(await GetFullArtistDiscographyBreakdowns(spotify));
+            spotify = await GetNewSpotifyClient();
+            //TODO wrap this one in a try catch, reset spotify client if access token expires and loop a set number of times
+            //ideally the spotify client would refresh the access token internally
+            //this method is clunky, but due to the local caching it won't be starting over from the beginning and should work
+            playlistBreakdowns.AddRange(await GetFullArtistDiscographyPlaylistBreakdowns(spotify));
 
 
             //do work!
@@ -170,7 +157,7 @@ namespace spotify_playlist_generator
             Console.WriteLine();
             Console.WriteLine("All done, get jammin'!");
 
-            Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString());
+            Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString() + ", completed at " + DateTime.Now.ToString());
         }
 
         //static async System.Threading.Tasks.Task GetConfig()
@@ -209,6 +196,31 @@ namespace spotify_playlist_generator
             if (!System.IO.Directory.Exists(Settings._PlaylistFolderPath))
                 System.IO.Directory.CreateDirectory(Settings._PlaylistFolderPath);
 
+        }
+
+        static async Task<SpotifyClient> GetNewSpotifyClient()
+        {
+
+            var accessToken = await UpdateTokens();
+
+            //exit for token problems
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                Console.WriteLine("Problem with the access tokens! Make sure client ID and client secret are in tokens.ini");
+                Environment.Exit(-1);
+            }
+
+            var config = SpotifyClientConfig
+              .CreateDefault()
+              .WithRetryHandler(new CustomRetryHandler()
+              {
+                  //RetryAfter = TimeSpan.FromSeconds(4),
+                  //TooManyRequestsConsumesARetry = true
+              })
+              .WithToken(accessToken)
+              ;
+
+            return new SpotifyClient(config);
         }
 
         static Dictionary<string, List<string>> GetGenrePlaylistSetup(SpotifyClient spotify, string directoryPath)
@@ -569,6 +581,7 @@ namespace spotify_playlist_generator
         {
             Console.WriteLine();
             Console.WriteLine("---likes by artist playlists---");
+            Console.WriteLine("started at " + DateTime.Now.ToString());
 
             var preface = "#Liked - ";
             var otherPlaylistName = "Z$ Other";
@@ -619,11 +632,12 @@ namespace spotify_playlist_generator
             return playlistBreakdowns;
         }
 
-        //static Dictionary<string, List<FullTrack>> GetFullArtistDiscographyBreakdowns(SpotifyClient spotify)
-        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetFullArtistDiscographyBreakdowns(SpotifyClient spotify)
+        //static Dictionary<string, List<FullTrack>> GetFullArtistDiscographyPlaylistBreakdowns(SpotifyClient spotify)
+        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetFullArtistDiscographyPlaylistBreakdowns(SpotifyClient spotify)
         {
             Console.WriteLine();
             Console.WriteLine("---full discography by artist playlists---");
+            Console.WriteLine("started at " + DateTime.Now.ToString());
 
             var directoryPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Full Discography By Artist");
             var playlistsByArtists = GetArtistPlaylistSetup(spotify, directoryPath);
@@ -638,6 +652,10 @@ namespace spotify_playlist_generator
             var pp = new ProgressPrinter(playlistsByArtists.Count(), (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc));
             foreach (var playlistByArtist in playlistsByArtists)
             {
+
+                //var playlistDetailsString = AddOrdinal(playlistCount);
+                var playlistDetailsString = playlistByArtist.Key;
+
                 var cursorLeft = Console.GetCursorPosition().Left;
 
                 //the only example of searching with the API wrapper
@@ -647,7 +665,7 @@ namespace spotify_playlist_generator
                 //https://developer.spotify.com/documentation/web-api/reference/#writing-a-query---guidelines
 
                 //"search" for artists, then correct results to actually the artists named
-                var ppArtists = new ProgressPrinter(playlistByArtist.Value.Count(), (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting artists: " + perc + ", " + time + " remaining"));
+                var ppArtists = new ProgressPrinter(playlistByArtist.Value.Count(), (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting artists: " + perc + ", " + time + " remaining"));
                 var artists = playlistByArtist.Value
                     .Select(artistName => new SearchRequest(SearchRequest.Types.Artist, "artist:" + artistName))
                     .Select(request => spotify.Search.Item(request).Result)
@@ -678,7 +696,7 @@ namespace spotify_playlist_generator
 
                 //get all albums for the artists found
                 var ppAlbums = new ProgressPrinter(Total: artists.Count(),
-                                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting albums: " + perc + ", " + time + " remaining")
+                                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting albums: " + perc + ", " + time + " remaining")
                                                    );
                 var albums = artists.Select(artist => spotify.Artists.GetAlbums(artist.Id).Result)
                     .Where(x => ppAlbums.PrintProgress())
@@ -700,10 +718,6 @@ namespace spotify_playlist_generator
                     .Where(a => a.AlbumGroup == "appears_on")
                     .Select(a => a.Id)
                     .ToList();
-
-                var playlistDetailsString = AddOrdinal(playlistCount);
-                if (Settings._VerboseDebug)
-                    playlistDetailsString = playlistByArtist.Key;
 
                 //TODO update for album/track exclusions
                 var ppTracks = new ProgressPrinter(Total: Math.Max(albums.Count(), MaxPlaylistSize),
@@ -783,11 +797,12 @@ namespace spotify_playlist_generator
             return playlistBreakdowns;
         }
 
-        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetLikedTracksByGenre(SpotifyClient spotify)
+        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrack>>> GetLikedTracksByGenrePlaylistBreakdowns(SpotifyClient spotify)
         //static Dictionary<string, List<FullTrack>> GetLikesByArtistPlaylistBreakdowns(SpotifyClient spotify)
         {
             Console.WriteLine();
             Console.WriteLine("---likes by genre playlists---");
+            Console.WriteLine("started at " + DateTime.Now.ToString());
 
             var preface = "#Liked - ";
             var likesByGenrePath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Genre");
