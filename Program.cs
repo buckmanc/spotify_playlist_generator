@@ -422,6 +422,16 @@ namespace spotify_playlist_generator
                         .ToList();
                     ;
 
+                    //couldn't resolve an API error with this method, but likely not faster anyway
+                    ////pull out artist names from tracks in these playlists URIs
+                    //var playlistArtistNames = playlistURIs
+                    //    .Select(uri => spotify.Paginate(spotify.Playlists.GetItems(uri).Result, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                    //    .SelectMany(x => x)
+                    //    .SelectMany(playableItem => ((FullTrack)playableItem.Track).Artists.Select(a => a.Name))
+                    //    .Distinct()
+                    //    .ToList()
+                    ;
+
                     //TODO save playlist artists to a file here
 
                     //add in the artist names, then remove duplicates
@@ -697,9 +707,13 @@ namespace spotify_playlist_generator
                     .Select(a => a.Id)
                     .ToList();
 
+                var playlistDetailsString = AddOrdinal(playlistCount);
+                if (Settings._VerboseDebug)
+                    playlistDetailsString = playlistByArtist.Key;
+
                 //TODO update for album/track exclusions
                 var ppTracks = new ProgressPrinter(Total: Math.Max(albums.Count(), MaxPlaylistSize),
-                                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + AddOrdinal(playlistCount) + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
+                                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
                                                    );
                 //identify tracks in those albums
                 var trackIDs = albums.Select(album => spotify.Albums.GetTracks(album.Id).Result)
