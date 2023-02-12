@@ -575,7 +575,7 @@ namespace spotify_playlist_generator
             var likesByArtistPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Artist");
 
             var playlistsByArtists = GetArtistPlaylistSetup(spotify, likesByArtistPath);
-            var likedTracks = await GetLikedTracks(spotify);
+            var likedTracks = await spotify.GetLikedTracks();
 
             //find liked artists whose playlist name hasn't been specified by the user
             var missingArtists = likedTracks
@@ -671,14 +671,8 @@ namespace spotify_playlist_generator
                 //TODO are collisions with playlist URIs a concern?
                 if (artistURIs.Any())
                 {
-
-                    //pull out artist names from tracks in these artists URIs
-                    var artistsByURI = artistURIs
-                        .Select(uri => spotify.Artists.Get(uri).ResultSafe())
-                        .Where(p => p != null)
-                        .Distinct()
-                        .ToList();
-
+                    //pull out artist names from these artists URIs
+                    var artistsByURI = await spotify.GetArtists(artistURIs);
                     artists.AddRange(artistsByURI);
                 };
 
@@ -715,6 +709,8 @@ namespace spotify_playlist_generator
                 var ppTracks = new ProgressPrinter(Total: Math.Max(albums.Count(), MaxPlaylistSize),
                                                    Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
                                                    );
+
+                //TODO consider adding a caching GetAlbums method (like SpotifyClient.GetTracks) and using that below instead, as FullAlbum.Tracks exists
                 //identify tracks in those albums
                 var trackIDs = albums.Select(album => spotify.Albums.GetTracks(album.Id).Result)
                     .Where(x => ppTracks.PrintProgress())
@@ -732,19 +728,13 @@ namespace spotify_playlist_generator
                 }
 
                 //get the tracks
-                var tracks = new List<FullTrack>();
-                foreach (var idChunk in trackIDs.ChunkBy(50))
-                {
-                    var chunkTracks = (await spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Tracks
-                        //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
-                        //this includes tracks that are on split albums, collaborations, and the like
-                        .Where(t => !appearsOnAlbums.Contains(t.Album.Id) || t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
-                        ////only include tracks strictly by artists specified
-                        //.Where(t => t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
-                        .ToList();
-
-                    tracks.AddRange(chunkTracks);
-                }
+                var tracks = (await spotify.GetTracks(trackIDs))
+                    //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
+                    //this includes tracks that are on split albums, collaborations, and the like
+                    .Where(t => !appearsOnAlbums.Contains(t.Album.Id) || t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
+                    ////only include tracks strictly by artists specified
+                    //.Where(t => t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
+                    .ToList();
 
                 verboseDebugOutput.Add(playlistByArtist.Key + " full discog: " +
                     artists.Count().ToString("#,##0") + " artists, " +
@@ -803,7 +793,7 @@ namespace spotify_playlist_generator
             var likesByGenrePath = System.IO.Path.Join(Settings._PlaylistFolderPath, "Likes By Genre");
 
             var playlistsByGenre = GetGenrePlaylistSetup(spotify, likesByGenrePath);
-            var likedTracks = await GetLikedTracks(spotify);
+            var likedTracks = await spotify.GetLikedTracks();
 
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
 
@@ -813,14 +803,7 @@ namespace spotify_playlist_generator
                 .ToList();
 
             //get the artists
-            var artists = new List<FullArtist>();
-            foreach (var idChunk in artistIDs.ChunkBy(50))
-            {
-                var chunkArtists = (await spotify.Artists.GetSeveral(new ArtistsRequest(idChunk))).Artists
-                    .ToList();
-
-                artists.AddRange(chunkArtists);
-            }
+            var artists = await spotify.GetArtists(artistIDs);
 
             var trackGenres = likedTracks.SelectMany(t => t.Artists.Select(a => new
             {
@@ -861,43 +844,6 @@ namespace spotify_playlist_generator
 
             return playlistBreakdowns;
         }
-
-        private static List<FullTrack> _likedTracks;
-        private static bool _getLikedTracksRunning;
-        static async System.Threading.Tasks.Task<List<FullTrack>> GetLikedTracks(SpotifyClient spotify)
-        {
-            //threadsafe this sucker
-            //well *mostly* threadsafe
-            while (_getLikedTracksRunning)
-                System.Threading.Thread.Sleep(1000);
-
-            if (_likedTracks != null)
-                return _likedTracks;
-
-            _getLikedTracksRunning = true;
-
-            var tracks = spotify.Paginate(await spotify.Library.GetTracks())
-                .ToListAsync()
-                .Result
-                .Select(x => x.Track)
-                .ToList();
-
-            Console.WriteLine(
-                "Found " + 
-                tracks.Count().ToString("#,##0") + 
-                " liked tracks from " + 
-                tracks.SelectMany(t => t.Artists.Select(a => a.Name)).Distinct().Count().ToString("#,##0") +
-                " artists."
-                );
-
-            _likedTracks = tracks;
-
-            _getLikedTracksRunning = false;
-
-            return tracks;
-
-        }
-
         static async System.Threading.Tasks.Task<List<FullPlaylist>> GetAllPlaylists(SpotifyClient spotify)
         {
             var allPlaylists = (await spotify.Paginate(await spotify.Playlists.CurrentUsers()).ToListAsync())
@@ -1075,7 +1021,7 @@ namespace spotify_playlist_generator
 
         static async System.Threading.Tasks.Task LikedGenreReport(SpotifyClient spotify)
         {
-            var likedTracks = await GetLikedTracks(spotify);
+            var likedTracks = await spotify.GetLikedTracks();
 
             // these properties return SimpleAlbum and SimpleArtist
             // therefore we're gathering IDs and converting to the full versions with genre properties below
@@ -1098,14 +1044,7 @@ namespace spotify_playlist_generator
             //}
 
             //get the artists
-            var artists = new List<FullArtist>();
-            foreach (var idChunk in artistIDs.ChunkBy(50))
-            {
-                var chunkArtists = (await spotify.Artists.GetSeveral(new ArtistsRequest(idChunk))).Artists
-                    .ToList();
-
-                artists.AddRange(chunkArtists);
-            }
+            var artists = await spotify.GetArtists(artistIDs);
 
             //report records, assemble!
 
