@@ -14,7 +14,7 @@ namespace spotify_playlist_generator
 
         private static class Settings
         {
-            public static string _configFolder;
+            public static string _PathsIniFolderPath;
             public static string _PlaylistFolderPath;
             public static string _CommentString = "#";      //TODO consider pulling this from a config file
             public static string _ExclusionString = "-";    //TODO consider pulling this from a config file
@@ -109,9 +109,9 @@ namespace spotify_playlist_generator
 
             //default to looking for settings in the same dir as the program
             if (args.Any() && System.IO.Directory.Exists(args[0]))
-                Settings._configFolder = args[0];
+                Settings._PathsIniFolderPath = args[0];
             else
-                Settings._configFolder = AssemblyDirectory;
+                Settings._PathsIniFolderPath = AssemblyDirectory;
 
 
             //TODO remove uses of .Result where practical, try to actually get some benefit from async calls
@@ -193,14 +193,40 @@ namespace spotify_playlist_generator
         //static async System.Threading.Tasks.Task GetConfig()
         static void GetConfig()
         {
-            var configIniPath = System.IO.Path.Join(Settings._configFolder, "config.ini");
+            var pathsIniPath = System.IO.Path.Join(Settings._PathsIniFolderPath, "paths.ini");
             var iniParser = new FileIniDataParser();
+
+            //create paths file if it doesn't exist
+            if (!System.IO.File.Exists(pathsIniPath))
+            {
+                var newFile = new IniParser.Model.IniData();
+                newFile["SETTINGS"]["PlaylistFolderPath"] = AssemblyDirectory;
+                iniParser.WriteFile(pathsIniPath, newFile);
+            }
+
+            //only read in the playlist folder path if it doesn't already exist
+            //this allows for overriding by passing it as an argument
+            if (string.IsNullOrEmpty(Settings._PlaylistFolderPath))
+            {
+                //read path config from file
+                var pathsIni = iniParser.ReadFile(pathsIniPath);
+                Settings._PlaylistFolderPath = pathsIni["SETTINGS"]["PlaylistFolderPath"];
+            }
+
+
+            //lazy developer shortcut for sharing files between two machines
+            if (System.Diagnostics.Debugger.IsAttached)
+                Settings._PlaylistFolderPath = Settings._PlaylistFolderPath.Replace("/media/content/", "Z:/");
+
+            if (!System.IO.Directory.Exists(Settings._PlaylistFolderPath))
+                System.IO.Directory.CreateDirectory(Settings._PlaylistFolderPath);
+
+            var configIniPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "config.ini");
 
             //create config file if it doesn't exist
             if (!System.IO.File.Exists(configIniPath))
             {
                 var newFile = new IniParser.Model.IniData();
-                newFile["SETTINGS"]["PlaylistFolderPath"] = AssemblyDirectory;
                 newFile["SETTINGS"]["NewPlaylistsPrivate"] = "false";
                 newFile["SETTINGS"]["RecreatePlaylists"] = "false";
                 newFile["SETTINGS"]["DeleteOrphanedPlaylists"] = "true";
@@ -212,19 +238,10 @@ namespace spotify_playlist_generator
             var configIni = iniParser.ReadFile(configIniPath);
 
             //store settings
-            Settings._PlaylistFolderPath = configIni["SETTINGS"]["PlaylistFolderPath"];
             Settings._NewPlaylistsPrivate = bool.Parse(configIni["SETTINGS"]["NewPlaylistsPrivate"]);
             Settings._RecreatePlaylists = bool.Parse(configIni["SETTINGS"]["RecreatePlaylists"]);
             Settings._DeleteOrphanedPlaylists = bool.Parse(configIni["SETTINGS"]["DeleteOrphanedPlaylists"]);
             Settings._VerboseDebug = bool.Parse(configIni["SETTINGS"]["Verbose"]);
-
-
-            //lazy developer shortcut for sharing files between two machines
-            if (System.Diagnostics.Debugger.IsAttached)
-                Settings._PlaylistFolderPath = Settings._PlaylistFolderPath.Replace("/media/content/", "Z:/");
-
-            if (!System.IO.Directory.Exists(Settings._PlaylistFolderPath))
-                System.IO.Directory.CreateDirectory(Settings._PlaylistFolderPath);
 
         }
 

@@ -11,7 +11,7 @@ namespace spotify_playlist_generator
 
         public static async System.Threading.Tasks.Task<string> UpdateTokens()
         {
-            var tokensIniPath = System.IO.Path.Join(Settings._configFolder, "tokens.ini");
+            var tokensIniPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "tokens.ini");
             var iniParser = new FileIniDataParser();
 
             //create tokens file if it doesn't exist
