@@ -102,7 +102,7 @@ namespace spotify_playlist_generator
               (response.Headers.ContainsKey("Retry-After") && int.TryParse(response.Headers["Retry-After"], out int secondsToWait))
               || (response.Headers.ContainsKey("retry-after") && int.TryParse(response.Headers["retry-after"], out secondsToWait)))
             {
-                return TimeSpan.FromSeconds(secondsToWait);
+                return TimeSpan.FromSeconds(secondsToWait + 10);
             }
 
             throw new APIException("429 received, but unable to parse Retry-After Header. This should not happen!");

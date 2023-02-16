@@ -126,33 +126,63 @@ namespace spotify_playlist_generator
             Console.WriteLine($"Hello there, {me.DisplayName}");
             Console.WriteLine("----------------------");
 
-            //start reports on a different thread
-            //hopefully this doesn't cause api problems lol
-            var threadReporting = new System.Threading.Thread(() =>
-            {
-                LikedGenreReport(spotify).Wait();
-            });
-            threadReporting.Start();
-
             //get various playlist definitions
             //that is, a name and a list of tracks
             var playlistBreakdowns = new Dictionary<string, List<FullTrack>>();
-            playlistBreakdowns.AddRange(await GetLikedTracksByGenrePlaylistBreakdowns(spotify));
-            playlistBreakdowns.AddRange(await GetLikesByArtistPlaylistBreakdowns(spotify));
-            spotify = await GetNewSpotifyClient();
-            //TODO wrap this one in a try catch, reset spotify client if access token expires and loop a set number of times
+            var error = false;
+            var errorTries = 0;
+
+            var genreReportSuccess = false;
+            var likesByGenreSuccess = false;
+            var likesByArtistSuccess = false;
+            var artistDiscogSuccess = false;
+
             //ideally the spotify client would refresh the access token internally
             //this method is clunky, but due to the local caching it won't be starting over from the beginning and should work
-            playlistBreakdowns.AddRange(await GetFullArtistDiscographyPlaylistBreakdowns(spotify));
+            do
+            {
+                try
+                {
+                    error = false;
+                    if (!genreReportSuccess)
+                    {
+                        LikedGenreReport(spotify).Wait();
+                        genreReportSuccess = true;
+                    }
+                    if (!likesByGenreSuccess)
+                    {
+                        playlistBreakdowns.AddRange(await GetLikedTracksByGenrePlaylistBreakdowns(spotify));
+                        likesByGenreSuccess = true;
+                    }
+                    if (!likesByArtistSuccess)
+                    {
+                        playlistBreakdowns.AddRange(await GetLikesByArtistPlaylistBreakdowns(spotify));
+                        likesByArtistSuccess = true;
+                    }
+                    if (!artistDiscogSuccess)
+                    {
+                        playlistBreakdowns.AddRange(await GetFullArtistDiscographyPlaylistBreakdowns(spotify));
+                        artistDiscogSuccess = true;
+                    }
 
+                }
+                catch (Exception ex)
+                {
+                    if (ex.ToString().ToLower().Contains("access token expired"))
+                    {
+                        error = true;
+                        errorTries += 1;
+                        //set a new spotify client to get a fresh token
+                        Console.WriteLine("Access token expired, resetting SpotifyClient to get a new access token.");
+                        spotify = await GetNewSpotifyClient();
+                    }
+                    else
+                        throw;
+                }
+            } while (error && errorTries < 10);
 
             //do work!
             await UpdatePlaylists(spotify, playlistBreakdowns);
-
-            //wait for the reporting thread to complete before continuing
-            threadReporting.Join();
-
-
 
             Console.WriteLine();
             Console.WriteLine("All done, get jammin'!");
@@ -1036,6 +1066,10 @@ namespace spotify_playlist_generator
 
         static async System.Threading.Tasks.Task LikedGenreReport(SpotifyClient spotify)
         {
+            Console.WriteLine();
+            Console.WriteLine("---liked genre report---");
+            Console.WriteLine("started at " + DateTime.Now.ToString());
+
             var likedTracks = await spotify.GetLikedTracks();
 
             // these properties return SimpleAlbum and SimpleArtist
