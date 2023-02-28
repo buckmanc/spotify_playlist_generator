@@ -32,12 +32,8 @@ namespace spotify_playlist_generator
             set { _spotify = value; }
         }
 
-        private string _trackCachePath;
+        private string _trackCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "track_cache.json");
         private Guid _sessionID = new();
-        public MySpotifyWrapper()
-        {
-            ReadCache();
-        }
 
         public void Dispose()
         {
@@ -52,15 +48,18 @@ namespace spotify_playlist_generator
                 Console.WriteLine("writing serialized cache");
             }
 
-            using var stream = File.Create(this._trackCachePath);
-            System.Text.Json.JsonSerializer.Serialize(stream, MySpotifyWrapper._trackCache);
-            stream.Dispose();
+            //skip writing if we haven't read
+            //checking against the backing property to avoid triggering a read
+            if (this._trackCache != null && this._trackCache.Any())
+            {
+                using var stream = File.Create(this._trackCachePath);
+                System.Text.Json.JsonSerializer.Serialize(stream, this.TrackCache);
+                stream.Dispose();
+            }
         }
 
         private void ReadCache()
         {
-            this._trackCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "track_cache.json");
-
             //TODO deserialize the cache here
             if (System.IO.File.Exists(_trackCachePath))
             {
@@ -70,7 +69,7 @@ namespace spotify_playlist_generator
                     Console.WriteLine();
                 }
                 using var stream = File.OpenRead(this._trackCachePath);
-                MySpotifyWrapper._trackCache = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails>>(stream);
+                this._trackCache = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails>>(stream);
                 stream.Dispose();
             }
 
@@ -229,7 +228,7 @@ namespace spotify_playlist_generator
             //then merge those values into the existing entries
             if (tracks.Any(t => t.Source_AllTracks || t.Source_Liked || t.Source_Top))
             {
-                var existingTracks = _trackCache.TryGetValues(tracks.Select(t => t.TrackId).ToArray());
+                var existingTracks = this.TrackCache.TryGetValues(tracks.Select(t => t.TrackId).ToArray());
                 existingTrackIDs = existingTracks.Select(t => t.TrackId).ToList();
 
                 var joinedTracks = existingTracks.Join(tracks,
@@ -259,18 +258,35 @@ namespace spotify_playlist_generator
             }
 
             foreach (var track in tracks.Where(t => !existingTrackIDs.Contains(t.TrackId)))
-                _trackCache.TryAdd(track.TrackId, track);
+                this.TrackCache.TryAdd(track.TrackId, track);
         }
 
         ////TODO consider this as a method to handle access token expiration retries
         //private void CallMethodWithTryCatch(Func method, object[] parameters)
         //{
-            
+
         //}
 
         //TODO should this be a concurrent bag instead of a dictionary?
         //the track ID as dictionary key is redundant but may offer performance benefits
-        private static System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails> _trackCache = new();
+        private System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails> _trackCache;
+
+        public System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails> TrackCache
+        {
+            get
+            {
+                //simple way to lazy load the cache
+                if (_trackCache == null)
+                {
+                    ReadCache();
+                    if (_trackCache == null)
+                        _trackCache = new();
+                }
+
+                return _trackCache;
+            }
+        }
+
         /// <summary>
         /// Returns tracks from the local cache or the Spotify API.
         /// </summary>
@@ -288,7 +304,7 @@ namespace spotify_playlist_generator
             foreach (var trackID in trackIDs)
             {
                 FullTrackDetails foundTrack;
-                if (_trackCache.TryGetValue(trackID, out foundTrack))
+                if (this.TrackCache.TryGetValue(trackID, out foundTrack))
                     output.Add(foundTrack);
                 else
                     trackIdApiQueue.Add(trackID);
@@ -381,7 +397,7 @@ namespace spotify_playlist_generator
 
             //if an artist in the cache has been retrieved by *this* method *this* session
             //then we can be assured that the artist's full discography is already in the cache
-            var cachedFullDiscog = _trackCache.Values
+            var cachedFullDiscog = this.TrackCache.Values
                 .Where(t =>
                     t.Source_AllTracks &&
                     t.SessionID == this._sessionID &&
@@ -417,7 +433,7 @@ namespace spotify_playlist_generator
             //if an album in the cache has been retrieved by *this* method 
             //then we can be assured that the full album is already in the cache
             //if an album tracklist is changed after this though the cache will need to be cleared to get the update
-            var cachedAlbumTracks = _trackCache.Values
+            var cachedAlbumTracks = this.TrackCache.Values
                 .Where(t =>
                     t.Source_AllTracks &&
                     albums.Any(a => a.Id == t.AlbumId)
@@ -494,7 +510,7 @@ namespace spotify_playlist_generator
             //then we can be assured that the artist's top tracks are already in the cache
             //unfortunately this likely won't occur much
             //which means a call to GetTopTracks *usually* hits the api
-            var cachedTopTracks = _trackCache.Values
+            var cachedTopTracks = this.TrackCache.Values
                 .Where(t =>
                     t.Source_Top &&
                     t.SessionID == this._sessionID &&

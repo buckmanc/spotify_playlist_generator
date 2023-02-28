@@ -168,8 +168,8 @@ namespace spotify_playlist_generator
                 //playlistName = "#Full Discog - Acoustic VGC";
                 //imageAddText = true;
                 //restorePlaylistImage = true;
-                //playlistName = "test";
-                commitAnActOfUnspeakableViolence = true;
+                playlistName = "test";
+                //commitAnActOfUnspeakableViolence = true;
             }
 
             Console.WriteLine();
@@ -248,7 +248,7 @@ namespace spotify_playlist_generator
             //if any of those fancy commands besides the main functionality have been processed, stop here
             if (new bool[] {
 			    modifyPlaylistFile, backupPlaylistImage, restorePlaylistImage, imageAddText, imageAddPhoto, commitAnActOfUnspeakableViolence
-			    }.Any())
+			    }.Any(x => x))
             {
                 Environment.Exit(0);
             }
