@@ -12,9 +12,11 @@ namespace spotify_playlist_generator.Models
     {
         public string Path { get; set; }
         public string PlaylistName { get; set; }
+        public bool AddArtistIDs { get; set; }
         public string DefaultParameter { get; set; }
         public bool DeleteIfEmpty { get; set; }
         public bool DontRemoveTracks { get; set; }
+        public bool MaintainSort { get; set; }
         public SpecLine[] SpecLines { get; set; }
 
         public PlaylistSpec(string path)
@@ -64,6 +66,12 @@ namespace spotify_playlist_generator.Models
 
             this.DontRemoveTracks = playlistSettings
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "dontremovetracks");
+
+            this.AddArtistIDs = playlistSettings
+                .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "addartistids");
+            
+	    this.MaintainSort = playlistSettings
+                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "MaintainSort");
 
             this.SpecLines = fileLines
                 .Select(line => new

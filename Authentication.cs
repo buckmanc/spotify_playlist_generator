@@ -11,39 +11,41 @@ namespace spotify_playlist_generator
 
         public static async System.Threading.Tasks.Task<string> UpdateTokens()
         {
-            var tokensIniPath = System.IO.Path.Join(Settings._PlaylistFolderPath, "tokens.ini");
             var iniParser = new FileIniDataParser();
 
             //create tokens file if it doesn't exist
-            if (!System.IO.File.Exists(tokensIniPath))
+            if (!System.IO.File.Exists(Settings._TokensIniPath))
             {
                 var newFile = new IniParser.Model.IniData();
-                newFile["CLIENT"]["ID"] = string.Empty;
-                newFile["CLIENT"]["Secret"] = string.Empty;
-                newFile["USER"]["AccessToken"] = string.Empty;
-                newFile["USER"]["RefreshToken"] = string.Empty;
-                iniParser.WriteFile(tokensIniPath, newFile);
+                newFile["SPOTIFY CLIENT"]["ID"] = string.Empty;
+                newFile["SPOTIFY CLIENT"]["Secret"] = string.Empty;
+                newFile["SPOTIFY USER"]["AccessToken"] = string.Empty;
+                newFile["SPOTIFY USER"]["RefreshToken"] = string.Empty;
+                newFile["NASA"]["Key"] = string.Empty;
+                newFile["UNSPLASH"]["AccessKey"] = string.Empty;
+                newFile["UNSPLASH"]["SecretKey"] = string.Empty;
+                iniParser.WriteFile(Settings._TokensIniPath, newFile);
             }
 
             //read tokens file
-            var tokensIni = iniParser.ReadFile(tokensIniPath);
+            var tokensIni = iniParser.ReadFile(Settings._TokensIniPath);
 
             //backout early for failure
             //TODO test for file present but section missing
-            if (string.IsNullOrWhiteSpace(tokensIni["CLIENT"]["ID"]))
+            if (string.IsNullOrWhiteSpace(tokensIni["SPOTIFY CLIENT"]["ID"]))
             {
                 return string.Empty;
             }
 
             //login for the first time if there's no access token
-            if (string.IsNullOrWhiteSpace(tokensIni["USER"]["AccessToken"]))
+            if (string.IsNullOrWhiteSpace(tokensIni["SPOTIFY USER"]["AccessToken"]))
             {
 
                 //https://johnnycrazy.github.io/SpotifyAPI-NET/docs/authorization_code
 
                 var loginRequest = new LoginRequest(
                   new Uri("http://localhost:5000"),
-                  tokensIni["CLIENT"]["ID"],
+                  tokensIni["SPOTIFY CLIENT"]["ID"],
                   LoginRequest.ResponseType.Code
                 )
                 {
@@ -80,43 +82,47 @@ namespace spotify_playlist_generator
                 //use the auth code to get access/refresh tokens
                 var response = await new OAuthClient().RequestToken(
                       new AuthorizationCodeTokenRequest(
-                          tokensIni["CLIENT"]["ID"],
-                          tokensIni["CLIENT"]["Secret"],
+                          tokensIni["SPOTIFY CLIENT"]["ID"],
+                          tokensIni["SPOTIFY CLIENT"]["Secret"],
                           code,
                           new Uri("http://localhost:5000")
                           )
                     );
 
 
-                tokensIni["USER"]["AccessToken"] = response.AccessToken;
-                tokensIni["USER"]["RefreshToken"] = response.RefreshToken;
+                tokensIni["SPOTIFY USER"]["AccessToken"] = response.AccessToken;
+                tokensIni["SPOTIFY USER"]["RefreshToken"] = response.RefreshToken;
             }
             //only refresh the token
-            if (!string.IsNullOrWhiteSpace(tokensIni["USER"]["RefreshToken"]))
+            if (!string.IsNullOrWhiteSpace(tokensIni["SPOTIFY USER"]["RefreshToken"]))
             {
                 var response = await new OAuthClient().RequestToken(
                       new AuthorizationCodeRefreshRequest(
-                          tokensIni["CLIENT"]["ID"], 
-                          tokensIni["CLIENT"]["Secret"], 
-                          tokensIni["USER"]["RefreshToken"]
+                          tokensIni["SPOTIFY CLIENT"]["ID"], 
+                          tokensIni["SPOTIFY CLIENT"]["Secret"], 
+                          tokensIni["SPOTIFY USER"]["RefreshToken"]
                           )
                     );
 
 
-                tokensIni["USER"]["AccessToken"] = response.AccessToken;
+                tokensIni["SPOTIFY USER"]["AccessToken"] = response.AccessToken;
                 //no refresh token given during subsequent logins
-                //tokensIni["USER"]["RefreshToken"] = response.RefreshToken;
+                //tokensIni["SPOTIFY USER"]["RefreshToken"] = response.RefreshToken;
             }
             else
             {
                 //return nothing for problem state; main sub warns and exits
                 return string.Empty;
             }
+                
+            Program.Tokens.NasaKey = tokensIni["NASA"]["Key"];
+            Program.Tokens.UnsplashAccessKey = tokensIni["UNSPLASH"]["AccessKey"];
+            Program.Tokens.UnsplashSecretKey = tokensIni["UNSPLASH"]["SecretKey"];
 
             //save updates to disk
-            iniParser.WriteFile(tokensIniPath, tokensIni);
+            iniParser.WriteFile(Settings._TokensIniPath, tokensIni);
 
-            return tokensIni["USER"]["AccessToken"];
+            return tokensIni["SPOTIFY USER"]["AccessToken"];
         }
 
     }

@@ -567,11 +567,14 @@ namespace spotify_playlist_generator
 
             return usersPlaylists;
         }
-        public FullPlaylist GetUsersPlaylists(string playlistName)
+        public FullPlaylist GetUsersPlaylists(string playlistName, string playlistStartString = null)
         {
             if (string.IsNullOrWhiteSpace(playlistName)) return null;
 
-            var playlist = this.GetUsersPlaylists().Where(p => p.Name.ToLower() == playlistName.ToLower()).FirstOrDefault();
+            var playlist = this.GetUsersPlaylists().Where(p =>
+                p.Name.ToLower() == playlistName.ToLower() ||
+                p.Name.ToLower() == playlistStartString + playlistName.ToLower()
+                ).FirstOrDefault();
             return playlist;
         }
 
