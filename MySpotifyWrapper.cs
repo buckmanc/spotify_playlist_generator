@@ -595,47 +595,6 @@ namespace spotify_playlist_generator
             return playlists;
         }
 
-
-        ////heavily modified from
-        ////https://stackoverflow.com/a/71750158
-        //static string DownloadFile(string url, string outputFolderPath, string fileNameWithoutExtension)
-        //{
-        //    using (var client = new HttpClient())
-        //    using (var result = client.GetAsync(url).Result)
-        //    {
-        //        if (!result.IsSuccessStatusCode)
-        //            return null;
-
-        //        var ext = MimeTypes.MimeTypeMap.GetExtension(result.Content.Headers.ContentType.MediaType);
-        //        var outputFilePath = System.IO.Path.Join(outputFolderPath, System.IO.Path.ChangeExtension(fileNameWithoutExtension, ext));
-
-        //        File.WriteAllBytes(outputFilePath, result.Content.ReadAsByteArrayAsync().Result);
-
-        //        return outputFilePath;
-        //    }
-        //}
-
-        //heavily modified from
-        //https://stackoverflow.com/a/71750158
-        static void DownloadFile(string url, string path)
-        {
-            using (var client = new HttpClient())
-            using (var result = client.GetAsync(url).Result)
-            {
-                if (!result.IsSuccessStatusCode)
-                    return;
-
-                var ext = MimeTypes.MimeTypeMap.GetExtension(result.Content.Headers.ContentType.MediaType);
-                var fileExt = System.IO.Path.GetExtension(path);
-                if (fileExt.ToLower() != ext.ToLower())
-                {
-                    throw new Exception("Specified path file type does not match downloaded file type.");
-                }
-
-                File.WriteAllBytes(path, result.Content.ReadAsByteArrayAsync().Result);
-            }
-        }
-
         public void DownloadPlaylistImage(FullPlaylist playlist, string path)
         {
             var folderPath = System.IO.Path.GetDirectoryName(path);
@@ -646,7 +605,7 @@ namespace spotify_playlist_generator
             // .images is sorted by size, so the first is the largest
             var image = playlist.Images.First();
 
-            DownloadFile(image.Url, path);
+            ImageTools.DownloadFile(image.Url, path);
         }
 
         public bool UploadPlaylistImage(FullPlaylist playlist, string imagePath)

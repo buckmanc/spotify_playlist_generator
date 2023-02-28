@@ -60,7 +60,7 @@ namespace spotify_playlist_generator
 
         }
 
-        private static class Tokens
+        public static class Tokens
         {
             public static string NasaKey;
             public static string UnsplashAccessKey;
@@ -69,6 +69,7 @@ namespace spotify_playlist_generator
 
         private const int MaxPlaylistSize = 11000; //max playlist size as of 2021-07-15; the api throws an error once you pass this
         public static Regex idRegex = new Regex(@"[a-zA-Z0-9]{22}");
+        public static Regex urlRegex = new Regex(@"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)");
         public static string AssemblyDirectory
         {
             get
@@ -166,13 +167,14 @@ namespace spotify_playlist_generator
             {
                 //playlistName = "Top - Female Fronted Black Metal Plus";
                 //playlistName = "#Full Discog - Acoustic VGC";
-                //imageAddText = true;
                 //restorePlaylistImage = true;
-                //playlistName = "test";
+                playlistName = "test";
+                imageAddPhoto = true;
+                imageAddText = true;
                 //commitAnActOfUnspeakableViolence = true;
 
-                playlistName = "Full Discog - Old Sorcery";
-                playlistSpecification = "artist:Old Sorcery";
+                //playlistName = "Liked - Dungeon Synth";
+                //playlistSpecification = "likesbygenre:dungeon synth";
             }
 
             Console.WriteLine();
@@ -182,14 +184,23 @@ namespace spotify_playlist_generator
 
             var sw = Stopwatch.StartNew();
 
-
+            //important to set these paths BEFORE reading the config file
             Settings._PathsIniFolderPath = AssemblyDirectory;
             if (!string.IsNullOrWhiteSpace(playlistFolderPath))
             {
                 Settings._PlaylistFolderPath = playlistFolderPath;
             }
 
+
             GetConfig();
+
+            //important to deal with this dir AFTER reading the config file
+            //clear out any working image files from last time, let them persist per session
+            var workingImageFilePaths = System.IO.Directory.GetFiles(Program.Settings._ImageWorkingFolderPath);
+            foreach (var workingImageFile in workingImageFilePaths)
+            {
+                System.IO.File.Delete(workingImageFile);
+            }
 
             //if only looking at one playlist, don't delete all the others
             //that'd be a big yikes
@@ -227,14 +238,14 @@ namespace spotify_playlist_generator
                 BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, OverwriteBackup: true);
             }
 
-            if (imageAddText)
-            {
-                ImageAddText(spotifyWrapper, playlistName);
-            }
-
             if (imageAddPhoto)
             {
                 ImageAddPhoto(spotifyWrapper, playlistName);
+            }
+
+            if (imageAddText)
+            {
+                ImageAddText(spotifyWrapper, playlistName);
             }
 
             if (commitAnActOfUnspeakableViolence)
@@ -600,7 +611,7 @@ namespace spotify_playlist_generator
             Console.WriteLine();
         }
 
-        static List<FullPlaylist> BackupAndPrepPlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName, bool OverwriteBackup)
+        static List<FullPlaylist> BackupAndPrepPlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName, bool OverwriteBackup = false)
         {
             //technically this method violates the rule of single concern
             //but this is a personal project with limited time, so here we go
@@ -629,7 +640,11 @@ namespace spotify_playlist_generator
 
             foreach (var playlist in playlistsWithImages)
             {
-                spotifyWrapper.DownloadPlaylistImage(playlist, playlist.GetWorkingImagePath());
+                //don't download the image if a working copy already exists
+                //these are cleared at the beginning of the session and the playlists are NOT refreshed as we go
+                //so this will be the most up-to-date copy
+                if (!System.IO.File.Exists(playlist.GetWorkingImagePath()))
+                    spotifyWrapper.DownloadPlaylistImage(playlist, playlist.GetWorkingImagePath());
 
                 if (!System.IO.File.Exists(playlist.GetBackupImagePath()) || OverwriteBackup)
                 {
@@ -672,7 +687,7 @@ namespace spotify_playlist_generator
         static void ImageAddText(MySpotifyWrapper spotifyWrapper, string playlistName)
         {
 
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, OverwriteBackup: false);
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName);
 
             foreach (var playlist in playlists)
             {
@@ -680,7 +695,7 @@ namespace spotify_playlist_generator
 
                 using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
                 {
-                    var fontSize = img.Height / 10;
+                    var fontSize = img.Height / 7;
 
                     var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
                     //var test = SixLabors.Shapes.TextBuilder.GenerateGlyphs("yo", new SixLabors.Fonts.RendererOptions());
@@ -746,27 +761,58 @@ namespace spotify_playlist_generator
 
         static void ImageAddPhoto(MySpotifyWrapper spotifyWrapper, string playlistName)
         {
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, OverwriteBackup: false);
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName);
 
-            //consider consolidating all this apod stuff
-            var apodClient = new ApodClient(Program.Tokens.NasaKey);
-
-            var apodResonse = apodClient.FetchApodAsync(1).Result;
-
-            if (apodResonse.StatusCode != ApodStatusCode.OK)
+            foreach(var playlist in playlists)
             {
-                Console.WriteLine("Someone's done an oopsie.");
-                Console.WriteLine(apodResonse.Error.ErrorCode);
-                Console.WriteLine(apodResonse.Error.ErrorMessage);
-                Environment.Exit(-1);
+                ImageSource imageSource;
+
+                imageSource = ImageTools.GetNasaApodImage();
+
+                //TODO factor in ImageTools.GetUnsplashImage
+
+                using (var img = SixLabors.ImageSharp.Image.Load(imageSource.TempFilePath))
+                {
+                    var targetDim = 640;
+                    var minDim = new int[] { img.Width, img.Height }.Min();
+                    // make it a little bigger so we can punch an image out of the middle
+                    var ratio = Math.Round((targetDim * 1.5) / minDim, 0);
+                    var resizeSize = new Size((int)Math.Round(img.Width * ratio, 0), (int)Math.Round(img.Height * ratio, 0));
+
+                    if (ratio > 1 || resizeSize.Width == 0 || resizeSize.Height == 0)
+                    {
+                        resizeSize = new Size(minDim, minDim);
+                    }
+
+                    img.Mutate(
+                        i => i.Resize(resizeSize)
+                              .Crop(new Rectangle(
+                                  x: (resizeSize.Width - targetDim) / 2,
+                                  y: (resizeSize.Height - targetDim) / 2,
+                                  width:targetDim,
+                                  height:targetDim
+                                  ))
+                              );
+
+                    img.Save(playlist.GetWorkingImagePath());
+                }
+
+                var req = new PlaylistChangeDetailsRequest();
+                var oldAttribText = new Regex(@"Cover: .*").Match(playlist.Description).Value;
+                var newAttribText = "Cover: " + imageSource.TinyURL;
+                if (!string.IsNullOrWhiteSpace(oldAttribText))
+                {
+                    req.Description = playlist.Description.Replace(oldAttribText, newAttribText, StringComparison.InvariantCultureIgnoreCase);
+                }
+                else
+                {
+                    req.Description = playlist.Description + " " + newAttribText;
+                }
+
+                spotifyWrapper.spotify.Playlists.ChangeDetails(playlist.Id, req);
+
+                spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
             }
-
-            var apod = apodResonse.Content;
-            Console.WriteLine(apod.Title);
-            Console.WriteLine(apod.ContentUrl);
-            Console.WriteLine(apod.Explanation);
-
-            throw new NotImplementedException();
         }
 
         static void CommitAnActOfUnspeakableViolence(MySpotifyWrapper spotifyWrapper)
