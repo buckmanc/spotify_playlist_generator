@@ -53,6 +53,7 @@ namespace spotify_playlist_generator
                     , Scopes.PlaylistModifyPublic
                     , Scopes.PlaylistModifyPrivate
                     , Scopes.UserLibraryRead
+                    , Scopes.UgcImageUpload
                 }
                 };
                 var uri = loginRequest.ToUri();

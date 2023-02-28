@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -121,7 +122,7 @@ namespace spotify_playlist_generator
         /// <param name="values"></param>
         /// <param name="collection"></param>
         /// Adding in the suspiciously missing RemoveRange, counterpart to AddRange
-        public static void RemoveRange<T>(this List<T> values, IEnumerable<T> collection)
+        public static void RemoveRange<T>(this IList<T> values, IEnumerable<T> collection)
         {
             foreach (var item in collection)
                 values.Remove(item);
@@ -129,10 +130,11 @@ namespace spotify_playlist_generator
         /// <summary>
         /// Add elements from one dictionary to another.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="values"></param>
-        /// <param name="collection"></param>
-        public static void AddRange<T>(this Dictionary<string, T> dictionaryTo, Dictionary<string, T> dictionaryFrom)
+        /// <typeparam name="TKey"></typeparam>
+        /// <typeparam name="TValue"></typeparam>
+        /// <param name="dictionaryTo"></param>
+        /// <param name="dictionaryFrom"></param>
+        public static void AddRange<TKey, TValue>(this IDictionary<TKey, TValue> dictionaryTo, IDictionary<TKey, TValue> dictionaryFrom)
         {
             //pulled from https://stackoverflow.com/a/6695211 
             dictionaryFrom.ToList().ForEach(x => dictionaryTo.Add(x.Key, x.Value));
@@ -206,6 +208,11 @@ namespace spotify_playlist_generator
             return value.Result;
         }
 
+        public static string Remove(this string value, string stringToRemove)
+        {
+            return value.Remove(new string[] { stringToRemove });
+        }
+
         public static string Remove(this string value, IEnumerable<string> stringsToRemove)
         {
             if (string.IsNullOrEmpty(value))
@@ -217,6 +224,46 @@ namespace spotify_playlist_generator
             }
 
             return value;
+        }
+        public static void Remove<TSource>(this List<TSource> source, Func<TSource, bool> predicate)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException("source");
+            }
+
+            if (predicate == null)
+            {
+                throw new ArgumentNullException("predicate");
+            }
+
+            var itemsToRemove = source.Where(item => predicate(item)).ToList();
+            source.RemoveRange(itemsToRemove);
+        }
+
+        public static TValue TryGetValue<TKey, TValue>(this IDictionary<TKey, TValue> value, TKey key)
+        {
+            if (value.TryGetValue(key, out TValue result))
+            {
+                return result;
+            }
+
+            return default(TValue);
+        }
+
+        public static List<TValue> TryGetValues<TKey, TValue>(this IDictionary<TKey, TValue> value, IEnumerable<TKey> keys)
+        {
+            var output = new List<TValue>();
+
+            foreach (var key in keys)
+            {
+                if (value.TryGetValue(key, out TValue result))
+                {
+                    output.Add(result);
+                }
+            }
+
+            return output;
         }
     }
 }
