@@ -108,7 +108,7 @@ namespace spotify_playlist_generator
         /// </summary>
         /// <param name="artistIDs"></param>
         /// <returns>Returns a list of FullArtist</returns>
-        public async Task<List<FullArtist>> GetArtists(IEnumerable<string> artistIDs)
+        public List<FullArtist> GetArtists(IEnumerable<string> artistIDs)
         {
             artistIDs = artistIDs.Distinct();
 
@@ -129,7 +129,7 @@ namespace spotify_playlist_generator
             //pull any remaining items from the api
             foreach (var idChunk in artistIdApiQueue.ChunkBy(50))
             {
-                var chunkArtists = (await this.spotify.Artists.GetSeveral(new ArtistsRequest(idChunk))).Artists
+                var chunkArtists = (this.spotify.Artists.GetSeveral(new ArtistsRequest(idChunk))).Result.Artists
                     .Where(a => a != null)
                     .ToList();
 
@@ -141,14 +141,14 @@ namespace spotify_playlist_generator
 
             return output;
         }
-        public async Task<List<FullArtist>> GetArtists(IEnumerable<FullTrack> tracks)
+        public List<FullArtist> GetArtists(IEnumerable<FullTrack> tracks)
         {
             var artistIDs = tracks
                 .SelectMany(t => t.Artists.Select(a => a.Id))
                 .Distinct()
                 .ToArray();
 
-            return await this.GetArtists(artistIDs);
+            return this.GetArtists(artistIDs);
         }
 
         //do not save this cache
@@ -276,7 +276,7 @@ namespace spotify_playlist_generator
         /// </summary>
         /// <param name="trackIDs"></param>
         /// <returns>Returns a list of FullTrack</returns>
-        public async Task<List<FullTrackDetails>> GetTracks(IEnumerable<string> trackIDs)
+        public List<FullTrackDetails> GetTracks(IEnumerable<string> trackIDs)
         {
             trackIDs = trackIDs.Distinct();
 
@@ -299,11 +299,11 @@ namespace spotify_playlist_generator
             {
 
                 //TODO wrap this api call in an "access token expired" check that calls RefreshSpotifyClient() and tries again
-                var chunkTracks = (await this.spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Tracks
+                var chunkTracks = (this.spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Result.Tracks
                     .Where(a => a != null)
                     .ToList();
 
-                var artists = this.GetArtists(chunkTracks).Result;
+                var artists = this.GetArtists(chunkTracks);
 
                 var trackDetails = chunkTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
 
@@ -319,7 +319,7 @@ namespace spotify_playlist_generator
 
         private List<FullTrackDetails> _likedTracks;
         private bool _getLikedTracksRunning;
-        public async System.Threading.Tasks.Task<List<FullTrackDetails>> GetLikedTracks()
+        public List<FullTrackDetails> GetLikedTracks()
         {
             //threadsafe this sucker
             //well *mostly* threadsafe
@@ -332,12 +332,12 @@ namespace spotify_playlist_generator
             _getLikedTracksRunning = true;
 
             //could easily call GetTracks to assemble the tracks, but this method
-            var savedTracks = spotify.Paginate(await spotify.Library.GetTracks())
+            var savedTracks = spotify.Paginate(spotify.Library.GetTracks().Result)
                 .ToListAsync()
                 .Result
                 .ToList();
 
-            var artists = this.GetArtists(savedTracks.Select(s => s.Track)).Result;
+            var artists = this.GetArtists(savedTracks.Select(s => s.Track));
 
             var tracks = savedTracks
                 .Select(s => new FullTrackDetails(s, artists, this._sessionID))
@@ -360,7 +360,7 @@ namespace spotify_playlist_generator
             return tracks;
 
         }
-        public async Task<List<FullTrackDetails>> GetTracksByArtists(IEnumerable<string> artistNamesOrIDs)
+        public List<FullTrackDetails> GetTracksByArtists(IEnumerable<string> artistNamesOrIDs)
         {
             //TODO consider how to report progress
 
@@ -448,7 +448,7 @@ namespace spotify_playlist_generator
                 .ToList();
 
             //get the tracks
-            var newTracks = (await this.GetTracks(trackIDs))
+            var newTracks = (this.GetTracks(trackIDs))
                 //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
                 //this includes tracks that are on split albums, collaborations, and the like
                 .Where(t =>
@@ -471,7 +471,7 @@ namespace spotify_playlist_generator
         }
 
 
-        public async Task<List<FullTrackDetails>> GetTopTracksByArtists(IEnumerable<string> artistNamesOrIDs)
+        public List<FullTrackDetails> GetTopTracksByArtists(IEnumerable<string> artistNamesOrIDs)
         {
 
             //TODO scope problem with this ID regex
@@ -484,7 +484,7 @@ namespace spotify_playlist_generator
                 .ToList();
 
             var searchArtists = this.GetArtistsByName(artistNames);
-            var uriArtists = this.GetArtists(artistURIs).Result;
+            var uriArtists = this.GetArtists(artistURIs);
 
             var artists = searchArtists.Union(uriArtists).Distinct().ToList();
 
@@ -508,7 +508,7 @@ namespace spotify_playlist_generator
             artists.Remove(a => cachedTopTracks.Any(t => t.ArtistIds.Contains(a.Id)));
 
             //only hit the api for artists that we don't already have top tracks for
-            var me = await this.spotify.UserProfile.Current();
+            var me = this.spotify.UserProfile.Current().Result;
             var newTracks = artists.Select(artist => this.spotify.Artists.GetTopTracks(artist.Id, new ArtistsTopTracksRequest(me.Country ?? "US")).Result)
                 .SelectMany(x => x.Tracks)
                 .ToArray()
@@ -529,7 +529,7 @@ namespace spotify_playlist_generator
             return tracks;
         }
 
-        public async Task<List<FullTrackDetails>> GetTracksByPlaylist(IEnumerable<string> playlistIDs)
+        public List<FullTrackDetails> GetTracksByPlaylist(IEnumerable<string> playlistIDs)
         {
             //TODO add some kind of caching for playlists? especially since they have that snapshot id
             //and especially since, as is, playlists do not benefit from track caching at all
@@ -545,7 +545,7 @@ namespace spotify_playlist_generator
                 .Distinct()
                 .ToList();
 
-            var artists = await this.GetArtists(fullTracks);
+            var artists = this.GetArtists(fullTracks);
 
             var output = fullTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
             this.AddToCache(output);
@@ -553,13 +553,13 @@ namespace spotify_playlist_generator
         }
 
         private List<FullPlaylist> usersPlaylists;
-        public async System.Threading.Tasks.Task<List<FullPlaylist>> GetUsersPlaylists()
+        public List<FullPlaylist> GetUsersPlaylists()
         {
             if (usersPlaylists != null)
                 return usersPlaylists;
 
 
-            usersPlaylists = (await this.spotify.Paginate(await spotify.Playlists.CurrentUsers()).ToListAsync())
+            usersPlaylists = (this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync()).Result
                 .Where(p => p.Owner.Id == this.spotify.UserProfile.Current().Result.Id)
                 .Select(p => spotify.Playlists.Get(p.Id).Result) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
                 .ToList()
@@ -571,7 +571,7 @@ namespace spotify_playlist_generator
         {
             if (string.IsNullOrWhiteSpace(playlistName)) return null;
 
-            var playlist = this.GetUsersPlaylists().Result.Where(p => p.Name.ToLower() == playlistName.ToLower()).FirstOrDefault();
+            var playlist = this.GetUsersPlaylists().Where(p => p.Name.ToLower() == playlistName.ToLower()).FirstOrDefault();
             return playlist;
         }
 

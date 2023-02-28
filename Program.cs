@@ -139,6 +139,7 @@ namespace spotify_playlist_generator
             bool backupPlaylistImage, bool restorePlaylistImage, bool addPlaylistNameToImage
             )
         {
+
             if (Debugger.IsAttached)
             {
                 //playlistName = "Top - Female Fronted Black Metal Plus";
@@ -148,22 +149,6 @@ namespace spotify_playlist_generator
                 playlistName = "test";
             }
 
-            //hop into async land
-            MainAsync(
-                playlistFolderPath: playlistFolderPath,
-                listPlaylists: listPlaylists,
-                playlistName: playlistName,
-                playlistSpecification: playlistSpecification,
-                modifyPlaylistFile: modifyPlaylistFile,
-                backupPlaylistImage: backupPlaylistImage,
-                restorePlaylistImage: restorePlaylistImage,
-                addPlaylistNameToImage: addPlaylistNameToImage
-                ).Wait();
-        }
-        static async System.Threading.Tasks.Task MainAsync(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpecification, bool modifyPlaylistFile,
-            bool backupPlaylistImage, bool restorePlaylistImage, bool addPlaylistNameToImage
-            )
-        {
             Console.WriteLine();
             Console.WriteLine("Welcome to " + Program.AssemblyName + "! Please don't expect too much, but also be impressed.");
             Console.WriteLine("Starting at " + DateTime.Now.ToString());
@@ -178,10 +163,6 @@ namespace spotify_playlist_generator
                 Settings._PlaylistFolderPath = playlistFolderPath;
             }
 
-
-            //TODO remove uses of .Result where practical, try to actually get some benefit from async calls
-            //don't go overboard though
-
             GetConfig();
 
             //if only looking at one playlist, don't delete all the others
@@ -191,7 +172,7 @@ namespace spotify_playlist_generator
 
             using var spotifyWrapper = new MySpotifyWrapper();
 
-            var me = await spotifyWrapper.spotify.UserProfile.Current();
+            var me = spotifyWrapper.spotify.UserProfile.Current().Result;
             Console.WriteLine($"Hello there, {me.DisplayName}");
             Console.WriteLine("----------------------");
 
@@ -203,7 +184,7 @@ namespace spotify_playlist_generator
             var getPlaylistBreakdownsSuccess = false;
             var likedGenreReportSuccess = false;
 
-            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification).Result;
+            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification);
 
             //eventually would like to run this all the time, but it's problematic right now
             if (modifyPlaylistFile)
@@ -237,12 +218,12 @@ namespace spotify_playlist_generator
                     error = false;
                     if (!getPlaylistBreakdownsSuccess)
                     {
-                        playlistBreakdowns.AddRange(await GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs));
+                        playlistBreakdowns.AddRange(GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs));
                         getPlaylistBreakdownsSuccess = true;
                     }
                     if (!likedGenreReportSuccess)
                     {
-                        await LikedGenreReport(spotifyWrapper);
+                        LikedGenreReport(spotifyWrapper);
                         likedGenreReportSuccess = true;
                     }
                     
@@ -264,7 +245,7 @@ namespace spotify_playlist_generator
             } while (error && errorTries < 1); // setting to 1 for now, until issues with api hits starting over from the beginning can be resolved
 
             //do work!
-            await UpdatePlaylists(spotifyWrapper, playlistBreakdowns);
+            UpdatePlaylists(spotifyWrapper, playlistBreakdowns);
 
             Console.WriteLine();
             Console.WriteLine("All done, get jammin'!");
@@ -327,7 +308,7 @@ namespace spotify_playlist_generator
             Settings._StartPlaylistsWith = configIni["SETTINGS"]["StartPlaylistsWithString"];
 
         }
-        static async System.Threading.Tasks.Task<List<PlaylistSpec>> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpecification)
+        static List<PlaylistSpec> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpecification)
         {
 
 
@@ -348,7 +329,7 @@ namespace spotify_playlist_generator
                     "-artist:Korpiklaani #korpiklaani is more folk metal than symphonic metal!"
                     ;
 
-                var playlist = spotifyWrapper.GetUsersPlaylists().Result
+                var playlist = spotifyWrapper.GetUsersPlaylists()
                     .OrderByDescending(p => p.Followers.Total)
                     .ThenBy(p => p.Tracks.Total)
                     .FirstOrDefault();
@@ -356,7 +337,7 @@ namespace spotify_playlist_generator
                 //TODO find one of the users playlists
                 var playlistLikes = "LikesFromPlaylist:" + playlist.Id + " #" + playlist.Name;
 
-                var likedTracks = spotifyWrapper.GetLikedTracks().Result;
+                var likedTracks = spotifyWrapper.GetLikedTracks();
 
                 var topLikedArtistNames = likedTracks
                     .SelectMany(t => t.ArtistNames)
@@ -432,13 +413,13 @@ namespace spotify_playlist_generator
             return playlistSpecs;
         }
 
-        static async void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
+        static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
         {
             Console.WriteLine();
             Console.WriteLine("---making updates to playlist spec files---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            var likedTracks = await spotifyWrapper.GetLikedTracks();
+            var likedTracks = spotifyWrapper.GetLikedTracks();
 
             //swap artist names for artist IDs
             //this will save multiple API hits involved in searching for artists by name and paging over the results
@@ -713,13 +694,13 @@ namespace spotify_playlist_generator
             //}
         }
 
-        static async System.Threading.Tasks.Task<Dictionary<string, List<FullTrackDetails>>> GetPlaylistBreakdowns(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
+        static Dictionary<string, List<FullTrackDetails>> GetPlaylistBreakdowns(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
         {
             Console.WriteLine();
             Console.WriteLine("---assembling playlist tracks---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            var likedTracks = await spotifyWrapper.GetLikedTracks();
+            var likedTracks = spotifyWrapper.GetLikedTracks();
 
             var playlistBreakdowns = new Dictionary<string, List<FullTrackDetails>>();
 
@@ -745,7 +726,7 @@ namespace spotify_playlist_generator
                 var likesByArtistFromPlaylist = playlistSpec.GetParameterValues("LikesByArtistFromPlaylist");
                 if (likesByArtistFromPlaylist.Any())
                 {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(likesByArtistFromPlaylist).Result
+                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(likesByArtistFromPlaylist)
                         .SelectMany(t => t.ArtistIds)
                         .Distinct()
                         .ToArray();
@@ -761,7 +742,7 @@ namespace spotify_playlist_generator
                 var likesFromPlaylist = playlistSpec.GetParameterValues("LikesFromPlaylist");
                 if (likesFromPlaylist.Any())
                 {
-                    var tracks = spotifyWrapper.GetTracksByPlaylist(likesFromPlaylist).Result
+                    var tracks = spotifyWrapper.GetTracksByPlaylist(likesFromPlaylist)
                         .Where(t => likedTracks.Contains(t))
                         .ToArray();
 
@@ -771,19 +752,19 @@ namespace spotify_playlist_generator
                 var allByArtist = playlistSpec.GetParameterValues("AllByArtist");
                 if (allByArtist.Any())
                 {
-                    var tracks = spotifyWrapper.GetTracksByArtists(allByArtist).Result;
+                    var tracks = spotifyWrapper.GetTracksByArtists(allByArtist);
                     playlistTracks.AddRange(tracks);
                 }
 
                 var allByArtistFromPlaylist = playlistSpec.GetParameterValues("AllByArtistFromPlaylist");
                 if (allByArtistFromPlaylist.Any())
                 {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(allByArtistFromPlaylist).Result
+                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(allByArtistFromPlaylist)
                         .SelectMany(t => t.ArtistIds)
                         .Distinct()
                         .ToArray();
 
-                    var tracks = spotifyWrapper.GetTracksByArtists(artistIDs).Result;
+                    var tracks = spotifyWrapper.GetTracksByArtists(artistIDs);
                     playlistTracks.AddRange(tracks);
                 }
 
@@ -791,20 +772,20 @@ namespace spotify_playlist_generator
                 if (topByArtist.Any())
                 {
                     //TODO how many tracks does this method actually return? do we need to limit to 5?
-                    var tracks = spotifyWrapper.GetTopTracksByArtists(topByArtist).Result;
+                    var tracks = spotifyWrapper.GetTopTracksByArtists(topByArtist);
                     playlistTracks.AddRange(tracks);
                 }
 
                 var topByArtistFromPlaylist = playlistSpec.GetParameterValues("TopByArtistFromPlaylist");
                 if (topByArtistFromPlaylist.Any())
                 {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(likesByArtistFromPlaylist).Result
+                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(likesByArtistFromPlaylist)
                         .SelectMany(t => t.ArtistIds)
                         .Distinct()
                         .ToArray();
 
                     //TODO how many tracks does this method actually return? do we need to limit to 5?
-                    var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs).Result;
+                    var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs);
                     playlistTracks.AddRange(tracks);
                 }
 
@@ -882,7 +863,7 @@ namespace spotify_playlist_generator
                 var excludePlaylistTracks = playlistSpec.GetParameterValues("-PlaylistTracks");
                 if (excludePlaylistTracks.Any())
                 {
-                    var tracks = spotifyWrapper.GetTracksByPlaylist(excludePlaylistTracks).Result
+                    var tracks = spotifyWrapper.GetTracksByPlaylist(excludePlaylistTracks)
                         .ToArray();
                     playlistTracks.RemoveRange(tracks);
                 }
@@ -890,7 +871,7 @@ namespace spotify_playlist_generator
                 var excludePlaylistArtists = playlistSpec.GetParameterValues("-PlaylistArtists");
                 if (excludePlaylistArtists.Any())
                 {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(excludePlaylistArtists).Result
+                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(excludePlaylistArtists)
                         .SelectMany(t => t.ArtistIds)
                         .Distinct()
                         .ToArray();
@@ -977,12 +958,12 @@ namespace spotify_playlist_generator
             return playlistBreakdowns;
         }
 
-        static async System.Threading.Tasks.Task UpdatePlaylists(MySpotifyWrapper spotifyWrapper, Dictionary<string, List<FullTrackDetails>> playlistBreakdowns)
+        static void UpdatePlaylists(MySpotifyWrapper spotifyWrapper, Dictionary<string, List<FullTrackDetails>> playlistBreakdowns)
         {
             Console.WriteLine();
             Console.WriteLine("---updating spotify---");
 
-            var allPlaylists = await spotifyWrapper.GetUsersPlaylists();
+            var allPlaylists = spotifyWrapper.GetUsersPlaylists();
 
             //dump all playlists here if settings say to recreate them
             if (Settings._RecreatePlaylists)
@@ -992,7 +973,7 @@ namespace spotify_playlist_generator
                 //dump the playlists
                 foreach (var playlist in removePlaylists)
                 {
-                    await spotifyWrapper.spotify.Follow.UnfollowPlaylist(playlist.Id);
+                    spotifyWrapper.spotify.Follow.UnfollowPlaylist(playlist.Id);
                     allPlaylists.RemoveRange(removePlaylists);
                 }
 
@@ -1012,7 +993,7 @@ namespace spotify_playlist_generator
                 //dump the playlists
                 foreach (var playlist in removePlaylists)
                 {
-                    await spotifyWrapper.spotify.Follow.UnfollowPlaylist(playlist.Id);
+                    spotifyWrapper.spotify.Follow.UnfollowPlaylist(playlist.Id);
                     allPlaylists.RemoveRange(removePlaylists);
                 }
 
@@ -1044,7 +1025,7 @@ namespace spotify_playlist_generator
                     var playlistRequest = new PlaylistCreateRequest(playlistBreakdown.Key);
                     playlistRequest.Description = "Automatically generated by " + Program.AssemblyName + ".";
                     playlistRequest.Public = !Settings._NewPlaylistsPrivate;
-                    var newPlaylist = await spotifyWrapper.spotify.Playlists.Create(spotifyWrapper.spotify.UserProfile.Current().Result.Id, playlistRequest);
+                    var newPlaylist = spotifyWrapper.spotify.Playlists.Create(spotifyWrapper.spotify.UserProfile.Current().Result.Id, playlistRequest).Result;
 
                     playlist = newPlaylist;
 
@@ -1052,7 +1033,7 @@ namespace spotify_playlist_generator
                 }
 
                 //get all the tracks that ARE in the playlist - doing this here as they have to be casted from PlaylistTrack to FullTrack to be useful
-                var playlistTracksCurrent = (await spotifyWrapper.spotify.Paginate(playlist.Tracks).ToListAsync())
+                var playlistTracksCurrent = (spotifyWrapper.spotify.Paginate(playlist.Tracks).ToListAsync()).Result
                     .Select(x => (FullTrack)x.Track)
                     .ToList()
                     ;
@@ -1072,7 +1053,7 @@ namespace spotify_playlist_generator
                         .ToList();
 
                     foreach (var removeRequest in removeRequests)
-                        await spotifyWrapper.spotify.Playlists.RemoveItems(playlist.Id, removeRequest);
+                        spotifyWrapper.spotify.Playlists.RemoveItems(playlist.Id, removeRequest);
 
                     removedTracksCounter += removeTrackRequestItems.Count;
                 }
@@ -1095,7 +1076,7 @@ namespace spotify_playlist_generator
 
                         .ToList();
                     foreach (var addRequest in addRequests)
-                        await spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest);
+                        spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest);
 
                     addedTracksCounter += addTrackURIs.Count;
                 }
@@ -1111,13 +1092,13 @@ namespace spotify_playlist_generator
 
         }
 
-        static async System.Threading.Tasks.Task LikedGenreReport(MySpotifyWrapper spotifyWrapper)
+        static void LikedGenreReport(MySpotifyWrapper spotifyWrapper)
         {
             Console.WriteLine();
             Console.WriteLine("---liked genre report---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            var likedTracks = await spotifyWrapper.GetLikedTracks();
+            var likedTracks = spotifyWrapper.GetLikedTracks();
 
             //TODO simplify this; the data you need is already in likedTracks
             var artistIDs = likedTracks.SelectMany(t => t.ArtistIds)
@@ -1125,7 +1106,7 @@ namespace spotify_playlist_generator
                 .ToList();
 
             //get the artists
-            var artists = await spotifyWrapper.GetArtists(artistIDs);
+            var artists = spotifyWrapper.GetArtists(artistIDs);
 
             //report records, assemble!
 
