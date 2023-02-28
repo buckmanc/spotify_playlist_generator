@@ -168,8 +168,11 @@ namespace spotify_playlist_generator
                 //playlistName = "#Full Discog - Acoustic VGC";
                 //imageAddText = true;
                 //restorePlaylistImage = true;
-                playlistName = "test";
+                //playlistName = "test";
                 //commitAnActOfUnspeakableViolence = true;
+
+                playlistName = "Full Discog - Old Sorcery";
+                playlistSpecification = "artist:Old Sorcery";
             }
 
             Console.WriteLine();
@@ -212,22 +215,16 @@ namespace spotify_playlist_generator
             if (modifyPlaylistFile)
             {
                 ModifyPlaylistSpecFiles(spotifyWrapper, playlistSpecs, modifyAll:string.IsNullOrEmpty(playlistName));
-                Environment.Exit(0);
             }
 
-            //TODO fix inconsistent behaviour; some of these handle multiple playlists, some handle one
-            //this all boils down to the problem that Spotify doesn't tell you the file extension, so you can't know the image file path
-            //but you COULD switch to checking the filesystem for a GetFileNameWithoutExtension that == the playlist name
-            if (backupPlaylistImage)
-            {
-                var dummyPlaylist = new FullPlaylist();
-                BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, out dummyPlaylist, OverwriteBackup: true);
-            }
-            
             if (restorePlaylistImage)
             {
                 RestorePlaylistImage(spotifyWrapper, playlistName);
-                Environment.Exit(0);
+            }
+
+            if (backupPlaylistImage)
+            {
+                BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, OverwriteBackup: true);
             }
 
             if (imageAddText)
@@ -603,9 +600,10 @@ namespace spotify_playlist_generator
             Console.WriteLine();
         }
 
-        static string BackupAndPrepPlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName, out FullPlaylist playlist, bool OverwriteBackup)
+        static List<FullPlaylist> BackupAndPrepPlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName, bool OverwriteBackup)
         {
-            playlist = null;
+            //technically this method violates the rule of single concern
+            //but this is a personal project with limited time, so here we go
 
             if (string.IsNullOrWhiteSpace(playlistName))
             {
@@ -613,143 +611,142 @@ namespace spotify_playlist_generator
                 return null;
             }
 
-            playlist = spotifyWrapper.GetUsersPlaylists(playlistName, Settings._StartPlaylistsWith);
+            var playlists = spotifyWrapper.GetUsersPlaylists(playlistName, Settings._StartPlaylistsWith);
 
-            if (playlist == null)
+            if (!playlists.Any())
             {
-                Console.WriteLine("No playlist named \"" + playlistName + "\" found.");
-                return null;
+                Console.WriteLine("No playlists named \"" + playlistName + "\" found.");
+                return playlists;
             }
 
-            if (!playlist.Images.Any())
+            var playlistsWithImages = playlists.Where(p => p.Images.Any()).ToList();
+
+            if (!playlistsWithImages.Any())
             {
-                Console.WriteLine("Playlist has no cover art.");
-                return null;
+                Console.WriteLine("No cover art to back up.");
+                return playlistsWithImages;
             }
 
-            var imagePath = spotifyWrapper.DownloadPlaylistImage(playlist, Settings._ImageWorkingFolderPath, playlist.Name);
-
-            if (imagePath == null)
+            foreach (var playlist in playlistsWithImages)
             {
-                Console.WriteLine("Could not download playlist cover image.");
-                return null;
+                spotifyWrapper.DownloadPlaylistImage(playlist, playlist.GetWorkingImagePath());
+
+                if (!System.IO.File.Exists(playlist.GetBackupImagePath()) || OverwriteBackup)
+                {
+                    if (!System.IO.Directory.Exists(Settings._ImageBackupFolderPath))
+                        System.IO.Directory.CreateDirectory(Settings._ImageBackupFolderPath);
+
+                    System.IO.File.Copy(playlist.GetWorkingImagePath(), playlist.GetBackupImagePath());
+                }
             }
 
-            var backupImagePath = System.IO.Path.Join(Settings._ImageBackupFolderPath, System.IO.Path.GetFileName(imagePath));
-
-            if (!System.IO.File.Exists(backupImagePath) || OverwriteBackup)
-            {
-                if (!System.IO.Directory.Exists(Settings._ImageBackupFolderPath))
-                    System.IO.Directory.CreateDirectory(Settings._ImageBackupFolderPath);
-
-                System.IO.File.Copy(imagePath, backupImagePath);
-            }
-
-            return imagePath;
+            return playlistsWithImages;
         }
 
         static void RestorePlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName)
         {
+
             if (!System.IO.Directory.Exists(Settings._ImageBackupFolderPath))
             {
                 Console.WriteLine("No backup image found for " + playlistName + ".");
                 return;
             }
 
-            var backupImagePath = System.IO.Directory.GetFiles(Settings._ImageBackupFolderPath)
-                .Where(filePath => System.IO.Path.GetFileNameWithoutExtension(filePath).ToLower() == playlistName.ToLower())
-                .FirstOrDefault();
+            var playlists = spotifyWrapper.GetUsersPlaylists(playlistName, Settings._StartPlaylistsWith);
+            var playlistsWithBackups = playlists.Where(p => System.IO.File.Exists(p.GetBackupImagePath())).ToArray();
 
-            if (!System.IO.File.Exists(backupImagePath))
+            if (!playlistsWithBackups.Any())
             {
                 Console.WriteLine("No backup image found for " + playlistName + ".");
                 return;
             }
 
-            spotifyWrapper.UploadPlaylistImage(playlistName, backupImagePath);
-
-            System.IO.File.Delete(backupImagePath);
+            //restore and burn
+            foreach (var playlist in playlists)
+            {
+                spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetBackupImagePath());
+                System.IO.File.Delete(playlist.GetBackupImagePath());
+            }
         }
 
         static void ImageAddText(MySpotifyWrapper spotifyWrapper, string playlistName)
         {
-            FullPlaylist playlist;
 
-            var imagePath = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, out playlist, OverwriteBackup: false);
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, OverwriteBackup: false);
 
-            var textForArt = playlist.Name.Replace(" - ", Environment.NewLine);
-
-            using (var img = SixLabors.ImageSharp.Image.Load(imagePath))
+            foreach (var playlist in playlists)
             {
+                var textForArt = playlist.Name.Replace(" - ", Environment.NewLine);
 
-                var fontSize = img.Height / 10;
-
-                var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
-                //var test = SixLabors.Shapes.TextBuilder.GenerateGlyphs("yo", new SixLabors.Fonts.RendererOptions());
-
-                //TODO actually pick a font
-                Console.WriteLine("font families:");
-                Console.WriteLine(SystemFonts.Families.Select(f => f.Name).Join(Environment.NewLine));
-
-                FontFamily fontFamily = SystemFonts.Families.FirstOrDefault();
-                var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
-
-		        var lineCount = textForArt.Split(Environment.NewLine).Count();
-
-                //const double pointToPixelRatio = 1.333333;
-                //const double verticalLineSpacePercent = 0.05;
-                const double pointToPixelRatio = 1;
-                const double verticalLineSpacePercent = 0.25;
-
-                var fontHeightNoSpacing = (fontSize * pointToPixelRatio) * lineCount;
-                var lineSpacingAdjustmentPercent = (1 + ((lineCount - 1) * verticalLineSpacePercent));
-
-                //TODO slap the font ratio to a constant?
-                //line height should have some relation to font size
-                var fontHeight = (float)(
-			        (fontSize * pointToPixelRatio) * lineCount     //point to pixel conversion
-                    * (1 + ((lineCount - 1) * verticalLineSpacePercent))    //line spacing adjustment for multiple lines
-                                                        //* (1 + (lineCount - 1) )	//line spacing adjustment for multiple lines
-                    )
-			        ;
-
-                if (Settings._VerboseDebug)
+                using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
                 {
-                    Console.WriteLine("font size in points: " + fontSize.ToString());
-                    Console.WriteLine("font height:         " + fontHeight.ToString());
-                    Console.WriteLine("edge distance:       " + edgeDistance.ToString());
-                    Console.WriteLine("cover height:        " + img.Height.ToString());
-                    Console.WriteLine("y calc:              " + (img.Height - fontHeight - edgeDistance).ToString());
+                    var fontSize = img.Height / 10;
+
+                    var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
+                    //var test = SixLabors.Shapes.TextBuilder.GenerateGlyphs("yo", new SixLabors.Fonts.RendererOptions());
+
+                    //TODO actually pick a font
+                    Console.WriteLine("font families:");
+                    Console.WriteLine(SystemFonts.Families.Select(f => f.Name).Join(Environment.NewLine));
+
+                    FontFamily fontFamily = SystemFonts.Families.FirstOrDefault();
+                    var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
+
+                    var lineCount = textForArt.Split(Environment.NewLine).Count();
+
+                    //const double pointToPixelRatio = 1.333333;
+                    //const double verticalLineSpacePercent = 0.05;
+                    const double pointToPixelRatio = 1;
+                    const double verticalLineSpacePercent = 0.25;
+
+                    var fontHeightNoSpacing = (fontSize * pointToPixelRatio) * lineCount;
+                    var lineSpacingAdjustmentPercent = (1 + ((lineCount - 1) * verticalLineSpacePercent));
+
+                    //TODO slap the font ratio to a constant?
+                    //line height should have some relation to font size
+                    var fontHeight = (float)(
+                        (fontSize * pointToPixelRatio) * lineCount     //point to pixel conversion
+                        * (1 + ((lineCount - 1) * verticalLineSpacePercent))    //line spacing adjustment for multiple lines
+                                                                                //* (1 + (lineCount - 1) )	//line spacing adjustment for multiple lines
+                        )
+                        ;
+
+                    if (Settings._VerboseDebug)
+                    {
+                        Console.WriteLine("font size in points: " + fontSize.ToString());
+                        Console.WriteLine("font height:         " + fontHeight.ToString());
+                        Console.WriteLine("edge distance:       " + edgeDistance.ToString());
+                        Console.WriteLine("cover height:        " + img.Height.ToString());
+                        Console.WriteLine("y calc:              " + (img.Height - fontHeight - edgeDistance).ToString());
+                    }
+
+                    img.Mutate(x => x.DrawText(
+                        textForArt,
+                        font,
+                        Brushes.Solid(Color.White),
+                        Pens.Solid(Color.Black, 2f),
+                        //new PointF(edgeDistance, img.Height - edgeDistance)
+                        new PointF(edgeDistance, img.Height - fontHeight - edgeDistance)
+                        //new PointF(10, 10)
+                        ));
+
+                    img.Save(playlist.GetWorkingImagePath());
                 }
 
-                img.Mutate(x => x.DrawText(
-                    textForArt,
-                    font,
-                    Brushes.Solid(Color.White),
-                    Pens.Solid(Color.Black, 2f),
-                    //new PointF(edgeDistance, img.Height - edgeDistance)
-                    new PointF(edgeDistance, img.Height - fontHeight - edgeDistance)
-                    //new PointF(10, 10)
-                    ));
-
-                img.Save(imagePath);
+                //if (System.Diagnostics.Debugger.IsAttached)
+                //{
+                //    Process.Start("explorer.exe", "\"" + playlist.GetWorkingImagePath() + "\"");
+                //}
+                //else
+                //{
+                spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
+                //}
             }
-
-            //if (System.Diagnostics.Debugger.IsAttached)
-            //{
-            //    Process.Start("explorer.exe", "\"" + imagePath + "\"");
-            //}
-            //else
-            //{
-                spotifyWrapper.UploadPlaylistImage(playlist, imagePath);
-            //}
         }
 
         static void ImageAddPhoto(MySpotifyWrapper spotifyWrapper, string playlistName)
         {
-            FullPlaylist playlist;
-
-            var imagePath = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, out playlist, OverwriteBackup: false);
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, OverwriteBackup: false);
 
             //consider consolidating all this apod stuff
             var apodClient = new ApodClient(Program.Tokens.NasaKey);
@@ -967,8 +964,6 @@ namespace spotify_playlist_generator
 
                     playlistTracks.AddRange(tracks);
                 }
-
-                //TODO mod the spec file here?
 
                 // ------------ exclude tracks ------------
                 var excludeArtists = playlistSpec.GetParameterValues("-Artist");

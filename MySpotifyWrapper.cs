@@ -568,74 +568,85 @@ namespace spotify_playlist_generator
             return output;
         }
 
-        private List<FullPlaylist> usersPlaylists;
+        private List<FullPlaylist> _usersPlaylists;
         public List<FullPlaylist> GetUsersPlaylists()
         {
-            if (usersPlaylists != null)
-                return usersPlaylists;
+            if (_usersPlaylists != null)
+                return _usersPlaylists;
 
 
-            usersPlaylists = (this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync()).Result
+            _usersPlaylists = (this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync()).Result
                 .Where(p => p.Owner.Id == this.spotify.UserProfile.Current().Result.Id)
                 .Select(p => spotify.Playlists.Get(p.Id).Result) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
                 .ToList()
                 ;
 
-            return usersPlaylists;
+            return _usersPlaylists;
         }
-        public FullPlaylist GetUsersPlaylists(string playlistName, string playlistStartString = null)
+        public List<FullPlaylist> GetUsersPlaylists(string playlistName, string playlistStartString = null)
         {
             if (string.IsNullOrWhiteSpace(playlistName)) return null;
 
-            var playlist = this.GetUsersPlaylists().Where(p =>
-                p.Name.ToLower() == playlistName.ToLower() ||
-                p.Name.ToLower() == playlistStartString + playlistName.ToLower()
-                ).FirstOrDefault();
-            return playlist;
+            var playlists = this.GetUsersPlaylists().Where(p =>
+                p.Name.Like(playlistName) ||
+                p.Name.Like(playlistStartString + playlistName)
+                )
+                .ToList();
+            return playlists;
         }
 
 
+        ////heavily modified from
+        ////https://stackoverflow.com/a/71750158
+        //static string DownloadFile(string url, string outputFolderPath, string fileNameWithoutExtension)
+        //{
+        //    using (var client = new HttpClient())
+        //    using (var result = client.GetAsync(url).Result)
+        //    {
+        //        if (!result.IsSuccessStatusCode)
+        //            return null;
+
+        //        var ext = MimeTypes.MimeTypeMap.GetExtension(result.Content.Headers.ContentType.MediaType);
+        //        var outputFilePath = System.IO.Path.Join(outputFolderPath, System.IO.Path.ChangeExtension(fileNameWithoutExtension, ext));
+
+        //        File.WriteAllBytes(outputFilePath, result.Content.ReadAsByteArrayAsync().Result);
+
+        //        return outputFilePath;
+        //    }
+        //}
+
         //heavily modified from
         //https://stackoverflow.com/a/71750158
-        static string DownloadFile(string url, string outputFolderPath, string fileNameWithoutExtension)
+        static void DownloadFile(string url, string path)
         {
             using (var client = new HttpClient())
             using (var result = client.GetAsync(url).Result)
             {
                 if (!result.IsSuccessStatusCode)
-                    return null;
+                    return;
 
                 var ext = MimeTypes.MimeTypeMap.GetExtension(result.Content.Headers.ContentType.MediaType);
-                var outputFilePath = System.IO.Path.Join(outputFolderPath, System.IO.Path.ChangeExtension(fileNameWithoutExtension, ext));
+                var fileExt = System.IO.Path.GetExtension(path);
+                if (fileExt.ToLower() != ext.ToLower())
+                {
+                    throw new Exception("Specified path file type does not match downloaded file type.");
+                }
 
-                File.WriteAllBytes(outputFilePath, result.Content.ReadAsByteArrayAsync().Result);
-
-                return outputFilePath;
+                File.WriteAllBytes(path, result.Content.ReadAsByteArrayAsync().Result);
             }
         }
 
-        public string DownloadPlaylistImage(string playlistName, string folderPath, string fileNameWithoutExtension)
+        public void DownloadPlaylistImage(FullPlaylist playlist, string path)
         {
-            return DownloadPlaylistImage(this.GetUsersPlaylists(playlistName), folderPath, fileNameWithoutExtension);
-        }
+            var folderPath = System.IO.Path.GetDirectoryName(path);
 
-        public string DownloadPlaylistImage(FullPlaylist playlist, string folderPath, string fileNameWithoutExtension)
-        {
             if (!System.IO.Directory.Exists(folderPath))
                 System.IO.Directory.CreateDirectory(folderPath);
 
             // .images is sorted by size, so the first is the largest
             var image = playlist.Images.First();
 
-            //unfort we don't know the file extension until we're downloading the file
-            var imagePath = DownloadFile(image.Url, folderPath, fileNameWithoutExtension);
-
-            return imagePath;
-        }
-
-        public void UploadPlaylistImage(string playlistName, string imagePath)
-        {
-            UploadPlaylistImage(this.GetUsersPlaylists(playlistName), imagePath);
+            DownloadFile(image.Url, path);
         }
 
         public bool UploadPlaylistImage(FullPlaylist playlist, string imagePath)
