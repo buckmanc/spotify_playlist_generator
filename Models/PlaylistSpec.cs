@@ -17,6 +17,7 @@ namespace spotify_playlist_generator.Models
         public bool DeleteIfEmpty { get; set; }
         public bool DontRemoveTracks { get; set; }
         public bool MaintainSort { get; set; }
+        public int LimitPerArtist { get; set; }
         public SpecLine[] SpecLines { get; set; }
 
         public PlaylistSpec(string path)
@@ -69,9 +70,18 @@ namespace spotify_playlist_generator.Models
 
             this.AddArtistIDs = playlistSettings
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "addartistids");
-            
-	    this.MaintainSort = playlistSettings
+
+            this.MaintainSort = playlistSettings
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "MaintainSort");
+            
+            var dummy = 0;
+            this.LimitPerArtist = playlistSettings
+                .Where(line => line.StartsWith(Settings._ParameterString + "limitperartist:", StringComparison.InvariantCultureIgnoreCase))
+                .Select(line => line.Split(":", 2).Last())
+                .Where(line => int.TryParse(line, out dummy))
+                .Select(line => int.Parse(line))
+                .FirstOrDefault()
+                ;
 
             this.SpecLines = fileLines
                 .Select(line => new
@@ -151,7 +161,7 @@ namespace spotify_playlist_generator.Models
                             this.PlaylistName = "a playlist with a blank birth certificate";
                             break;
                         case 8:
-                            this.PlaylistName = new Guid().ToString();
+                            this.PlaylistName = Guid.NewGuid().ToString();
                             break;
                         case 9:
                             this.PlaylistName = "a playlist with an identity crisis";

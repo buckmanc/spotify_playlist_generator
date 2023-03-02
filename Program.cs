@@ -22,6 +22,7 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using System.Text;
 using Apod;
 using SpotifyAPI.Web.Http;
+using Figgle;
 
 namespace spotify_playlist_generator
 {
@@ -155,10 +156,12 @@ namespace spotify_playlist_generator
         /// <param name="imageAddPhoto"></param>
         /// <param name="backupPlaylistImage"></param>
         /// <param name="restorePlaylistImage"></param>
+        /// <param name="play"></param>
         /// <param name="commitAnActOfUnspeakableViolence"></param>
         static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpecification, bool modifyPlaylistFile,
             bool imageAddText, bool imageAddPhoto,
             bool backupPlaylistImage, bool restorePlaylistImage,
+            bool play,
 	        bool commitAnActOfUnspeakableViolence
             )
         {
@@ -168,17 +171,34 @@ namespace spotify_playlist_generator
                 //playlistName = "Top - Female Fronted Black Metal Plus";
                 //playlistName = "#Full Discog - Acoustic VGC";
                 //restorePlaylistImage = true;
-                playlistName = "test";
-                imageAddPhoto = true;
-                imageAddText = true;
+                //playlistName = "test";
+                //imageAddPhoto = true;
+                //imageAddText = true;
                 //commitAnActOfUnspeakableViolence = true;
 
                 //playlistName = "Liked - Dungeon Synth";
                 //playlistSpecification = "likesbygenre:dungeon synth";
+
+                //playlistName = "symph rec - top";
+                //playlistName = "Liked - Symphonic Metal";
+
+                //playlistName = "test";
+                //playlistSpecification = "topbyartist:sirenia";
+                //playlistSpecification = "TopByArtistFromPlaylist:6Xl0MbejyO9Z1Fp82RGN8d";
+                //play = true;
+
+                playlistName = "current";
+                imageAddPhoto = true;
+                imageAddText = true;
             }
 
             Console.WriteLine();
-            Console.WriteLine("Welcome to " + Program.AssemblyName + "! Please don't expect too much, but also be impressed.");
+            Console.WriteLine("Welcome to ");
+            Program.AssemblyName.Replace("_", " ").Split().ToList().ForEach(line =>
+            {
+                Console.WriteLine(FiggleFonts.Standard.Render(line));
+            });
+            Console.WriteLine("Please don't expect too much, but also be impressed.");
             Console.WriteLine("Starting at " + DateTime.Now.ToString());
             Console.WriteLine();
 
@@ -213,6 +233,18 @@ namespace spotify_playlist_generator
             Console.WriteLine($"Hello there, {me.DisplayName}");
             Console.WriteLine("----------------------");
 
+            if (playlistName.Trim().ToLower() == "current")
+            {
+                var currentPlaylist = spotifyWrapper.GetCurrentPlaylist();
+                if (currentPlaylist == null)
+                {
+                    Console.WriteLine("Current playlist is invalid.");
+                    Environment.Exit(-1);
+                }
+
+                playlistName = currentPlaylist.Name;
+            }
+
             //get various playlist definitions
             //that is, a name and a list of tracks
             var playlistBreakdowns = new Dictionary<string, List<FullTrackDetails>>();
@@ -221,7 +253,16 @@ namespace spotify_playlist_generator
             var getPlaylistBreakdownsSuccess = false;
             var likedGenreReportSuccess = false;
 
-            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification);
+            var shortRun = new bool[] {
+                modifyPlaylistFile, backupPlaylistImage, restorePlaylistImage, imageAddText, imageAddPhoto, commitAnActOfUnspeakableViolence
+                }.Any(x => x);
+
+            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification, dontWarn:shortRun);
+
+            if (shortRun && play)
+            {
+                spotifyWrapper.Play(playlistName);
+            }
 
             if (modifyPlaylistFile)
             {
@@ -254,9 +295,7 @@ namespace spotify_playlist_generator
             }
 
             //if any of those fancy commands besides the main functionality have been processed, stop here
-            if (new bool[] {
-			    modifyPlaylistFile, backupPlaylistImage, restorePlaylistImage, imageAddText, imageAddPhoto, commitAnActOfUnspeakableViolence
-			    }.Any(x => x))
+            if (shortRun)
             {
                 Environment.Exit(0);
             }
@@ -297,7 +336,28 @@ namespace spotify_playlist_generator
             } while (error && errorTries < 1); // setting to 1 for now, until issues with api hits starting over from the beginning can be resolved
 
             //do work!
-            UpdatePlaylists(spotifyWrapper, playlistBreakdowns);
+            List<FullPlaylist> newPlaylists;
+            UpdatePlaylists(spotifyWrapper, playlistBreakdowns, out newPlaylists);
+
+            //refresh the users playlist cache before doing more playlist operations
+            //as new playlists won't be in it
+            if (newPlaylists.Any())
+                spotifyWrapper.GetUsersPlaylists(true);
+
+            //add default images to all new playlists
+            foreach (var playlist in newPlaylists)
+            {
+                ImageAddPhoto(spotifyWrapper, playlist.Name);
+                ImageAddText(spotifyWrapper, playlist.Name);
+            }
+
+            if (play)
+            {
+                if (newPlaylists.Any())
+                    spotifyWrapper.Play(newPlaylists.First().Name);
+                else
+                    spotifyWrapper.Play(playlistBreakdowns.Keys.First());
+            }
 
             Console.WriteLine();
             Console.WriteLine("All done, get jammin'!");
@@ -360,7 +420,7 @@ namespace spotify_playlist_generator
             Settings._StartPlaylistsWith = configIni["SETTINGS"]["StartPlaylistsWithString"];
 
         }
-        static List<PlaylistSpec> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpecification)
+        static List<PlaylistSpec> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpecification, bool dontWarn)
         {
 
 
@@ -462,9 +522,9 @@ namespace spotify_playlist_generator
                     .Where(p => p.PlaylistName.Like(playlistName))
                     .ToList();
 
-                if (!playlistSpecs.Any())
+                if (!playlistSpecs.Any() && !dontWarn)
                 {
-                    Console.WriteLine("No playlist found matching --playlist-name " + playlistName);
+                    Console.WriteLine("No playlist spec found matching --playlist-name " + playlistName);
                     Environment.Exit(-1);
                 }
             }
@@ -776,13 +836,18 @@ namespace spotify_playlist_generator
                     var targetDim = 640;
                     var minDim = new int[] { img.Width, img.Height }.Min();
                     // make it a little bigger so we can punch an image out of the middle
-                    var ratio = Math.Round((targetDim * 1.5) / minDim, 0);
+                    var ratio = (targetDim * 1.5) / minDim;
                     var resizeSize = new Size((int)Math.Round(img.Width * ratio, 0), (int)Math.Round(img.Height * ratio, 0));
 
-                    if (ratio > 1 || resizeSize.Width == 0 || resizeSize.Height == 0)
-                    {
-                        resizeSize = new Size(minDim, minDim);
-                    }
+                    //if (ratio > 1 || resizeSize.Width == 0 || resizeSize.Height == 0)
+                    //{
+                    //    resizeSize = new Size(minDim, minDim);
+                    //}
+
+		    	Console.WriteLine("targetDim:	" + targetDim.ToString());
+			Console.WriteLine("minDim:	" + minDim.ToString());
+			Console.WriteLine("ratio:	" + ratio.ToString());
+			Console.WriteLine("resizeSize:	" + resizeSize.Width.ToString() + " width, " + resizeSize.Height.ToString() + " height");
 
                     img.Mutate(
                         i => i.Resize(resizeSize)
@@ -973,7 +1038,7 @@ namespace spotify_playlist_generator
                 var topByArtistFromPlaylist = playlistSpec.GetParameterValues("TopByArtistFromPlaylist");
                 if (topByArtistFromPlaylist.Any())
                 {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(likesByArtistFromPlaylist)
+                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(topByArtistFromPlaylist)
                         .SelectMany(t => t.ArtistIds)
                         .Distinct()
                         .ToArray();
@@ -1096,6 +1161,19 @@ namespace spotify_playlist_generator
                     .ToList();
                 playlistTracks.RemoveRange(removeTracks);
 
+                // ------------ limit per artist ------------
+
+                if (playlistSpec.LimitPerArtist > 0)
+                {
+                    playlistTracks = playlistTracks.SelectMany(t => t.ArtistIds.Select(id => new
+                    {
+                        track = t,
+                        artistID = id
+                    }))
+                        .GroupBy(x => x.artistID, x => x.track)
+                        .SelectMany(g => g.Take(playlistSpec.LimitPerArtist))
+                        .ToList();
+                }
 
                 // ------------ sort ------------
                 var likesSpecLines = playlistSpec.SpecLines
@@ -1150,7 +1228,7 @@ namespace spotify_playlist_generator
             return playlistBreakdowns;
         }
 
-        static void UpdatePlaylists(MySpotifyWrapper spotifyWrapper, Dictionary<string, List<FullTrackDetails>> playlistBreakdowns)
+        static void UpdatePlaylists(MySpotifyWrapper spotifyWrapper, Dictionary<string, List<FullTrackDetails>> playlistBreakdowns, out List<FullPlaylist> newPlaylists)
         {
             Console.WriteLine();
             Console.WriteLine("---updating spotify---");
@@ -1197,6 +1275,7 @@ namespace spotify_playlist_generator
             var createPlaylistCounter = 0;
             var removedTracksCounter = 0;
             var addedTracksCounter = 0;
+            newPlaylists = new();
 
             var sbReport = new StringBuilder();
             var maxPlaylistNameLen = playlistBreakdowns.Keys.Max(key => key.Length);
@@ -1225,6 +1304,7 @@ namespace spotify_playlist_generator
                     playlist = newPlaylist;
 
                     createPlaylistCounter += 1;
+                    newPlaylists.Add(playlist);
                 }
 
                 //get all the tracks that ARE in the playlist - doing this here as they have to be casted from PlaylistTrack to FullTrack to be useful

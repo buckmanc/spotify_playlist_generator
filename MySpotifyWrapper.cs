@@ -33,7 +33,7 @@ namespace spotify_playlist_generator
         }
 
         private string _trackCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "track_cache.json");
-        private Guid _sessionID = new();
+        private Guid _sessionID = Guid.NewGuid();
 
         public void Dispose()
         {
@@ -518,30 +518,29 @@ namespace spotify_playlist_generator
                 )
                 .ToArray();
 
-            //TODO make sure this worked
-            //add the tracks found in the cache to the output, remove the artists from the artists we're looking for
-            tracks.AddRange(cachedTopTracks);
-            artists.Remove(a => cachedTopTracks.Any(t => t.ArtistIds.Contains(a.Id)));
+            if (cachedTopTracks.Any())
+            {
+                //TODO make sure this worked
+                //add the tracks found in the cache to the output, remove the artists from the artists we're looking for
+                tracks.AddRange(cachedTopTracks);
+                artists.Remove(a => cachedTopTracks.Any(t => t.ArtistIds.Contains(a.Id)));
+            }
 
             //only hit the api for artists that we don't already have top tracks for
             var me = this.spotify.UserProfile.Current().Result;
             var newTracks = artists.Select(artist => this.spotify.Artists.GetTopTracks(artist.Id, new ArtistsTopTracksRequest(me.Country ?? "US")).Result)
-                .SelectMany(x => x.Tracks)
+                .SelectMany(x => x.Tracks.Take(5))
                 .ToArray()
                 ;
 
-            //label these tracks as top tracks
-            //need to add a prop to FullTrackDetails
-            //also need to worry about intersections between liked and top tracks
-            //if they're obtained different ways in current state they'll be labelled as whichever way they're found first
-            var newFullTrackDetails = newTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
+            var newFullTrackDetails = newTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID, topTrack:true)).ToList();
             this.AddToCache(newFullTrackDetails);
 
             if (newFullTrackDetails.Any())
                 this.WriteCache();
 
-
             tracks.AddRange(newFullTrackDetails);
+
             return tracks;
         }
 
@@ -569,9 +568,9 @@ namespace spotify_playlist_generator
         }
 
         private List<FullPlaylist> _usersPlaylists;
-        public List<FullPlaylist> GetUsersPlaylists()
+        public List<FullPlaylist> GetUsersPlaylists(bool refreshCache = false)
         {
-            if (_usersPlaylists != null)
+            if (_usersPlaylists != null && !refreshCache)
                 return _usersPlaylists;
 
 
@@ -613,8 +612,56 @@ namespace spotify_playlist_generator
             var bytes = File.ReadAllBytes(imagePath);
             var file = Convert.ToBase64String(bytes);
 
-            var output = this.spotify.Playlists.UploadCover(playlist.Id, file).Result;
+            var output = Retry.Do(retryInterval:TimeSpan.FromSeconds(10), maxAttemptCount:3,
+                action: () =>
+            {
+                return this.spotify.Playlists.UploadCover(playlist.Id, file).Result;
+            });
+
             return output;
+        }
+
+        public bool Play(string playlistName)
+        {
+            var playlist = this.GetUsersPlaylists(playlistName).FirstOrDefault();
+            if (playlist == null)
+                return false;
+
+            if (!this.spotify.Player.GetAvailableDevices().Result.Devices.Any())
+            {
+                Console.WriteLine("No device available found to play on.");
+                return false;
+            }
+
+            var success = this.spotify.Player.ResumePlayback(new PlayerResumePlaybackRequest()
+            {
+                ContextUri = playlist.Uri
+            }).Result;
+
+            return success;
+        }
+
+        public FullPlaylist GetCurrentPlaylist()
+        {
+            var playbackContextURI = this.spotify.Player.GetCurrentPlayback()
+                .Result?.Context?.Uri ?? string.Empty;
+            var playingContextURI = this.spotify.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest(PlayerCurrentlyPlayingRequest.AdditionalTypes.All))
+                .Result?.Context?.Uri ?? string.Empty;
+
+            if (Debugger.IsAttached && playbackContextURI != playingContextURI)
+            {
+                Console.WriteLine("Current \"playback\" and \"playing\" context URIs do not match!");
+                Console.WriteLine("playback context uri: " + playbackContextURI);
+                Console.WriteLine("playing  context uri: " + playingContextURI);
+            }
+
+            if (string.IsNullOrWhiteSpace(playbackContextURI) && string.IsNullOrWhiteSpace(playingContextURI))
+                return null;
+            
+            return this.GetUsersPlaylists()
+                .Where(p => p.Uri == playbackContextURI || p.Uri == playingContextURI)
+                .FirstOrDefault();
+
         }
     }
 
