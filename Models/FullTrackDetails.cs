@@ -20,7 +20,7 @@ namespace spotify_playlist_generator.Models
         [NonSerialized] //liked is only valid for this session, so don't save it
         public DateTime LikedAt;
         public string Name { get; set; }
-
+        public int Popularity { get; set; }
         public string ReleaseDate { get; set; }
         public Guid SessionID { get; set; }
         public string TrackId { get; set; }
@@ -80,6 +80,7 @@ namespace spotify_playlist_generator.Models
             ArtistIds = fullArtists.Select(a => a.Id).ToList();
             ArtistNames = fullArtists.Select(a => a.Name).ToList();
             Name = fullTrack.Name;
+            Popularity = fullTrack.Popularity;
             ReleaseDate = fullTrack.Album.ReleaseDate;
             TrackId = fullTrack.Id;
             TrackNumber = fullTrack.TrackNumber;

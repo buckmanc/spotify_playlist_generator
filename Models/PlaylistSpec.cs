@@ -8,6 +8,14 @@ using static spotify_playlist_generator.Program;
 
 namespace spotify_playlist_generator.Models
 {
+    enum PlaylistType
+    {
+        Likes,
+        AllByArtist,
+        Top,
+        None
+    }
+
     internal class PlaylistSpec
     {
         public string Path { get; set; }
@@ -25,6 +33,21 @@ namespace spotify_playlist_generator.Models
         {
             UpdateFromDisk(path);
         }
+        public PlaylistType GetPlaylistType
+        {
+            get 
+            {
+                if (!this.SpecLines.Any())
+                    return PlaylistType.None;
+
+                return this.SpecLines
+                    .GroupBy(line => line.LineType)
+                    .OrderByDescending(g => g.Count())
+                    .Select(g => g.Key)
+                    .First();
+            }
+        }
+
 
         public PlaylistSpec(string playlistName, string playlistSpecification)
         {
@@ -220,11 +243,29 @@ namespace spotify_playlist_generator.Models
 
         public bool IsValidParameter
         {
-            get { 
+            get
+            {
                 return
                     !this.SanitizedLine.StartsWith(Program.Settings._ParameterString) &&
                     !string.IsNullOrWhiteSpace(this.SanitizedLine)
-                    ; 
+                    ;
+            }
+        }
+
+        public PlaylistType LineType
+        {
+            get
+            {
+                if (!this.IsValidParameter)
+                    return PlaylistType.None;
+                else if (this.ParameterName.Like("likes"))
+                    return PlaylistType.Likes;
+                else if (this.ParameterName.Like("all"))
+                    return PlaylistType.AllByArtist;
+                else if (this.ParameterName.Like("top"))
+                    return PlaylistType.Top;
+                else
+                    return PlaylistType.None;
             }
         }
 

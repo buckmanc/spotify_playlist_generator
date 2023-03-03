@@ -1176,31 +1176,31 @@ namespace spotify_playlist_generator
                 }
 
                 // ------------ sort ------------
-                var likesSpecLines = playlistSpec.SpecLines
-                    .Where(line => line.IsValidParameter && line.ParameterName.Contains("likes", StringComparison.InvariantCultureIgnoreCase))
-                    .Count();
-                var allTracksSpecLines = playlistSpec.SpecLines
-                    .Where(line => line.IsValidParameter && line.ParameterName.Contains("all", StringComparison.InvariantCultureIgnoreCase))
-                    .Count();
 
                 //these sorts won't preserve over time
                 //for example, what if an old album is added to spotify for a full discog playlist?
                 //unless UpdatePlaylists is modified it'll still be at the very bottom
-                if (likesSpecLines > allTracksSpecLines)
+                if (playlistSpec.GetPlaylistType == PlaylistType.Likes)
                 {
                     playlistTracks = playlistTracks
                         .OrderByDescending(t => t.LikedAt)
                         .ToList();
                 }
-                else
+                else if (playlistSpec.GetPlaylistType == PlaylistType.AllByArtist || playlistSpec.GetPlaylistType == PlaylistType.None)
                 {
                     playlistTracks = playlistTracks
                         .OrderBy(t => t.ReleaseDate)
                         .ThenBy(t => t.ArtistNames.First())
                         .ThenBy(t => t.AlbumName)
                         .ThenBy(t => t.TrackNumber)
-                        .ToList();  
-
+                        .ToList();
+                }
+                else if (playlistSpec.GetPlaylistType == PlaylistType.Top)
+                {
+                    playlistTracks = playlistTracks
+                        .OrderBy(t => t.ArtistNames.First())
+                        .ThenByDescending(t => t.Popularity)
+                        .ToList();
                 }
 
                 //keep playlists from overflowing
