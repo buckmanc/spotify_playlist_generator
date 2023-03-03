@@ -612,9 +612,14 @@ namespace spotify_playlist_generator
             var bytes = File.ReadAllBytes(imagePath);
             var file = Convert.ToBase64String(bytes);
 
-            var output = Retry.Do(retryInterval:TimeSpan.FromSeconds(10), maxAttemptCount:3,
-                action: () =>
+            var output = Retry.Do(retryInterval:TimeSpan.FromSeconds(30), maxAttemptCount:3,
+                action: (Exception ex) =>
             {
+                if (ex != null && ex.ToString().Contains("broken pipe"))
+                {
+                    this.RefreshSpotifyClient();
+                }
+
                 return this.spotify.Playlists.UploadCover(playlist.Id, file).Result;
             });
 

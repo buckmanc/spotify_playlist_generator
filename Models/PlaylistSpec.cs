@@ -11,6 +11,7 @@ namespace spotify_playlist_generator.Models
     internal class PlaylistSpec
     {
         public string Path { get; set; }
+        public string[] FolderNames { get; set; }
         public string PlaylistName { get; set; }
         public bool AddArtistIDs { get; set; }
         public string DefaultParameter { get; set; }
@@ -49,6 +50,13 @@ namespace spotify_playlist_generator.Models
 
             this.Path = path;
             this.PlaylistName = playlistName;
+
+            //spotify api does not support folders
+            this.FolderNames = System.IO.Path.GetRelativePath(Program.Settings._PlaylistFolderPath, System.IO.Path.GetDirectoryName(this.Path))
+                .Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(folder => folder != "Playlists")
+                .ToArray()
+                ;
 
             var playlistSettings = fileLines
                 .Select(line => line.Split(Program.Settings._CommentString, 2).First())

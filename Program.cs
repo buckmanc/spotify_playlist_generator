@@ -233,7 +233,7 @@ namespace spotify_playlist_generator
             Console.WriteLine($"Hello there, {me.DisplayName}");
             Console.WriteLine("----------------------");
 
-            if (playlistName.Trim().ToLower() == "current")
+            if (playlistName?.Trim()?.ToLower() == "current")
             {
                 var currentPlaylist = spotifyWrapper.GetCurrentPlaylist();
                 if (currentPlaylist == null)
@@ -1293,6 +1293,9 @@ namespace spotify_playlist_generator
                     .OrderByDescending(p => p.Description.Contains(Program.AssemblyName))
                     .FirstOrDefault();
 
+                //if the spotify api supported folders, folder creation/finding would go here
+                //unfort, it does not and I'm sad T.T
+
                 //create playlist if missing
                 if (playlist is null)
                 {
@@ -1302,7 +1305,7 @@ namespace spotify_playlist_generator
                     var newPlaylist = spotifyWrapper.spotify.Playlists.Create(spotifyWrapper.spotify.UserProfile.Current().Result.Id, playlistRequest).Result;
 
                     playlist = newPlaylist;
-
+                    
                     createPlaylistCounter += 1;
                     newPlaylists.Add(playlist);
                 }

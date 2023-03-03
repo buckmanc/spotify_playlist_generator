@@ -208,6 +208,39 @@ namespace spotify_playlist_generator
             TimeSpan retryInterval,
             int maxAttemptCount = 3)
         {
+            return Do((x, y) =>
+            {
+                return action();
+            }, retryInterval, maxAttemptCount);
+        }
+
+        public static T Do<T>(
+            Func<Exception, T> action,
+            TimeSpan retryInterval,
+            int maxAttemptCount = 3)
+        {
+            return Do((x, y) =>
+            {
+                return action(y);
+            }, retryInterval, maxAttemptCount);
+        }
+
+        public static T Do<T>(
+            Func<int, T> action,
+            TimeSpan retryInterval,
+            int maxAttemptCount = 3)
+        {
+            return Do((x, y) =>
+            {
+                return action(x);
+            }, retryInterval, maxAttemptCount);
+        }
+
+        public static T Do<T>(
+            Func<int, Exception, T> action,
+            TimeSpan retryInterval,
+            int maxAttemptCount = 3)
+        {
             var exceptions = new List<Exception>();
 
             for (int attempted = 0; attempted < maxAttemptCount; attempted++)
@@ -218,7 +251,7 @@ namespace spotify_playlist_generator
                     {
                         Thread.Sleep(retryInterval);
                     }
-                    return action();
+                    return action(attempted, exceptions.FirstOrDefault());
                 }
                 catch (Exception ex)
                 {
