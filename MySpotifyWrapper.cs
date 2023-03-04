@@ -612,18 +612,30 @@ namespace spotify_playlist_generator
             var bytes = File.ReadAllBytes(imagePath);
             var file = Convert.ToBase64String(bytes);
 
-            var output = Retry.Do(retryInterval:TimeSpan.FromSeconds(30), maxAttemptCount:3,
-                action: (Exception ex) =>
+            var success = false;
+            try
             {
-                if (ex != null && ex.ToString().Contains("broken pipe"))
-                {
-                    this.RefreshSpotifyClient();
-                }
+                success = this.spotify.Playlists.UploadCover(playlist.Id, file).Result;
+            }
+            catch (Exception ex)
+            {
+                var exString = ex.ToString();
 
-                return this.spotify.Playlists.UploadCover(playlist.Id, file).Result;
-            });
+                //all these errors *seem* to indicate some kind of problem with the image
+                //one know problem is file size > 256 kb. not sure what the others are, but they seem to be dependant on the file
+                if (
+                    exString.Contains("broken pipe") ||
+                    exString.Contains("SpotifyAPI.Web.APIException") ||
+                    exString.Contains("Error while copying content to a stream") ||
+                    exString.Contains("An established connection was aborted ")
 
-            return output;
+                )
+                    return false;
+                else
+                    throw;
+            }
+            return success;
+
         }
 
         public bool Play(string playlistName)

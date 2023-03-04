@@ -21,13 +21,22 @@ namespace spotify_playlist_generator.Models
         public string Path { get; set; }
         public string[] FolderNames { get; set; }
         public string PlaylistName { get; set; }
+        public string FinalPlaylistName
+        {
+            get
+            {
+                return (Settings._StartPlaylistsWith ?? string.Empty) + this.PlaylistName;
+            }
+        }
         public bool AddArtistIDs { get; set; }
         public string DefaultParameter { get; set; }
         public bool DeleteIfEmpty { get; set; }
         public bool DontRemoveTracks { get; set; }
         public bool MaintainSort { get; set; }
         public int LimitPerArtist { get; set; }
+        public bool LeaveImageAlone { get; set; }
         public SpecLine[] SpecLines { get; set; }
+        public List<FullTrackDetails> Tracks { get; set; }
 
         public PlaylistSpec(string path)
         {
@@ -103,8 +112,11 @@ namespace spotify_playlist_generator.Models
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "addartistids");
 
             this.MaintainSort = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "MaintainSort");
-            
+                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "maintainsort");
+
+            this.LeaveImageAlone = playlistSettings
+                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "leaveimagealone");
+
             var dummy = 0;
             this.LimitPerArtist = playlistSettings
                 .Where(line => line.StartsWith(Settings._ParameterString + "limitperartist:", StringComparison.InvariantCultureIgnoreCase))

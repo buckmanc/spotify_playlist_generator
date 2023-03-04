@@ -13,11 +13,19 @@ namespace spotify_playlist_generator
         //ideally these would be on FullPlaylistDetails, but that's not fully implemented yet
         public static string GetWorkingImagePath(this FullPlaylist playlist)
         {
-            return System.IO.Path.Join(Program.Settings._ImageWorkingFolderPath, playlist.Name + ".jpg");
+            var chars = playlist.Name.ToList();
+            chars.RemoveRange(System.IO.Path.GetInvalidFileNameChars());
+            var safeName = chars.Select(c => c.ToString()).Join();
+
+            return System.IO.Path.Join(Program.Settings._ImageWorkingFolderPath, safeName + ".jpg");
         }
         public static string GetBackupImagePath(this FullPlaylist playlist)
         {
-            return System.IO.Path.Join(Program.Settings._ImageBackupFolderPath, playlist.Name + ".jpg");
+            var chars = playlist.Name.ToList();
+            chars.RemoveRange(System.IO.Path.GetInvalidFileNameChars());
+            var safeName = chars.Select(c => c.ToString()).Join();
+
+            return System.IO.Path.Join(Program.Settings._ImageBackupFolderPath, safeName + ".jpg");
         }
     }
 }

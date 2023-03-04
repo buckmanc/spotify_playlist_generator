@@ -251,7 +251,7 @@ namespace spotify_playlist_generator
                     {
                         Thread.Sleep(retryInterval);
                     }
-                    return action(attempted, exceptions.FirstOrDefault());
+                    return action(attempted, exceptions.LastOrDefault());
                 }
                 catch (Exception ex)
                 {

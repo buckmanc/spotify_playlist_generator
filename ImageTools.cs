@@ -104,7 +104,12 @@ namespace spotify_playlist_generator
             var apodClient = new ApodClient(Program.Tokens.NasaKey);
 
             //grab a random 10 entries, so that if we stumble across a video we have other options
-            var apodResonse = apodClient.FetchApodAsync(10).Result;
+            //wrapping this in a retry as sometimes it returns malformed json
+            var apodResonse = Retry.Do(retryInterval: TimeSpan.FromSeconds(5), maxAttemptCount: 3,
+                action:() =>
+            {
+                return apodClient.FetchApodAsync(10).Result; 
+            });
 
             if (apodResonse.StatusCode != ApodStatusCode.OK)
             {
