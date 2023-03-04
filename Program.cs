@@ -1472,6 +1472,69 @@ namespace spotify_playlist_generator
 
         }
 
+        private static void UpdateReadme(IList<PlaylistSpec> playlistSpecs)
+        {
+            //this is a real weird way of doing this, but hey
+            //yolo
+
+
+            var folders = Program.AssemblyDirectory.Split(new char[] {'/', '\\' });
+
+            if (folders.Length < 4)
+                return;
+
+            var projectPath = folders.SkipLast(3).Join("/");
+
+            var readmePath = System.IO.Path.Join(projectPath, "README.MD");
+            var readmeTemplatePath = System.IO.Path.Join(projectPath, "MarkdownTemplates/README.MD");
+            var helpPath = System.IO.Path.Join(projectPath, "MarkdownTemplates/help.txt");
+
+            if (new string[] { readmePath, readmeTemplatePath, helpPath }
+                .Any(path => !System.IO.File.Exists(path))
+                )
+                return;
+
+            var helpText = System.IO.File.ReadAllText(helpPath);
+            helpText = helpText.Substring(helpText.IndexOf("Options:") + "Options:".Length);
+            var readmeText = System.IO.File.ReadAllText(readmePath);
+            var readmeTemplateText = System.IO.File.ReadAllText(readmeTemplatePath);
+            var titleText = string.Empty;
+
+            Program.AssemblyName.Replace("_", " ").Split().ToList().ForEach(line =>
+            {
+                titleText += FiggleFonts.Standard.Render(line);
+            });
+
+            //this one is really not good yikes
+            //TODO pull parameter names from a parameter parser of some kind
+            var playlistParameters = playlistSpecs
+                .SelectMany(p => p.SpecLines)
+                .Where(line => line.IsValidParameter)
+                .Select(line => line.ParameterName)
+                .Distinct()
+                .Join(Environment.NewLine);
+
+            var playlistOptions = playlistSpecs
+                .SelectMany(p => p.SpecLines)
+                .Select(line => line.RawLine.Split(":").First())
+                .Where(line => line.StartsWith(Settings._ParameterString))
+                .Distinct()
+                .Join(Environment.NewLine);
+
+            readmeTemplateText = readmeTemplateText.Replace("[help text]", helpText);
+            readmeTemplateText = readmeTemplateText.Replace("[playlist options]", playlistOptions);
+            readmeTemplateText = readmeTemplateText.Replace("[playlist parameters]", playlistParameters);
+
+            if (readmeTemplateText != readmeText)
+            {
+                System.IO.File.WriteAllText(readmePath, readmeTemplateText);
+                Console.WriteLine("README.MD updated");
+            }
+
+            if (Debugger.IsAttached)
+                Console.WriteLine("wut");
+
+        }
         static void LikedGenreReport(MySpotifyWrapper spotifyWrapper)
         {
             Console.WriteLine();
