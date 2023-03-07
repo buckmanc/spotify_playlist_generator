@@ -489,7 +489,6 @@ namespace spotify_playlist_generator
 
         public List<FullTrackDetails> GetTopTracksByArtists(IEnumerable<string> artistNamesOrIDs)
         {
-
             //TODO scope problem with this ID regex
             var artistURIs = artistNamesOrIDs
                 .Where(x => Program.idRegex.Match(x).Success)
@@ -544,15 +543,38 @@ namespace spotify_playlist_generator
             return tracks;
         }
 
-        public List<FullTrackDetails> GetTracksByPlaylist(IEnumerable<string> playlistIDs)
+        public List<FullTrackDetails> GetTracksByPlaylist(IEnumerable<string> playlistIDsOrNames)
         {
+            //name searching only works for the users's followed playlists
+            //too hard to guarantee we found the right playlist otherwise
+
             //TODO add some kind of caching for playlists? especially since they have that snapshot id
             //and especially since, as is, playlists do not benefit from track caching at all
 
-            var playlists = playlistIDs
+            //TODO scope problem with this ID regex
+            var playlistIDs = playlistIDsOrNames
+                .Where(x => Program.idRegex.Match(x).Success)
+                .ToList();
+
+            var playlistNames = playlistIDsOrNames
+                .Where(x => !playlistIDs.Contains(x))
+                .ToList();
+
+            var idPlaylists = playlistIDs
                 .Select(ID => spotify.Playlists.Get(ID).ResultSafe())
                 .Where(p => p != null)
                 .ToList();
+
+            var namePlaylists = new List<FullPlaylist>();
+
+            //don't call user playlists if we don't have to
+            if (playlistNames.Any())
+                namePlaylists = this.GetFollowedPlaylists().Where(p => playlistIDsOrNames.Any(x => 
+                p.Name.Like(x) ||
+                p.Name.Like(Program.Settings._StartPlaylistsWith + x)
+                )).ToList();
+
+            var playlists = idPlaylists.Union(namePlaylists);
 
             var fullTracks = playlists
                 .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
@@ -567,21 +589,42 @@ namespace spotify_playlist_generator
             return output;
         }
 
-        private List<FullPlaylist> _usersPlaylists;
-        public List<FullPlaylist> GetUsersPlaylists(bool refreshCache = false)
+        private List<FullPlaylist> _followedPlaylists;
+
+        public List<FullPlaylist> GetFollowedPlaylists(bool refreshCache = false)
         {
-            if (_usersPlaylists != null && !refreshCache)
-                return _usersPlaylists;
+            if (_followedPlaylists != null && !refreshCache)
+                return _followedPlaylists;
 
 
-            _usersPlaylists = (this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync()).Result
-                .Where(p => p.Owner.Id == this.spotify.UserProfile.Current().Result.Id)
+            _followedPlaylists = (this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync()).Result
                 .Select(p => spotify.Playlists.Get(p.Id).Result) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
                 .ToList()
                 ;
 
-            return _usersPlaylists;
+            return _followedPlaylists;
         }
+
+        public List<FullPlaylist> GetFollowedPlaylists(string playlistName, string playlistStartString = null)
+        {
+            if (string.IsNullOrWhiteSpace(playlistName)) return null;
+
+            var playlists = this.GetFollowedPlaylists().Where(p =>
+                p.Name.Like(playlistName) ||
+                p.Name.Like(playlistStartString + playlistName)
+                )
+                .ToList();
+
+            return playlists;
+        }
+
+        public List<FullPlaylist> GetUsersPlaylists(bool refreshCache = false)
+        {
+            return this.GetFollowedPlaylists(refreshCache)
+                    .Where(p => p.Owner.Id == this.spotify.UserProfile.Current().Result.Id)
+                    .ToList();
+        }
+
         public List<FullPlaylist> GetUsersPlaylists(string playlistName, string playlistStartString = null)
         {
             if (string.IsNullOrWhiteSpace(playlistName)) return null;
@@ -591,6 +634,7 @@ namespace spotify_playlist_generator
                 p.Name.Like(playlistStartString + playlistName)
                 )
                 .ToList();
+
             return playlists;
         }
 
@@ -660,12 +704,14 @@ namespace spotify_playlist_generator
 
         public FullPlaylist GetCurrentPlaylist()
         {
+            //TODO pick the more reliable of the two
+            //or if both are reliable, clean up to reduce calls
             var playbackContextURI = this.spotify.Player.GetCurrentPlayback()
                 .Result?.Context?.Uri ?? string.Empty;
             var playingContextURI = this.spotify.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest(PlayerCurrentlyPlayingRequest.AdditionalTypes.All))
                 .Result?.Context?.Uri ?? string.Empty;
 
-            if (Debugger.IsAttached && playbackContextURI != playingContextURI)
+            if (Program.Settings._VerboseDebug && playbackContextURI != playingContextURI)
             {
                 Console.WriteLine("Current \"playback\" and \"playing\" context URIs do not match!");
                 Console.WriteLine("playback context uri: " + playbackContextURI);
@@ -678,6 +724,29 @@ namespace spotify_playlist_generator
             return this.GetUsersPlaylists()
                 .Where(p => p.Uri == playbackContextURI || p.Uri == playingContextURI)
                 .FirstOrDefault();
+
+        }
+
+        public List<SimpleArtist> GetCurrentArtists()
+        {
+            //TODO pick the more reliable of the two
+            //or if both are reliable, clean up to reduce calls
+            var playbackItem = this.spotify.Player.GetCurrentPlayback()
+                .Result?.Item;
+            var playingItem = this.spotify.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest(PlayerCurrentlyPlayingRequest.AdditionalTypes.All))
+                .Result?.Item;
+
+            if (Program.Settings._VerboseDebug && playbackItem != playingItem)
+            {
+                Console.WriteLine("Current \"playback\" and \"playing\" items do not match!");
+                //Console.WriteLine("playback context uri: " + playbackContextURI);
+                //Console.WriteLine("playing  context uri: " + playingContextURI);
+            }
+
+            if (playbackItem == null && playingItem == null)
+                return null;
+
+            return (playbackItem as FullTrack ?? playingItem as FullTrack)?.Artists;
 
         }
     }
