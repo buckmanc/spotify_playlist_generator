@@ -9,7 +9,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using Unsplasharp.Models;
+using Unsplash;
 
 namespace spotify_playlist_generator
 {
@@ -132,7 +132,29 @@ namespace spotify_playlist_generator
 
         public static ImageSource GetUnsplashImage(string search)
         {
-            throw new NotImplementedException();
+            var client = new UnsplashClient(new ClientOptions
+            {
+                AccessKey = Program.Tokens.UnsplashAccessKey
+            });
+
+            Unsplash.Models.Photo.IBasic photo = null;
+
+            if (!string.IsNullOrWhiteSpace(search))
+                photo = client.Search.PhotosAsync(search, new Unsplash.Api.SearchPhotosParams(page: 1, perPage: 20))
+                    .Result.Results.ToList().Random();
+            else
+		try
+		{
+                photo = client.Photos.GetRandomPhotosAsync(new Unsplash.Api.RandomPhotoFilterOptions(count: 1)).Result.FirstOrDefault();
+		}
+	    catch(Exception ex){
+		Console.WriteLine("Error getting random Unsplash image: " + ex.ToString());
+	    }
+            if (photo == null)
+                return null;
+
+            return new ImageSource(photo.Urls.Full);
+
         }
     }
 }

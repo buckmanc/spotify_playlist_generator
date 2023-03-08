@@ -392,6 +392,7 @@ namespace spotify_playlist_generator
             var searchArtists = this.GetArtistsByName(artistNames);
 
             artistIDs.AddRange(searchArtists.Select(a => a.Id));
+            artistIDs = artistIDs.Distinct().ToList();
 
             var tracks = new List<FullTrackDetails>();
 
@@ -441,8 +442,11 @@ namespace spotify_playlist_generator
 
             //TODO make sure this worked
             //add the tracks found in the cache to the output, remove the albums from the album we're looking for
-            tracks.AddRange(cachedAlbumTracks);
-            albums.Remove(a => cachedAlbumTracks.Any(at => at.AlbumId == a.Id));
+            if (cachedAlbumTracks.Any())
+            {
+                tracks.AddRange(cachedAlbumTracks);
+                albums.Remove(a => cachedAlbumTracks.Any(at => at.AlbumId == a.Id));
+            }
 
             //the Track.Album.AlbumGroup is always null (specifically when pulled from the track object), so it can't be used below
             //therefore the data point is pulled here directly from the album object
@@ -455,10 +459,13 @@ namespace spotify_playlist_generator
             //                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
             //                                   );
 
+            var albumIDs = albums.Select(a => a.Id).Distinct().ToArray();
+
             //identify tracks in those albums
-            var trackIDs = albums.Select(album => spotify.Albums.GetTracks(album.Id).Result)
+            var trackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDs)).Result
                 //.Where(x => ppTracks.PrintProgress())
-                .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                .Albums
+                .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                 .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
                 .Distinct()
                 .ToList();
@@ -482,6 +489,68 @@ namespace spotify_playlist_generator
             //this means that no partial albums or partial discographies are written by this method
             //since the playlist generator batches requests, this method writes the cache a maximum of once per playlist
             this.WriteCache();
+
+            return tracks;
+        }
+        public List<FullTrackDetails> GetTracksByAlbum(IEnumerable<string> albumNamesOrIDs)
+        {
+            //TODO consider how to report progress
+
+            //TODO scope problem with this ID regex
+            var albumIDs = albumNamesOrIDs
+                .Where(x => Program.idRegex.Match(x).Success)
+                .ToList();
+
+            var names = albumNamesOrIDs
+                .Where(x => !albumIDs.Contains(x))
+                .Select(x => x.Split(Program.Settings._SeparatorString, StringSplitOptions.TrimEntries))
+                .Select(x => new
+                {
+                    ArtistName = x.FirstOrDefault(),
+                    AlbumName = x.LastOrDefault()
+                })
+                .ToList();
+
+            var tracks = new List<FullTrackDetails>();
+
+            //if an album in the cache has been retrieved by All Tracks 
+            //then we can be assured that the full album is already in the cache
+            //if an album tracklist is changed after this though the cache will need to be cleared to get the update
+            var cachedAlbumTracks = this.TrackCache.Values
+                .Where(t =>
+                    t.Source_AllTracks &&
+                    albumIDs.Any(ID => ID == t.AlbumId)
+                ).ToArray();
+
+            //TODO make sure this worked
+            //add the tracks found in the cache to the output, remove the albums from the album we're looking for
+            if (cachedAlbumTracks.Any())
+            {
+                tracks.AddRange(cachedAlbumTracks);
+                albumIDs.Remove(ID => cachedAlbumTracks.Any(at => at.AlbumId == ID));
+            }
+
+            //pull tracks from the api
+            var idAlbumTrackIDs = new List<string>();
+
+            // GetSeveral will throw an error for an empty list
+            if (albumIDs.Any())
+                idAlbumTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDs)).Result
+                    .Albums
+                    .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                    .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                    .ToList()
+                    ;
+
+            var idAlbumTracks = this.GetTracks(idAlbumTrackIDs);
+
+            //counting on the caching in this method for caching benefits
+            var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistName).Distinct())
+                .Where(t => names.Any(n => t.AlbumName.Like(n.AlbumName) && t.ArtistNames.Any(a => a.Like(n.ArtistName))))
+                .ToList();
+
+            tracks.AddRange(idAlbumTracks);
+            tracks.AddRange(nameAlbumTracks);
 
             return tracks;
         }
@@ -684,7 +753,7 @@ namespace spotify_playlist_generator
 
         public bool Play(string playlistName)
         {
-            var playlist = this.GetUsersPlaylists(playlistName).FirstOrDefault();
+            var playlist = this.GetFollowedPlaylists(playlistName).FirstOrDefault();
             if (playlist == null)
                 return false;
 
@@ -706,48 +775,33 @@ namespace spotify_playlist_generator
         {
             //TODO pick the more reliable of the two
             //or if both are reliable, clean up to reduce calls
-            var playbackContextURI = this.spotify.Player.GetCurrentPlayback()
-                .Result?.Context?.Uri ?? string.Empty;
-            var playingContextURI = this.spotify.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest(PlayerCurrentlyPlayingRequest.AdditionalTypes.All))
-                .Result?.Context?.Uri ?? string.Empty;
+            var playbackContextURI = this.GetCurrentlyPlaying()?.Context?.Uri;
 
-            if (Program.Settings._VerboseDebug && playbackContextURI != playingContextURI)
-            {
-                Console.WriteLine("Current \"playback\" and \"playing\" context URIs do not match!");
-                Console.WriteLine("playback context uri: " + playbackContextURI);
-                Console.WriteLine("playing  context uri: " + playingContextURI);
-            }
-
-            if (string.IsNullOrWhiteSpace(playbackContextURI) && string.IsNullOrWhiteSpace(playingContextURI))
+            if (string.IsNullOrWhiteSpace(playbackContextURI))
                 return null;
-            
-            return this.GetUsersPlaylists()
-                .Where(p => p.Uri == playbackContextURI || p.Uri == playingContextURI)
-                .FirstOrDefault();
 
+	        var ID = playbackContextURI.Split(":").Last();
+	        return this.spotify.Playlists.Get(ID).ResultSafe();
         }
 
-        public List<SimpleArtist> GetCurrentArtists()
+        public FullTrack GetCurrentTrack()
         {
-            //TODO pick the more reliable of the two
-            //or if both are reliable, clean up to reduce calls
-            var playbackItem = this.spotify.Player.GetCurrentPlayback()
-                .Result?.Item;
-            var playingItem = this.spotify.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest(PlayerCurrentlyPlayingRequest.AdditionalTypes.All))
-                .Result?.Item;
+            var playbackItem = this.GetCurrentlyPlaying()?.Item;
 
-            if (Program.Settings._VerboseDebug && playbackItem != playingItem)
-            {
-                Console.WriteLine("Current \"playback\" and \"playing\" items do not match!");
-                //Console.WriteLine("playback context uri: " + playbackContextURI);
-                //Console.WriteLine("playing  context uri: " + playingContextURI);
-            }
+            return playbackItem as FullTrack;
+        }
 
-            if (playbackItem == null && playingItem == null)
-                return null;
+        private CurrentlyPlaying GetCurrentlyPlaying()
+        {
+            //TODO do we need to check GetAvailableDevices here? does it throw an error if nothing is playing?
 
-            return (playbackItem as FullTrack ?? playingItem as FullTrack)?.Artists;
+            //playback contains playing but ALSO player state stuff
+            //var playback = this.spotify.Player.GetCurrentPlayback()
+            //    .Result;
+            var playing = this.spotify.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest(PlayerCurrentlyPlayingRequest.AdditionalTypes.All))
+                .Result;
 
+            return playing;
         }
     }
 

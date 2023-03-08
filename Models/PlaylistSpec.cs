@@ -16,6 +16,24 @@ namespace spotify_playlist_generator.Models
         None
     }
 
+    enum ObjectType
+    {
+        Artist,
+        Playlist,
+        Genre,
+        Album,
+        Track,
+        None
+    }
+
+    enum Sort
+    {
+        Liked,
+        Release,
+        Top,
+        Dont
+    }
+
     internal class PlaylistSpec
     {
         public string Path { get; set; }
@@ -33,8 +51,10 @@ namespace spotify_playlist_generator.Models
         public bool DeleteIfEmpty { get; set; }
         public bool DontRemoveTracks { get; set; }
         public bool MaintainSort { get; set; }
+        public bool NoLikes { get; set; }
         public int LimitPerArtist { get; set; }
         public bool LeaveImageAlone { get; set; }
+        public Sort Sort { get; set; }
         public SpecLine[] SpecLines { get; set; }
         public List<FullTrackDetails> Tracks { get; set; }
 
@@ -44,13 +64,27 @@ namespace spotify_playlist_generator.Models
         }
         public PlaylistType GetPlaylistType
         {
-            get 
+            get
             {
                 if (!this.SpecLines.Any())
                     return PlaylistType.None;
 
                 return this.SpecLines
                     .GroupBy(line => line.LineType)
+                    .OrderByDescending(g => g.Count())
+                    .Select(g => g.Key)
+                    .First();
+            }
+        }
+        public ObjectType GetSubjectType
+        {
+            get
+            {
+                if (!this.SpecLines.Any())
+                    return ObjectType.None;
+
+                return this.SpecLines
+                    .GroupBy(line => line.SubjectType)
                     .OrderByDescending(g => g.Count())
                     .Select(g => g.Key)
                     .First();
@@ -83,13 +117,6 @@ namespace spotify_playlist_generator.Models
             this.Path = path;
             this.PlaylistName = playlistName;
 
-            //spotify api does not support folders
-            this.FolderNames = System.IO.Path.GetRelativePath(Program.Settings._PlaylistFolderPath, System.IO.Path.GetDirectoryName(this.Path))
-                .Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(folder => folder != "Playlists")
-                .ToArray()
-                ;
-
             var playlistSettings = fileLines
                 .Select(line => line.Split(Program.Settings._CommentString, 2).First())
                 .Where(line => line.StartsWith(Program.Settings._ParameterString))
@@ -116,6 +143,17 @@ namespace spotify_playlist_generator.Models
 
             this.LeaveImageAlone = playlistSettings
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "leaveimagealone");
+
+            this.NoLikes = playlistSettings
+                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "nolikes");
+
+            var sortString = playlistSettings
+                .Where(line => line.StartsWith(Settings._ParameterString + "sort:", StringComparison.InvariantCultureIgnoreCase))
+                .Select(line => line.Split(":", 2).Last())
+                .FirstOrDefault()
+                ;
+
+            // sort enum assigned at the bottom as it depends on spec lines
 
             var dummy = 0;
             this.LimitPerArtist = playlistSettings
@@ -159,7 +197,7 @@ namespace spotify_playlist_generator.Models
                     SanitizedLine = line.SanitizedLine,
                     Comment = line.Comment,
                     ParameterValue = line.ParameterValue,
-                    ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : DefaultParameter ?? String.Empty)
+                    ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : DefaultParameter ?? String.Empty).Trim()
                 })
                 .Distinct()
                 .ToArray();
@@ -221,6 +259,16 @@ namespace spotify_playlist_generator.Models
                 }
             }
 
+            //assign sorts
+            if (sortString != null)
+                this.Sort = (Sort)Enum.Parse(typeof(Sort), sortString.Remove("'"), true);
+            else if (this.GetPlaylistType == PlaylistType.Likes)
+                this.Sort = Sort.Liked;
+            else if (this.GetPlaylistType == PlaylistType.AllByArtist || this.GetPlaylistType == PlaylistType.None)
+                this.Sort = Sort.Release;
+            else if (this.GetPlaylistType == PlaylistType.Top)
+                this.Sort = Sort.Top;
+
             //build a path if necessary
             //need to store paths a little better. Hardcoding the folder named "playlists" isn't great
             if (string.IsNullOrWhiteSpace(this.Path) && !string.IsNullOrWhiteSpace(this.PlaylistName))
@@ -228,13 +276,29 @@ namespace spotify_playlist_generator.Models
                 this.Path = System.IO.Path.Join(Program.Settings._PlaylistFolderPath, "Playlists", this.PlaylistName + ".txt");
             }
 
+            //spotify api does not support folders
+            this.FolderNames = System.IO.Path.GetRelativePath(Program.Settings._PlaylistFolderPath, System.IO.Path.GetDirectoryName(this.Path))
+                .Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(folder => folder != "Playlists")
+                .ToArray()
+                ;
+
         }
         public string[] GetParameterValues(string ParameterName)
         {
+            if (this.GetGroupedParameters().TryGetValue(ParameterName.Trim(), out var output))
+                return output;
+
+            return Array.Empty<string>();
+        }
+
+        public Dictionary<string, string[]> GetGroupedParameters()
+        {
             var output = this.SpecLines
-                .Where(line => line.IsValidParameter && line.ParameterName.Trim().ToLower() == ParameterName.Trim().ToLower())
-                .Select(line => line.ParameterValue)
-                .ToArray();
+                .Where(line => line.IsValidParameter)
+                .GroupBy(line => line.ParameterName.Trim(), StringComparer.InvariantCultureIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Select(line => line.ParameterValue).ToArray(), StringComparer.InvariantCultureIgnoreCase)
+                ;
             return output;
         }
 
@@ -259,7 +323,8 @@ namespace spotify_playlist_generator.Models
             {
                 return
                     !this.SanitizedLine.StartsWith(Program.Settings._ParameterString) &&
-                    !string.IsNullOrWhiteSpace(this.SanitizedLine)
+                    !string.IsNullOrWhiteSpace(this.SanitizedLine) &&
+                    !string.IsNullOrWhiteSpace(this.ParameterValue);
                     ;
             }
         }
@@ -278,6 +343,27 @@ namespace spotify_playlist_generator.Models
                     return PlaylistType.Top;
                 else
                     return PlaylistType.None;
+            }
+        }
+
+        public ObjectType SubjectType
+        {
+            get
+            {
+                if (!this.IsValidParameter)
+                    return ObjectType.None;
+                else if (this.ParameterName.Like("playlist"))
+                    return ObjectType.Playlist;
+                else if (this.ParameterName.Like("artist"))
+                    return ObjectType.Artist;
+                else if (this.ParameterName.Like("genre"))
+                    return ObjectType.Genre;
+                else if (this.ParameterName.Like("album"))
+                    return ObjectType.Album;
+                else if (this.ParameterName.Like("track"))
+                    return ObjectType.Track;
+                else
+                    return ObjectType.None;
             }
         }
 

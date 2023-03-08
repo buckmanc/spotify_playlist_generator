@@ -8,8 +8,9 @@ namespace spotify_playlist_generator.Models
 {
     internal class ImageSource
     {
-        public string URL { get; set; }
-		private string _tinyURL;
+        public string DownloadURL { get; set; }
+        public string PageURL { get; set; }
+        private string _tinyURL;
 
 		public string TinyURL
 		{
@@ -17,7 +18,7 @@ namespace spotify_playlist_generator.Models
 			{
 				if (_tinyURL == null)
 				{
-					_tinyURL = ImageTools.MakeTinyUrl(this.URL);
+					_tinyURL = ImageTools.MakeTinyUrl(this.PageURL ?? this.DownloadURL);
                 }
 				return _tinyURL; 
 			}
@@ -31,18 +32,24 @@ namespace spotify_playlist_generator.Models
 			{
 				if (_tempFilePath == null)
 				{
-                    _tempFilePath = ImageTools.DownloadFile(this.URL, System.IO.Path.GetTempPath(), Guid.NewGuid().ToString());
+                    _tempFilePath = ImageTools.DownloadFile(this.DownloadURL, System.IO.Path.GetTempPath(), Guid.NewGuid().ToString());
 				}
 
 				return _tempFilePath; 
 			}
-		}
+        }
 
-		public ImageSource(string url)
-		{
-			URL = url;
-		}
+        public ImageSource(string downloadURL)
+        {
+            DownloadURL = downloadURL;
+        }
+
+        public ImageSource(string downloadURL, string pageURL)
+        {
+            DownloadURL = downloadURL;
+			PageURL = pageURL;
+        }
 
 
-	}
+    }
 }

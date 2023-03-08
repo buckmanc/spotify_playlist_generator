@@ -282,5 +282,22 @@ namespace spotify_playlist_generator
                 RegexOptions.IgnoreCase | RegexOptions.Singleline
             ).IsMatch(str);
         }
+
+
+
+        public static TSource? Random<TSource>(this IList<TSource> source)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            var rnd = new Random();
+            if (!source.TryGetNonEnumeratedCount(out var elementCount))
+                elementCount = source.Count();
+
+            var index = rnd.Next(0, elementCount - 1);
+
+            return source[index];
+
+        }
     }
 }
