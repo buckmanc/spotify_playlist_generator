@@ -77,6 +77,9 @@ namespace spotify_playlist_generator
 
         public void RefreshSpotifyClient()
         {
+            if (Program.Settings._VerboseDebug)
+                Console.WriteLine("Updating access token...");
+
             //TODO better scope management
             var accessToken = Program.UpdateTokens().Result;
 
@@ -185,12 +188,12 @@ namespace spotify_playlist_generator
             
             //TODO searching with accent marks has multiple problems
             //1) they're hard to type, 2) some artist names technically have them but their spotify pages don't
-            var artists = artistNames
+            var artists = artistNames.Distinct()
                 .Select(artistName => new SearchRequest(SearchRequest.Types.Artist, artistName.Trim()) { Limit = 40 })
                 .Select(request => spotify.Search.Item(request).Result)
                 .SelectMany(item => spotify.Paginate(item.Artists, s => s.Artists, new WaitPaginator(WaitTime: 500))
                     .ToListAsync(Take: 40).Result // would like this to be 1, but the sought for artists are missing with less than 40
-                    .Where(artist => artistNames.Contains(artist.Name, StringComparer.InvariantCultureIgnoreCase)) // can't do a test on this specific artist name without a lot more mess
+                    .Where(artist => artistNames.Any(n => artist.Name.Like(n)))
                     )
                 //.Where(artist => ppArtists.PrintProgress() && artist != null)
                 .Where(artist => artist != null && artist.Images.Any())
@@ -261,12 +264,6 @@ namespace spotify_playlist_generator
                 this.TrackCache.TryAdd(track.TrackId, track);
         }
 
-        ////TODO consider this as a method to handle access token expiration retries
-        //private void CallMethodWithTryCatch(Func method, object[] parameters)
-        //{
-
-        //}
-
         //TODO should this be a concurrent bag instead of a dictionary?
         //the track ID as dictionary key is redundant but may offer performance benefits
         private System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails> _trackCache;
@@ -312,22 +309,24 @@ namespace spotify_playlist_generator
 
             //pull any remaining items from the api
             foreach (var idChunk in trackIdApiQueue.ChunkBy(50))
-            {
+                Retry.Do((Exception ex) =>
+                {
+                    if (ex.ToString().Like("*access token expired*"))
+                        this.RefreshSpotifyClient();
 
-                //TODO wrap this api call in an "access token expired" check that calls RefreshSpotifyClient() and tries again
-                var chunkTracks = (this.spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Result.Tracks
-                    .Where(a => a != null)
-                    .ToList();
+                    var chunkTracks = (this.spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Result.Tracks
+                        .Where(a => a != null)
+                        .ToList();
 
-                var artists = this.GetArtists(chunkTracks);
+                    var artists = this.GetArtists(chunkTracks);
 
-                var trackDetails = chunkTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
+                    var trackDetails = chunkTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
 
-                output.AddRange(trackDetails);
+                    output.AddRange(trackDetails);
 
-                //cache items
-                this.AddToCache(trackDetails);
-            }
+                    //cache items
+                    this.AddToCache(trackDetails);
+                }, maxAttemptCount: 2);
 
             return output;
         }
@@ -418,11 +417,17 @@ namespace spotify_playlist_generator
             //var ppAlbums = new ProgressPrinter(Total: artists.Count(),
             //                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting albums: " + perc + ", " + time + " remaining")
             //                                   );
-            var albums = artistIDs.Select(artistID => spotify.Artists.GetAlbums(artistID).Result)
-                //.Where(x => ppAlbums.PrintProgress())
-                .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
-                .OrderBy(album => album.ReleaseDate)
-                .ToList();
+            var albums = Retry.Do((Exception ex) =>
+            {
+                if (ex.ToString().Like("*access token expired*"))
+                    this.RefreshSpotifyClient();
+
+                return artistIDs.Select(artistID => spotify.Artists.GetAlbums(artistID).Result)
+                        //.Where(x => ppAlbums.PrintProgress())
+                        .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                        .OrderBy(album => album.ReleaseDate)
+                        .ToList();
+            }, maxAttemptCount: 2);
 
             //remove a particular album which is 1) a duplicate and 2) behaves erratically
             //only remove if the set contains both this album and its pair
@@ -461,15 +466,28 @@ namespace spotify_playlist_generator
 
             var albumIDs = albums.Select(a => a.Id).Distinct().ToArray();
 
-            //identify tracks in those albums
-            var trackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDs)).Result
-                //.Where(x => ppTracks.PrintProgress())
-                .Albums
-                .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
-                .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
-                .Distinct()
-                .ToList();
+            //pull tracks from the api
+            var trackIDs = new List<string>();
 
+            // GetSeveral will throw an error for an empty list
+            //pull any remaining items from the api
+            foreach (var albumIDChunk in albumIDs.ChunkBy(20))
+                Retry.Do((Exception ex) =>
+                {
+                    if (ex.ToString().Like("*access token expired*"))
+                        this.RefreshSpotifyClient();
+
+                    var chunkTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
+                    //.Where(x => ppTracks.PrintProgress())
+                    .Albums
+                    .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                    .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                    .Distinct()
+                    .ToList();
+
+                    trackIDs.AddRange(chunkTrackIDs);
+                }, maxAttemptCount:2);
+                
             //get the tracks
             var newTracks = (this.GetTracks(trackIDs))
                 //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
@@ -494,7 +512,8 @@ namespace spotify_playlist_generator
         }
         public List<FullTrackDetails> GetTracksByAlbum(IEnumerable<string> albumNamesOrIDs)
         {
-            //TODO consider how to report progress
+            //shift functionality provided by this method into GetTracksByArtist
+            //then you could avoid pulling tracks for albums you're not interested in
 
             //TODO scope problem with this ID regex
             var albumIDs = albumNamesOrIDs
@@ -519,7 +538,10 @@ namespace spotify_playlist_generator
             var cachedAlbumTracks = this.TrackCache.Values
                 .Where(t =>
                     t.Source_AllTracks &&
-                    albumIDs.Any(ID => ID == t.AlbumId)
+                    (
+                    albumIDs.Any(ID => ID == t.AlbumId) ||
+                    names.Any(n => t.AlbumName.Like(n.AlbumName) && t.ArtistNames.Any(a => a.Like(n.ArtistName)))
+                    )
                 ).ToArray();
 
             //TODO make sure this worked
@@ -534,14 +556,21 @@ namespace spotify_playlist_generator
             var idAlbumTrackIDs = new List<string>();
 
             // GetSeveral will throw an error for an empty list
-            if (albumIDs.Any())
-                idAlbumTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDs)).Result
-                    .Albums
-                    .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
-                    .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
-                    .ToList()
-                    ;
+            foreach (var albumIDChunk in albumIDs.ChunkBy(20))
+                Retry.Do((Exception ex) =>
+                {
+                    if (ex.ToString().Like("*access token expired*"))
+                        this.RefreshSpotifyClient();
 
+                    var chunkIDAlbumTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
+                        .Albums
+                        .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                        .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                        .ToList()
+                        ;
+
+                    idAlbumTrackIDs.AddRange(chunkIDAlbumTrackIDs);
+                }, maxAttemptCount:2);
             var idAlbumTracks = this.GetTracks(idAlbumTrackIDs);
 
             //counting on the caching in this method for caching benefits

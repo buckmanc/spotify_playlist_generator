@@ -69,6 +69,12 @@ namespace spotify_playlist_generator.Models
         private void Initialize(FullTrack fullTrack, IEnumerable<FullArtist> fullArtists, Guid sessionID, SavedTrack savedTrack = null
             , bool topTrack = false, bool allTracksTrack = false)
         {
+		// how the hell is fullArtists getting in here null?
+		if (fullTrack == null)
+			throw new ArgumentNullException(nameof(fullTrack));
+		else if (fullArtists == null)
+			throw new ArgumentNullException(nameof(fullArtists));
+
             //make sure this is only the related artists
             fullArtists = fullArtists.Where(a => fullTrack.Artists.Any(ax => ax.Id == a.Id)).ToArray();
 

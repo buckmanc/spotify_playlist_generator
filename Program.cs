@@ -171,8 +171,9 @@ namespace spotify_playlist_generator
 
             if (Debugger.IsAttached)
             {
+                //playlistName = "top*plus";
                 //playlistName = "*metallum*";
-                lyrics = true;
+                //lyrics = true;
             }
 
             Console.WriteLine();
@@ -1407,6 +1408,7 @@ namespace spotify_playlist_generator
                     }))
                         .GroupBy(x => x.artistID, x => x.track)
                         .SelectMany(g => g.Take(playlistSpec.LimitPerArtist))
+                        .Distinct()
                         .ToList();
                 }
 

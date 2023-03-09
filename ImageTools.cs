@@ -105,7 +105,7 @@ namespace spotify_playlist_generator
 
             //grab a random 10 entries, so that if we stumble across a video we have other options
             //wrapping this in a retry as sometimes it returns malformed json
-            var apodResonse = Retry.Do(retryInterval: TimeSpan.FromSeconds(5), maxAttemptCount: 3,
+            var apodResonse = Retry.Do(retryIntervalMilliseconds: 5000, maxAttemptCount: 3,
                 action:() =>
             {
                 return apodClient.FetchApodAsync(10).Result; 

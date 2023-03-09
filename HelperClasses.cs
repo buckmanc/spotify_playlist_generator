@@ -191,54 +191,100 @@ namespace spotify_playlist_generator
     // https://stackoverflow.com/a/1563234
     public static class Retry
     {
+
+        //report on nothing, return nothing
         public static void Do(
             Action action,
-            TimeSpan retryInterval,
+            int retryIntervalMilliseconds = 30 * 1000,
             int maxAttemptCount = 3)
         {
             Do<object>(() =>
             {
                 action();
                 return null;
-            }, retryInterval, maxAttemptCount);
+            }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
+        //report on exceptions, return nothing
+        public static void Do(
+            Action<Exception> action,
+            int retryIntervalMilliseconds = 30 * 1000,
+            int maxAttemptCount = 3)
+        {
+            Do<object>((x, y) =>
+            {
+                action(y);
+                return null;
+            }, retryIntervalMilliseconds, maxAttemptCount);
+        }
+
+        //report on attempts, return nothing
+        public static void Do(
+            Action<int> action,
+            int retryIntervalMilliseconds = 30 * 1000,
+            int maxAttemptCount = 3)
+        {
+            Do<object>((x, y) =>
+            {
+               action(x);
+               return null;
+            }, retryIntervalMilliseconds, maxAttemptCount);
+        }
+
+        //report on attempts and exceptions, return nothing
+        public static void Do(
+            Action<int, Exception> action,
+            int retryIntervalMilliseconds = 30 * 1000,
+            int maxAttemptCount = 3)
+        {
+            Do<object>((x, y) =>
+            {
+                action(x, y);
+                return null;
+            }, retryIntervalMilliseconds, maxAttemptCount);
+        }
+
+
+        //report on nothing, return T
         public static T Do<T>(
             Func<T> action,
-            TimeSpan retryInterval,
+            int retryIntervalMilliseconds = 30 * 1000,
             int maxAttemptCount = 3)
         {
             return Do((x, y) =>
             {
                 return action();
-            }, retryInterval, maxAttemptCount);
+            }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
+        //report on exceptions, return T
         public static T Do<T>(
             Func<Exception, T> action,
-            TimeSpan retryInterval,
+            int retryIntervalMilliseconds = 30 * 1000,
             int maxAttemptCount = 3)
         {
             return Do((x, y) =>
             {
                 return action(y);
-            }, retryInterval, maxAttemptCount);
+            }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
+        //report on attempts, return T
         public static T Do<T>(
             Func<int, T> action,
-            TimeSpan retryInterval,
+            int retryIntervalMilliseconds = 30 * 1000,
             int maxAttemptCount = 3)
         {
             return Do((x, y) =>
             {
                 return action(x);
-            }, retryInterval, maxAttemptCount);
+            }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
+        //report on attempts and exceptions, return T
         public static T Do<T>(
             Func<int, Exception, T> action,
-            TimeSpan retryInterval,
+            int retryIntervalMilliseconds = 30 * 1000,
             int maxAttemptCount = 3)
         {
             var exceptions = new List<Exception>();
@@ -249,7 +295,7 @@ namespace spotify_playlist_generator
                 {
                     if (attempted > 0)
                     {
-                        Thread.Sleep(retryInterval);
+                        Thread.Sleep(retryIntervalMilliseconds);
                     }
                     return action(attempted, exceptions.LastOrDefault());
                 }
