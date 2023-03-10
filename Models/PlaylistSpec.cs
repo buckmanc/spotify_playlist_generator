@@ -94,7 +94,8 @@ namespace spotify_playlist_generator.Models
 
         public PlaylistSpec(string playlistName, string playlistSpecification)
         {
-            Initialize(path: null, playlistName: playlistName, fileLines: playlistSpecification.Split(Environment.NewLine));
+            var fileLines = playlistSpecification.ReplaceLineEndings().Split(Environment.NewLine);
+            Initialize(path: null, playlistName: playlistName, fileLines: fileLines);
             this.Write();
         }
 
@@ -106,7 +107,7 @@ namespace spotify_playlist_generator.Models
         public void UpdateFromDisk(string path)
         {
             var playlistName = System.IO.Path.GetFileNameWithoutExtension(path);
-            var filesLines = System.IO.File.ReadAllLines(path);
+            var filesLines = System.IO.File.ReadAllText(path).ReplaceLineEndings().Split(Environment.NewLine);
             Initialize(path: path, playlistName: playlistName, fileLines: filesLines);
 
         }
@@ -304,7 +305,7 @@ namespace spotify_playlist_generator.Models
 
         public void Write()
         {
-            System.IO.File.WriteAllLines(this.Path, this.SpecLines.Select(line => line.RawLine));
+            System.IO.File.WriteAllLines(this.Path, this.SpecLines.Select(line => line.RawLine.ReplaceLineEndings()));
         }
     }
 

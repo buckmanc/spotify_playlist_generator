@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -61,6 +63,10 @@ namespace spotify_playlist_generator
         /// <returns></returns>
         /// emulates an old VB function, which was very convenient
         public static string Join(this IEnumerable<string> value)
+        {
+            return string.Join(string.Empty, value.ToArray());
+        }
+        public static string Join(this IEnumerable<char> value)
         {
             return string.Join(string.Empty, value.ToArray());
         }
@@ -277,13 +283,54 @@ namespace spotify_playlist_generator
         /// <returns><c>true</c> if the string matches the given pattern; otherwise <c>false</c>.</returns>
         public static bool Like(this string str, string pattern)
         {
+            // intensive normalization
+            // this is specifically to handle
+            // 1) complex album names with inconsistent spacing, ellipses, or punctuation
+            // 2) words with accent marks that are difficult to type
+            str = str.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards:true);
+            pattern = pattern.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards: true);
+
+            if (Debugger.IsAttached && string.IsNullOrEmpty(pattern))
+                throw new ArgumentNullException(nameof(pattern), "Damn son, what have we here?");
+
             return new Regex(
                 "^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline
             ).IsMatch(str);
         }
+        public static string Indent(this string value, int spaceCount = 4)
+        {
+            var spaces = new string(' ', spaceCount);
 
+            var output = value
+                .ReplaceLineEndings()
+                .Split(Environment.NewLine)
+                .Select(line => spaces + line)
+                .Join(Environment.NewLine)
+                ;
 
+            return output;
+        }
+        public static string RemoveAccents(this string text)
+        {
+            StringBuilder sbReturn = new StringBuilder();
+            var arrayText = text.Normalize(NormalizationForm.FormD).ToCharArray();
+            foreach (char letter in arrayText)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(letter) != UnicodeCategory.NonSpacingMark)
+                    sbReturn.Append(letter);
+            }
+            return sbReturn.ToString();
+        }
+
+        private static char[] _wildcards = new char[] { '*', '?' };
+        public static string AlphanumericOnly(this string value, bool preserveWildcards = false)
+        {
+            return value.Where(c =>
+                char.IsLetterOrDigit(c) ||
+                (preserveWildcards && _wildcards.Contains(c))
+            ).Join();
+        }
 
         public static TSource? Random<TSource>(this IList<TSource> source)
         {

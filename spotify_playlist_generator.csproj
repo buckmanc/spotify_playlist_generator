@@ -19,4 +19,10 @@
     <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
     <PackageReference Include="Unsplash.Net" Version="1.0.0" />
   </ItemGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="echo 'Updating readme.md...'" />
+    <Exec Condition="'$(OS)' != 'Windows_NT' " Command="&quot;$(TargetDir)$(ProjectName)&quot; --update-readme || echo &quot;Failed to update readme.md!&quot; &amp;&amp; exit 0" />
+    <Exec Condition="'$(OS)' == 'Windows_NT' " Command="$(TargetDir)$(ProjectName).exe --update-readme || echo &quot;Failed to update readme.md!&quot; &amp;&amp; Exit /b 0" />
+    <Exec Command="echo 'Done.'" />
+  </Target>
 </Project>

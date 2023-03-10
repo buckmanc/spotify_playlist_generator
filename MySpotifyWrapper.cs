@@ -146,6 +146,7 @@ namespace spotify_playlist_generator
         public List<FullArtist> GetArtists(IEnumerable<FullTrack> tracks)
         {
             var artistIDs = tracks
+                .Where(t => t != null)
                 .SelectMany(t => t.Artists.Select(a => a.Id))
                 .Distinct()
                 .ToArray();
@@ -185,22 +186,31 @@ namespace spotify_playlist_generator
             //    ;
             //"search" for artists, then correct results to actually the artists named
             //var ppArtists = new ProgressPrinter(playlistByArtist.Value.Count(), (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting artists: " + perc + ", " + time + " remaining"));
-            
+
             //TODO searching with accent marks has multiple problems
             //1) they're hard to type, 2) some artist names technically have them but their spotify pages don't
-            var artists = artistNames.Distinct()
-                .Select(artistName => new SearchRequest(SearchRequest.Types.Artist, artistName.Trim()) { Limit = 40 })
-                .Select(request => spotify.Search.Item(request).Result)
-                .SelectMany(item => spotify.Paginate(item.Artists, s => s.Artists, new WaitPaginator(WaitTime: 500))
-                    .ToListAsync(Take: 40).Result // would like this to be 1, but the sought for artists are missing with less than 40
-                    .Where(artist => artistNames.Any(n => artist.Name.Like(n)))
-                    )
-                //.Where(artist => ppArtists.PrintProgress() && artist != null)
-                .Where(artist => artist != null && artist.Images.Any())
-                //.OrderBy(artist => System.Array.IndexOf(artistNames.ToArray(), artist.Name)) //TODO make this case insensitive first
-                .OrderBy(artist => artist.Name)
-                .OrderByDescending(artist => artist.Popularity)
-                .ToList();
+
+            var artists = new List<FullArtist>();
+
+            foreach (var artistNamesChunk in artistNames.ChunkBy(50))
+                Retry.Do((Exception ex) =>
+                {
+                    var artistsChunk = artistNamesChunk.Distinct()
+                        .Select(artistName => new SearchRequest(SearchRequest.Types.Artist, artistName.Trim()) { Limit = 40 })
+                        .Select(request => spotify.Search.Item(request).Result)
+                        .SelectMany(item => spotify.Paginate(item.Artists, s => s.Artists, new WaitPaginator(WaitTime: 500))
+                            .ToListAsync(Take: 40).Result // would like this to be 1, but the sought for artists are missing with less than 40
+                            .Where(artist => artistNames.Any(n => artist.Name.Like(n)))
+                            )
+                        //.Where(artist => ppArtists.PrintProgress() && artist != null)
+                        .Where(artist => artist != null && artist.Images.Any())
+                        //.OrderBy(artist => System.Array.IndexOf(artistNames.ToArray(), artist.Name)) //TODO make this case insensitive first
+                        .OrderBy(artist => artist.Name)
+                        .OrderByDescending(artist => artist.Popularity)
+                        .ToList();
+
+                    artists.AddRange(artistsChunk);
+                });
 
             if (Debugger.IsAttached)
             {
@@ -215,6 +225,8 @@ namespace spotify_playlist_generator
                     Debugger.Break();
                 }
             }
+
+            artists = artists.Distinct().ToList();
 
             return artists;
         }
@@ -311,7 +323,7 @@ namespace spotify_playlist_generator
             foreach (var idChunk in trackIdApiQueue.ChunkBy(50))
                 Retry.Do((Exception ex) =>
                 {
-                    if (ex.ToString().Like("*access token expired*"))
+                    if (ex?.ToString()?.Like("*access token expired*") ?? false)
                         this.RefreshSpotifyClient();
 
                     var chunkTracks = (this.spotify.Tracks.GetSeveral(new TracksRequest(idChunk))).Result.Tracks
@@ -419,7 +431,7 @@ namespace spotify_playlist_generator
             //                                   );
             var albums = Retry.Do((Exception ex) =>
             {
-                if (ex.ToString().Like("*access token expired*"))
+                if (ex?.ToString()?.Like("*access token expired*") ?? false)
                     this.RefreshSpotifyClient();
 
                 return artistIDs.Select(artistID => spotify.Artists.GetAlbums(artistID).Result)
@@ -474,7 +486,7 @@ namespace spotify_playlist_generator
             foreach (var albumIDChunk in albumIDs.ChunkBy(20))
                 Retry.Do((Exception ex) =>
                 {
-                    if (ex.ToString().Like("*access token expired*"))
+                    if (ex?.ToString()?.Like("*access token expired*") ?? false)
                         this.RefreshSpotifyClient();
 
                     var chunkTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
@@ -494,7 +506,7 @@ namespace spotify_playlist_generator
                 //this includes tracks that are on split albums, collaborations, and the like
                 .Where(t =>
                     !appearsOnAlbums.Contains(t.AlbumId)
-                    || t.ArtistNames.Any(artistName => artistNames.Contains(artistName, StringComparer.InvariantCultureIgnoreCase))
+                    || t.ArtistNames.Any(artistName => artistNames.Any(n => artistName.Like(n)))
                     || t.ArtistIds.Any(artistID => artistIDs.Contains(artistID))
                     )
                 ////only include tracks strictly by artists specified
@@ -559,7 +571,7 @@ namespace spotify_playlist_generator
             foreach (var albumIDChunk in albumIDs.ChunkBy(20))
                 Retry.Do((Exception ex) =>
                 {
-                    if (ex.ToString().Like("*access token expired*"))
+                    if (ex?.ToString()?.Like("*access token expired*") ?? false)
                         this.RefreshSpotifyClient();
 
                     var chunkIDAlbumTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
@@ -782,9 +794,7 @@ namespace spotify_playlist_generator
 
         public bool Play(string playlistName)
         {
-            var playlist = this.GetFollowedPlaylists(playlistName).FirstOrDefault();
-            if (playlist == null)
-                return false;
+            var playlist = (!string.IsNullOrWhiteSpace(playlistName) ? this.GetFollowedPlaylists(playlistName).FirstOrDefault() : null);
 
             if (!this.spotify.Player.GetAvailableDevices().Result.Devices.Any())
             {
@@ -792,12 +802,29 @@ namespace spotify_playlist_generator
                 return false;
             }
 
-            var success = this.spotify.Player.ResumePlayback(new PlayerResumePlaybackRequest()
-            {
-                ContextUri = playlist.Uri
-            }).Result;
+            var success = false;
+
+            if (playlist != null)
+                success = this.spotify.Player.ResumePlayback(new PlayerResumePlaybackRequest()
+                {
+                    ContextUri = playlist.Uri
+                }).Result;
+            else if (this.spotify.Player.GetCurrentPlayback().Result.IsPlaying)
+                success = this.spotify.Player.PausePlayback().Result;
+            else
+                success = this.spotify.Player.ResumePlayback().Result;
 
             return success;
+        }
+
+        public bool SkipNext()
+        {
+            return this.spotify.Player.SkipNext().Result;
+        }
+
+        public bool SkipPrevious()
+        {
+            return this.spotify.Player.SkipPrevious().Result;
         }
 
         public FullPlaylist GetCurrentPlaylist()

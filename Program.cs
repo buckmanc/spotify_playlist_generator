@@ -81,6 +81,13 @@ namespace spotify_playlist_generator
                 return System.IO.Path.GetDirectoryName(loc);
             }
         }
+        public static string ProjectPath
+        {
+            get
+            {
+                return Program.AssemblyDirectory?.Split(new char[] { '/', '\\' })?.SkipLast(3)?.Join("/");
+            }
+        }
         public static string AssemblyName
         {
             get
@@ -88,6 +95,16 @@ namespace spotify_playlist_generator
                 string output = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name;
                 return output;
             }
+        }
+        public static string TitleText()
+        {
+            var output = Program.AssemblyName
+                .Replace("_", " ")
+                .Split(" ")
+                .Select(word => FiggleFonts.Standard.Render(word))
+                .Join(Environment.NewLine);
+
+            return output;
         }
 
         //having this as an extension method would make for much tighter organization, but CS0721 prevents this; no static types as parameters
@@ -151,37 +168,51 @@ namespace spotify_playlist_generator
         /// <param name="playlistName">The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.</param>
         /// <param name="playlistSpecification">A playlist specification string for use when creating a new playlist from the command line. Must be combined with --playlist-name.</param>
         /// <param name="modifyPlaylistFile">Exchange artist names for artist IDs. Saves time when running but looks worse.</param>
-        /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlists is used. Intended for use trimming duplicate artists out of playlists.</param>
+        /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.</param>
         /// <param name="imageAddPhoto">Assign a new image to the playlist.</param>
         /// <param name="imageAddText">Add the playlist name to the playlist image.</param>
         /// <param name="imageBackup">Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.</param>
         /// <param name="imageRestore">Restore a previously backed up image.</param>
-        /// <param name="play">Play the playlist.</param>
+        /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback.</param>
+        /// <param name="skipNext">Skip forward.</param>
+        /// <param name="skipPrevious">Skip backward.</param>
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
+        /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
+        /// <param name="updateReadme">Update readme.md. Only used in development.</param>
         /// <param name="commitAnActOfUnspeakableViolence">I wouldn't really do it... would I?</param>
         /// <returns></returns>
         static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpecification,
             bool modifyPlaylistFile, bool excludeCurrentArtist,
             bool imageAddPhoto, bool imageAddText, 
             bool imageBackup, bool imageRestore,
-            bool play, bool lyrics,
+            bool play, bool skipNext, bool skipPrevious,
+            bool lyrics,
+            bool tabCompletionArgumentNames, bool updateReadme,
 	        bool commitAnActOfUnspeakableViolence
             )
         {
 
             if (Debugger.IsAttached)
             {
-                //playlistName = "top*plus";
-                //playlistName = "*metallum*";
-                //lyrics = true;
+                ////playlistName = "top*plus";
+                ////playlistName = "*metallum*";
+                //playlistName = "test";
+                //playlistSpecification = "AllTracksByArtist:Froglord";
             }
 
+            if (tabCompletionArgumentNames)
+            {
+                Console.Write(Help.TabCompletionArgumentNames);
+                return;
+            }
+            else if (updateReadme)
+            {
+                UpdateReadme();
+                return;
+            }
             Console.WriteLine();
             Console.WriteLine("Welcome to ");
-            Program.AssemblyName.Replace("_", " ").Split().ToList().ForEach(line =>
-            {
-                Console.WriteLine(FiggleFonts.Standard.Render(line));
-            });
+            Console.WriteLine(Program.TitleText());
             Console.WriteLine("Please don't expect too much, but also be impressed.");
             Console.WriteLine("Starting at " + DateTime.Now.ToString());
             Console.WriteLine();
@@ -244,12 +275,21 @@ namespace spotify_playlist_generator
                 .Select(p => p.FinalPlaylistName)
                 .ToArray();
 
-            if (string.IsNullOrEmpty(playlistName) && string.IsNullOrEmpty(playlistSpecification))
-                UpdateReadme(playlistSpecs);
-
-            if (shortRun && play)
+            if (play && (shortRun || string.IsNullOrWhiteSpace(playlistName)))
             {
                 spotifyWrapper.Play(playlistName);
+                //if only toggling playback, don't do anything else
+                if (string.IsNullOrWhiteSpace(playlistName))
+                    return;
+            } else if (skipNext)
+            {
+                spotifyWrapper.SkipNext();
+                return;
+            }
+            else if (skipPrevious)
+            {
+                spotifyWrapper.SkipPrevious();
+                return;
             }
 
             if (excludeCurrentArtist)
@@ -1637,69 +1677,52 @@ namespace spotify_playlist_generator
 
         }
 
-        private static void UpdateReadme(IList<PlaylistSpec> playlistSpecs)
+        private static void UpdateReadme(IList<PlaylistSpec> playlistSpecs = null)
         {
-            //this is a real weird way of doing this, but hey
-            //yolo
+            if (Program.Settings._VerboseDebug)
+                Console.WriteLine("Program.ProjectPath: " + Program.ProjectPath);
 
+            var readmePath = System.IO.Path.Join(Program.ProjectPath, "README.MD");
+            var readmeTemplatePath = System.IO.Path.Join(Program.ProjectPath, "MarkdownTemplates/README.MD");
 
-            var folders = Program.AssemblyDirectory.Split(new char[] {'/', '\\' });
+            if (Program.Settings._VerboseDebug)
+            {
+                Console.WriteLine("readmePath: " + readmePath);
+                Console.WriteLine("readmeTemplatePath: " + readmeTemplatePath);
+            }
 
-            if (folders.Length < 4)
-                return;
-
-            var projectPath = folders.SkipLast(3).Join("/");
-
-            var readmePath = System.IO.Path.Join(projectPath, "README.MD");
-            var readmeTemplatePath = System.IO.Path.Join(projectPath, "MarkdownTemplates/README.MD");
-            var helpPath = System.IO.Path.Join(projectPath, "MarkdownTemplates/help.txt");
-
-            if (new string[] { readmePath, readmeTemplatePath, helpPath }
-                .Any(path => !System.IO.File.Exists(path))
+            if (new string[] { readmePath, readmeTemplatePath }
+                .Any(path => string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
                 )
+            {
+                Console.WriteLine("Markdown files not found. --update-readme only works in development.");
                 return;
+            }
 
-            var helpText = System.IO.File.ReadAllLines(helpPath)
-                .Where(line => !line.Contains("violence")) // easter eggs are more fun if they're tucked away
-                .Join("\n"); //TODO detect line endings from the file
-            
-            helpText = helpText.Substring(helpText.IndexOf("Options:") + "Options:".Length);
+            var titleText = Program.TitleText().Indent();
+            var argsHelp = Help.ArgumentHelp.Substring(Help.ArgumentHelp.IndexOf("Options:") + "Options:".Length).Indent();
+            var optionsHelp = Help.OptionHelp.Indent();
+            var paramsHelp = Help.ParameterHelp.Indent();
+
             var readmeText = System.IO.File.ReadAllText(readmePath);
             var readmeTemplateText = System.IO.File.ReadAllText(readmeTemplatePath);
-            var titleText = string.Empty;
 
-            Program.AssemblyName.Replace("_", " ").Split().ToList().ForEach(line =>
-            {
-                titleText += FiggleFonts.Standard.Render(line);
-            });
+            readmeTemplateText = readmeTemplateText.Replace("[title text]", titleText);
+            readmeTemplateText = readmeTemplateText.Replace("[argument help]", argsHelp);
+            readmeTemplateText = readmeTemplateText.Replace("[playlist options]", optionsHelp);
+            readmeTemplateText = readmeTemplateText.Replace("[playlist parameters]", paramsHelp);
 
-            //this one is really not good yikes
-            //TODO pull parameter names from a parameter parser of some kind
-            var playlistParameters = playlistSpecs
-                .SelectMany(p => p.SpecLines)
-                .Where(line => line.IsValidParameter)
-                .Select(line => line.ParameterName)
-                .Distinct(StringComparer.CurrentCultureIgnoreCase)
-                .OrderBy(line => line)
-                .Join("\n"); //TODO detect line endings from the file
-
-            var playlistOptions = playlistSpecs
-                .SelectMany(p => p.SpecLines)
-                .Select(line => line.RawLine.Split(":").First())
-                .Where(line => line.StartsWith(Settings._ParameterString))
-                .Distinct(StringComparer.CurrentCultureIgnoreCase)
-                .OrderBy(line => line)
-                .Join("\n"); //TODO detect line endings from the file
-
-            readmeTemplateText = readmeTemplateText.Replace("[help text]", helpText);
-            readmeTemplateText = readmeTemplateText.Replace("[playlist options]", playlistOptions);
-            readmeTemplateText = readmeTemplateText.Replace("[playlist parameters]", playlistParameters);
+            //standardize new lines, don't want them flipping about between platforms
+            readmeTemplateText = readmeTemplateText.ReplaceLineEndings("\r\n");
 
             if (readmeTemplateText != readmeText)
             {
                 System.IO.File.WriteAllText(readmePath, readmeTemplateText);
                 Console.WriteLine("README.MD updated");
             }
+            else
+                Console.WriteLine("No update to README.MD needed.");
+
 
         }
         static void LikedGenreReport(MySpotifyWrapper spotifyWrapper)
