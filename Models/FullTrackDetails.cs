@@ -1,6 +1,7 @@
 ﻿using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -32,7 +33,7 @@ namespace spotify_playlist_generator.Models
         [NonSerialized] //top is only valid for this session, so don't save it
         public bool Source_Top;
 
-        public bool Source_AllTracks;
+        public bool Source_AllTracks { get; set; }
 
         /// <summary>
         /// 
@@ -117,6 +118,11 @@ namespace spotify_playlist_generator.Models
         public override int GetHashCode()
         {
             return TrackId.GetHashCode();
+        }
+
+        public override string ToString()
+        {
+            return this.ArtistNames.Join(", ") + " - " + this.Name;
         }
     }
 }

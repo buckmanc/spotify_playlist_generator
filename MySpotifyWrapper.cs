@@ -3,6 +3,7 @@ using SpotifyAPI.Web;
 using SpotifyAPI.Web.Http;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -42,19 +43,25 @@ namespace spotify_playlist_generator
 
         private void WriteCache()
         {
-            if (Program.Settings._VerboseDebug)
-            {
-                Console.WriteLine();
-                Console.WriteLine("writing serialized cache");
-            }
 
             //skip writing if we haven't read
             //checking against the backing property to avoid triggering a read
-            if (this._trackCache != null && this._trackCache.Any())
+            if (this._trackCache != null && this._trackCache.Any() && this.DirtyTrackCache)
             {
+                if (Program.Settings._VerboseDebug)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("writing serialized cache");
+                }
+
                 using var stream = File.Create(this._trackCachePath);
                 System.Text.Json.JsonSerializer.Serialize(stream, this.TrackCache);
                 stream.Dispose();
+                this.DirtyTrackCache = false;
+            } else if (Program.Settings._VerboseDebug)
+            {
+                Console.WriteLine();
+                Console.WriteLine("skipping cache write; no new changes");
             }
         }
 
@@ -71,6 +78,7 @@ namespace spotify_playlist_generator
                 using var stream = File.OpenRead(this._trackCachePath);
                 this._trackCache = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails>>(stream);
                 stream.Dispose();
+                this.DirtyTrackCache = false;
             }
 
         }
@@ -82,6 +90,12 @@ namespace spotify_playlist_generator
 
             //TODO better scope management
             var accessToken = Program.UpdateTokens().Result;
+
+            if (Program.Settings._VerboseDebug)
+            {
+                Console.WriteLine("Access Token as of " + DateTime.Now.ToShortDateTimeString() + ": ");
+                Console.WriteLine(accessToken);
+            }
 
             //exit for token problems
             if (string.IsNullOrWhiteSpace(accessToken))
@@ -272,10 +286,12 @@ namespace spotify_playlist_generator
                 }
             }
 
+            this.DirtyTrackCache = true;
             foreach (var track in tracks.Where(t => !existingTrackIDs.Contains(t.TrackId)))
                 this.TrackCache.TryAdd(track.TrackId, track);
         }
 
+        private bool DirtyTrackCache = false;
         //TODO should this be a concurrent bag instead of a dictionary?
         //the track ID as dictionary key is redundant but may offer performance benefits
         private System.Collections.Concurrent.ConcurrentDictionary<string, FullTrackDetails> _trackCache;
@@ -301,9 +317,9 @@ namespace spotify_playlist_generator
         /// </summary>
         /// <param name="trackIDs"></param>
         /// <returns>Returns a list of FullTrack</returns>
-        public List<FullTrackDetails> GetTracks(IEnumerable<string> trackIDs)
+        public List<FullTrackDetails> GetTracks(IEnumerable<string> trackIDs, bool Source_AllTracks = false)
         {
-            trackIDs = trackIDs.Distinct();
+            trackIDs = trackIDs.Distinct().ToArray();
 
             var output = new List<FullTrackDetails>();
             var trackIdApiQueue = new List<string>();
@@ -332,7 +348,7 @@ namespace spotify_playlist_generator
 
                     var artists = this.GetArtists(chunkTracks);
 
-                    var trackDetails = chunkTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
+                    var trackDetails = chunkTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID, allTracksTrack:Source_AllTracks)).ToList();
 
                     output.AddRange(trackDetails);
 
@@ -387,7 +403,7 @@ namespace spotify_playlist_generator
             return tracks;
 
         }
-        public List<FullTrackDetails> GetTracksByArtists(IEnumerable<string> artistNamesOrIDs)
+        public List<FullTrackDetails> GetTracksByArtists(IList<string> artistNamesOrIDs)
         {
             //TODO consider how to report progress
 
@@ -448,6 +464,13 @@ namespace spotify_playlist_generator
                 albums.Remove(albums.Where(album => album.Id == "3jRsMOSeikuwpE9Q75Ij7I").SingleOrDefault());
             }
 
+            //the Track.Album.AlbumGroup is always null (specifically when pulled from the track object), so it can't be used below
+            //therefore the data point is pulled here directly from the album object
+            var appearsOnAlbums = albums
+                .Where(a => a.AlbumGroup == "appears_on")
+                .Select(a => a.Id)
+                .ToList();
+
             //if an album in the cache has been retrieved by *this* method 
             //then we can be assured that the full album is already in the cache
             //if an album tracklist is changed after this though the cache will need to be cleared to get the update
@@ -464,13 +487,6 @@ namespace spotify_playlist_generator
                 tracks.AddRange(cachedAlbumTracks);
                 albums.Remove(a => cachedAlbumTracks.Any(at => at.AlbumId == a.Id));
             }
-
-            //the Track.Album.AlbumGroup is always null (specifically when pulled from the track object), so it can't be used below
-            //therefore the data point is pulled here directly from the album object
-            var appearsOnAlbums = albums
-                .Where(a => a.AlbumGroup == "appears_on")
-                .Select(a => a.Id)
-                .ToList();
 
             //var ppTracks = new ProgressPrinter(Total: Math.Max(albums.Count(), MaxPlaylistSize),
             //                                   Update: (perc, time) => ConsoleWriteAndClearLine(cursorLeft, " -- " + playlistDetailsString + " playlist -- Getting tracks: " + perc + ", " + time + " remaining")
@@ -499,11 +515,15 @@ namespace spotify_playlist_generator
 
                     trackIDs.AddRange(chunkTrackIDs);
                 }, maxAttemptCount:2);
-                
+
             //get the tracks
-            var newTracks = (this.GetTracks(trackIDs))
-                //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
-                //this includes tracks that are on split albums, collaborations, and the like
+            var newTracks = (this.GetTracks(trackIDs, Source_AllTracks: true)).ToList();
+
+            tracks.AddRange(newTracks);
+
+            //ignore tracks by artists outside the spec if this is an "appears on" album, like a compilation
+            //this includes tracks that are on split albums, collaborations, and the like
+            tracks = tracks
                 .Where(t =>
                     !appearsOnAlbums.Contains(t.AlbumId)
                     || t.ArtistNames.Any(artistName => artistNames.Any(n => artistName.Like(n)))
@@ -513,7 +533,24 @@ namespace spotify_playlist_generator
                 //.Where(t => t.Artists.Select(a => a.Name).Any(artistName => playlistByArtist.Value.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)))
                 .ToList();
 
-            tracks.AddRange(newTracks);
+            var inputWithIndex = artistNamesOrIDs.Select(x => new
+            {
+                value = x,
+                index = artistNamesOrIDs.IndexOf(x),
+            }).ToArray();
+
+            //restore the original order in which artists and whatnot were provided
+            tracks = tracks.OrderBy(t =>
+            artistNamesOrIDs.Contains(t.TrackId)
+            ? inputWithIndex.Where(i => i.value == t.TrackId).Select(i => i.index).First()
+            //sort by the first/primary artist if they are in the spec, otherwise look at all artists
+            //this only matters when both/all artists are deliberately requested, which is very possible
+            : inputWithIndex.Where(x => t.ArtistNames.FirstOrDefault()?.Like(x.value) ?? t.ArtistNames.Any(a => a.Like(x.value))).Select(i => i.index).First()
+            )
+                .ThenBy(t => t.ReleaseDate)
+                .ThenBy(t => t.AlbumName)
+                .ThenBy(t => t.TrackNumber)
+                .ToList();
 
             //placement of cache writing is important
             //this means that no partial albums or partial discographies are written by this method
@@ -586,7 +623,7 @@ namespace spotify_playlist_generator
             var idAlbumTracks = this.GetTracks(idAlbumTrackIDs);
 
             //counting on the caching in this method for caching benefits
-            var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistName).Distinct())
+            var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistName).Distinct().ToList())
                 .Where(t => names.Any(n => t.AlbumName.Like(n.AlbumName) && t.ArtistNames.Any(a => a.Like(n.ArtistName))))
                 .ToList();
 

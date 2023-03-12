@@ -53,6 +53,7 @@ namespace spotify_playlist_generator.Models
         public bool MaintainSort { get; set; }
         public bool NoLikes { get; set; }
         public int LimitPerArtist { get; set; }
+        public int LimitPerAlbum { get; set; }
         public bool LeaveImageAlone { get; set; }
         public Sort Sort { get; set; }
         public SpecLine[] SpecLines { get; set; }
@@ -159,6 +160,14 @@ namespace spotify_playlist_generator.Models
             var dummy = 0;
             this.LimitPerArtist = playlistSettings
                 .Where(line => line.StartsWith(Settings._ParameterString + "limitperartist:", StringComparison.InvariantCultureIgnoreCase))
+                .Select(line => line.Split(":", 2).Last())
+                .Where(line => int.TryParse(line, out dummy))
+                .Select(line => int.Parse(line))
+                .FirstOrDefault()
+                ;
+
+            this.LimitPerAlbum = playlistSettings
+                .Where(line => line.StartsWith(Settings._ParameterString + "limitperalbum:", StringComparison.InvariantCultureIgnoreCase))
                 .Select(line => line.Split(":", 2).Last())
                 .Where(line => int.TryParse(line, out dummy))
                 .Select(line => int.Parse(line))

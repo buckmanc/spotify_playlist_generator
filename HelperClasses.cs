@@ -102,7 +102,8 @@ namespace spotify_playlist_generator
               (response.Headers.ContainsKey("Retry-After") && int.TryParse(response.Headers["Retry-After"], out int secondsToWait))
               || (response.Headers.ContainsKey("retry-after") && int.TryParse(response.Headers["retry-after"], out secondsToWait)))
             {
-                return TimeSpan.FromSeconds(secondsToWait + 10);
+                //throw in a buffer
+                return TimeSpan.FromSeconds(secondsToWait * 1.1);
             }
 
             throw new APIException("429 received, but unable to parse Retry-After Header. This should not happen!");
@@ -125,7 +126,18 @@ namespace spotify_playlist_generator
             var secondsToWait = ParseTooManyRetries(response);
             if (secondsToWait != null && (!TooManyRequestsConsumesARetry || triesLeft > 0))
             {
-                Console.WriteLine("Received 429 error, waiting " + secondsToWait.Value.ToHumanTimeString() + " before retry.");
+                var destTime = DateTime.Now.Add(secondsToWait.Value);
+                
+                Console.WriteLine();
+
+                if (secondsToWait.Value.TotalHours <= 1)
+                    Console.WriteLine("Received 429 error, waiting " + secondsToWait.Value.ToHumanTimeString() + " before retry.");
+                else if (DateTime.Now.Date == destTime.Date)
+                    Console.WriteLine("Received 429 error, waiting until " + destTime.ToShortTimeString());
+                else
+                    Console.WriteLine("Received 429 error, waiting until " + destTime.ToShortDateTimeString());
+
+
                 await _sleep(secondsToWait.Value).ConfigureAwait(false);
                 response = await retry(request).ConfigureAwait(false);
                 var newTriesLeft = TooManyRequestsConsumesARetry ? triesLeft - 1 : triesLeft;

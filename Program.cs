@@ -196,8 +196,9 @@ namespace spotify_playlist_generator
             {
                 ////playlistName = "top*plus";
                 ////playlistName = "*metallum*";
-                //playlistName = "test";
-                //playlistSpecification = "AllTracksByArtist:Froglord";
+                playlistName = "test";
+                //playlistSpecification = "AllByArtist:Froglord";
+                imageAddPhoto = true;
             }
 
             if (tabCompletionArgumentNames)
@@ -214,7 +215,7 @@ namespace spotify_playlist_generator
             Console.WriteLine("Welcome to ");
             Console.WriteLine(Program.TitleText());
             Console.WriteLine("Please don't expect too much, but also be impressed.");
-            Console.WriteLine("Starting at " + DateTime.Now.ToString());
+            Console.WriteLine("Starting at " + DateTime.Now.ToShortDateTimeString());
             Console.WriteLine();
 
             var sw = Stopwatch.StartNew();
@@ -347,7 +348,11 @@ namespace spotify_playlist_generator
             //refresh the users playlist cache before doing more playlist operations
             //as new playlists won't be in it
             if (newPlaylists.Any())
+            {
+                Console.WriteLine();
+                Console.WriteLine("---adding images to new playlists---");
                 spotifyWrapper.GetUsersPlaylists(true);
+            }
 
             //add default images to all new playlists
             foreach (var playlist in newPlaylists)
@@ -367,7 +372,7 @@ namespace spotify_playlist_generator
             Console.WriteLine();
             Console.WriteLine("All done, get jammin'!");
 
-            Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString() + ", completed at " + DateTime.Now.ToString());
+            Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString() + ", completed at " + DateTime.Now.ToShortDateTimeString());
         }
 
         static void GetConfig()
@@ -1234,6 +1239,42 @@ namespace spotify_playlist_generator
             var pp = new ProgressPrinter(playlistSpecs.Count, (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc + ", " + time + " remaining"));
             foreach (var playlistSpec in playlistSpecs)
             {
+                //further mangle the console output for the sake of debug info
+                if (Program.Settings._VerboseDebug)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Playlist: " + playlistSpec.PlaylistName);
+                }
+
+                ////this is really messy... but pretty neat
+                ////find the definition for each parameter name in this playlist and run it
+                //var testPlaylistTracks = playlistSpec.GetGroupedParameters()
+                //    .SelectMany(kvp =>
+                //        PlaylistParameterDefinition.AllDefinitions
+                //        .Where(d => d.ParameterName == kvp.Key)
+                //        .Select(d => new
+                //        {
+                //            Definition = d,
+                //            ParameterValues = kvp.Value
+                //        })
+                //    )
+                //    .Select(x => new
+                //    {
+                //        x.Definition,
+                //        x.ParameterValues,
+                //        Tracks = (!x.Definition.Exclusion
+                //            ? x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, likedTracks: likedTracks)
+                //            : new List<FullTrackDetails>())
+                //    })
+                //    .Select(x => new
+                //    {
+                //        x.Tracks,
+                //        ExclusionTracks = (x.Definition.Exclusion
+                //            ? x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, existingTracks: x.Tracks)
+                //            : new List<FullTrackDetails>())
+                //    })
+                //    .SelectMany(x => x.Tracks.Where(t => !x.ExclusionTracks.Contains(t)))
+                //    .ToList();
 
                 // ------------ get tracks ------------
                 var playlistTracks = new List<FullTrackDetails>();
@@ -1411,7 +1452,11 @@ namespace spotify_playlist_generator
                 // ------------ remove dupes ------------
                 //complicated logic for determining duplicates
                 var dupes = playlistTracks
-                    .GroupBy(track => track.Name.ToLower() + " $$$ " + track.ArtistNames.Join(", ")) //same track name, same artist
+                    .GroupBy(track =>
+                        track.Name.AlphanumericOnly().RemoveAccents().ToLower() +
+                        " $$$ " +
+                        track.ArtistNames.Join(", ").AlphanumericOnly().RemoveAccents().ToLower()
+                        ) //same track name, same artist, very standardized
                     .Where(group =>
                         group.Count() > 1 && // only dupes
                         group.Select(track => track.AlbumId).Distinct().Count() > 1 // not from the same album
@@ -1421,14 +1466,18 @@ namespace spotify_playlist_generator
                         .OrderByDescending(track => track.AlbumType == "album") //albums first
                         .ThenBy(track => track.ReleaseDate) // older albums first; this should help de-prioritize deluxe releases and live albums
                         //TODO put some serious thought into how to best handle live albums
+                        .ThenBy(track => track.TrackId) // one last sort to make this deterministic
                         .ToList()
                         )
                     .ToList();
 
+                // the "track != group.First()" method will not handle multiples of the exact same track
+                // hence the .Distinct() below
                 var removeTracks = dupes
                     .SelectMany(group => group.Where(track => track != group.First())) // remove all but the first track per group
                     .ToList();
                 playlistTracks.RemoveRange(removeTracks);
+                playlistTracks = playlistTracks.Distinct().ToList();
 
                 // ------------ no likes - placement is important ------------
 
@@ -1437,7 +1486,7 @@ namespace spotify_playlist_generator
                     playlistTracks.Remove(t => likedTracks.Contains(t));
                 }
 
-                // ------------ limit per artist ------------
+                // ------------ limit per * ------------
 
                 if (playlistSpec.LimitPerArtist > 0)
                 {
@@ -1448,6 +1497,15 @@ namespace spotify_playlist_generator
                     }))
                         .GroupBy(x => x.artistID, x => x.track)
                         .SelectMany(g => g.Take(playlistSpec.LimitPerArtist))
+                        .Distinct()
+                        .ToList();
+                }
+
+                if (playlistSpec.LimitPerAlbum > 0)
+                {
+                    playlistTracks = playlistTracks
+                        .GroupBy(x => x.AlbumId, t => t)
+                        .SelectMany(g => g.Take(playlistSpec.LimitPerAlbum))
                         .Distinct()
                         .ToList();
                 }
@@ -1554,7 +1612,9 @@ namespace spotify_playlist_generator
 
             var createPlaylistCounter = 0;
             var removedTracksCounter = 0;
+            var removedDupesCounter = 0;
             var addedTracksCounter = 0;
+            var sortedPlaylistIDs = new List<string>();
             newPlaylists = new();
 
             var sbReport = new StringBuilder();
@@ -1595,11 +1655,9 @@ namespace spotify_playlist_generator
                     newPlaylists.Add(playlist);
                 }
 
-                //get all the tracks that ARE in the playlist - doing this here as they have to be casted from PlaylistTrack to FullTrack to be useful
-                var playlistTracksCurrent = (spotifyWrapper.spotify.Paginate(playlist.Tracks).ToListAsync()).Result
-                    .Select(x => (FullTrack)x.Track)
-                    .ToList()
-                    ;
+                //get the items in the playlist currently
+                // pull out and cast just the track from the weird playlist track object
+                var playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
 
                 //main work part 1 - remove existing playlist tracks that no longer belong
                 //"don't" check goes here, else the reporting is wrong
@@ -1607,6 +1665,38 @@ namespace spotify_playlist_generator
                     .Where(gpt => !playlistSpec.DontRemoveTracks && !playlistSpec.Tracks.Any(glt => glt.TrackId == gpt.Id))
                     .Select(gpt => new PlaylistRemoveItemsRequest.Item() { Uri = gpt.Uri })
                     .ToList();
+
+                //get the technical dupes (not logical dupes) in the playlist in spotify right now
+                var dupesCurrent = playlistTracksCurrent
+                    .GroupBy(t => t.Id)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.First())
+                    .ToArray();
+
+                var dupePositionsToRemove = dupesCurrent
+                    .SelectMany(t => Enumerable.Range(0, playlistTracksCurrent.Count() - 1)
+                                 .Where(i => playlistTracksCurrent[i].Id == t.Id)
+                                 .Skip(1)
+                                 )
+                    .ToList();
+
+                if (dupePositionsToRemove.Any())
+                {
+                    //the API only accepts 100 tracks at a time
+                    //however, removing more than one chunk will alter the position of subsequent items
+                    //therefore only do 100 at a time
+                    //snapshot ID considerations assure that positions remain relevant event after removing some tracks
+                    var removeRequests = dupePositionsToRemove
+                        .ChunkBy(100)
+                        .Select(items => new PlaylistRemoveItemsRequest { Positions = items, SnapshotId = playlist.SnapshotId })
+                        .ToList();
+
+                    foreach (var removeRequest in removeRequests)
+                        spotifyWrapper.spotify.Playlists.RemoveItems(playlist.Id, removeRequest);
+
+                    removedDupesCounter += dupePositionsToRemove.Count;
+                }
+
 
                 if (removeTrackRequestItems.Any())
                 {
@@ -1637,12 +1727,48 @@ namespace spotify_playlist_generator
                     var addRequests = addTrackURIs
                         .ChunkBy(100)
                         .Select(uris => new PlaylistAddItemsRequest(uris))
-
                         .ToList();
+
                     foreach (var addRequest in addRequests)
                         spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest);
 
                     addedTracksCounter += addTrackURIs.Count;
+                }
+
+                
+                if (playlistSpec.MaintainSort && !newPlaylists.Contains(playlist))
+                {
+                    List<PlaylistReorderItemsRequest> reorderRequests = null;
+
+                    if (addTrackURIs.Any())
+                    {
+                        playlist = spotifyWrapper.spotify.Playlists.Get(playlist.Id).Result;
+                        playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
+                    }
+
+                    do
+                    {
+                        //something's probably wrong with the api wrapper here
+                        //you can only make one request at a time???
+                        reorderRequests = playlistTracksCurrent.Select(t => new PlaylistReorderItemsRequest(
+                        rangeStart: playlistTracksCurrent.IndexOf(t),
+                        insertBefore: playlistSpec.Tracks.Select(tn => tn.TrackId).ToList().IndexOf(t.Id) + 1
+                        )
+                        { SnapshotId = playlist.SnapshotId })
+                        .Where(x => x.RangeStart + 1 != x.InsertBefore)
+                        .ToList();
+
+                        if (reorderRequests.Any())
+                        {
+                            spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, reorderRequests.First());
+                            playlist = spotifyWrapper.spotify.Playlists.Get(playlist.Id).Result;
+                            playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
+
+                            sortedPlaylistIDs.Add(playlist.Id);
+                        }
+
+                    }
+                    while (reorderRequests.Any());
                 }
 
                 //write a nice little output report
@@ -1669,9 +1795,11 @@ namespace spotify_playlist_generator
             Console.WriteLine();
             if (!string.IsNullOrWhiteSpace(removeReport))
                 Console.WriteLine(removeReport);
-            Console.WriteLine("Created " + createPlaylistCounter.ToString("#,##0") + " new playlists.");
-            Console.WriteLine("Removed " + removedTracksCounter.ToString("#,##0") + " existing tracks.");
-            Console.WriteLine("Added " + addedTracksCounter.ToString("#,##0") + " new tracks.");
+            Console.WriteLine("Created " + createPlaylistCounter.ToString("#,##0").PadLeft(5) + " new playlists.");
+            Console.WriteLine("Sorted  " + sortedPlaylistIDs.Distinct().Count().ToString("#,##0").PadLeft(5) + " existing playlists.");
+            Console.WriteLine("Removed " + removedTracksCounter.ToString("#,##0").PadLeft(5) + " existing tracks.");
+            Console.WriteLine("Removed " + removedDupesCounter.ToString("#,##0").PadLeft(5) + " existing duplicates.");
+            Console.WriteLine("Added   " + addedTracksCounter.ToString("#,##0").PadLeft(5) + " new tracks.");
             Console.WriteLine();
 
 

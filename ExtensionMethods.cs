@@ -98,7 +98,7 @@ namespace spotify_playlist_generator
         /// <returns></returns>
         public static int CountOccurrences(this string value, string search)
         {
-            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(search) || !value.Contains(search))  return 0;
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(search) || !value.Contains(search)) return 0;
 
             var iReturn = (value.Length - value.Replace(search, string.Empty).Length) / search.Length;
 
@@ -194,7 +194,7 @@ namespace spotify_playlist_generator
             else
                 returnString = span.TotalDays.ToString(format) + " days";
 
-            return returnString;
+            return returnString.TrimEnd('0').TrimEnd('.');
         }
 
         public static T ResultSafe<T>(this Task<T> value)
@@ -225,7 +225,7 @@ namespace spotify_playlist_generator
             if (string.IsNullOrEmpty(value))
                 return value;
 
-            foreach(var removey in stringsToRemove)
+            foreach (var removey in stringsToRemove)
             {
                 value = value.Replace(removey, string.Empty);
             }
@@ -287,7 +287,7 @@ namespace spotify_playlist_generator
             // this is specifically to handle
             // 1) complex album names with inconsistent spacing, ellipses, or punctuation
             // 2) words with accent marks that are difficult to type
-            str = str.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards:true);
+            str = str.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards: true);
             pattern = pattern.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards: true);
 
             if (Debugger.IsAttached && string.IsNullOrEmpty(pattern))
@@ -344,7 +344,10 @@ namespace spotify_playlist_generator
             var index = rnd.Next(0, elementCount - 1);
 
             return source[index];
-
+        }
+        public static string ToShortDateTimeString(this DateTime value)
+        {
+            return value.ToShortDateString() + " " + value.ToLongTimeString();
         }
     }
 }

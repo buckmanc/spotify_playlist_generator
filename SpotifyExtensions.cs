@@ -27,5 +27,14 @@ namespace spotify_playlist_generator
 
             return System.IO.Path.Join(Program.Settings._ImageBackupFolderPath, safeName + ".jpg");
         }
+
+        public static IList<FullTrack> GetTracks(this FullPlaylist value, MySpotifyWrapper spotifyWrapper)
+        {
+            var output = (spotifyWrapper.spotify.Paginate(value.Tracks).ToListAsync()).Result
+                    .Select(x => (FullTrack)x.Track)
+                    .ToList();
+
+            return output;
+        }
     }
 }
