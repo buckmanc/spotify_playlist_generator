@@ -119,7 +119,10 @@ namespace spotify_playlist_generator
                 Environment.Exit(-1);
             }
 
-            var apod = apodResonse.AllContent.Where(c => c.MediaType == MediaType.Image).FirstOrDefault();
+            var apod = apodResonse.AllContent.Where(c =>
+            c.MediaType == MediaType.Image &&
+            !System.IO.Path.GetExtension(c.ContentUrlHD).Like("*mp4")
+            ).FirstOrDefault();
             //if (Program.Settings._VerboseDebug)
             //{
             //    Console.WriteLine(apod.Title);

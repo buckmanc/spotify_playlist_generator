@@ -94,7 +94,7 @@ namespace spotify_playlist_generator
             if (Program.Settings._VerboseDebug)
             {
                 Console.WriteLine("Access Token as of " + DateTime.Now.ToShortDateTimeString() + ": ");
-                Console.WriteLine(accessToken);
+                Console.WriteLine(accessToken?.Substring(0, 20) ?? String.Empty);
             }
 
             //exit for token problems
@@ -126,7 +126,7 @@ namespace spotify_playlist_generator
         /// <returns>Returns a list of FullArtist</returns>
         public List<FullArtist> GetArtists(IEnumerable<string> artistIDs)
         {
-            artistIDs = artistIDs.Distinct();
+            artistIDs = artistIDs.Distinct().ToArray();
 
             var output = new List<FullArtist>();
             var artistIdApiQueue = new List<string>();
@@ -512,6 +512,10 @@ namespace spotify_playlist_generator
                     .Select(track => track.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
                     .Distinct()
                     .ToList();
+
+		    //TODO consider caching some albumID/trackID relationship here
+		    //so that progress can be saved on a crash
+		    //would need to be serialized
 
                     trackIDs.AddRange(chunkTrackIDs);
                 }, maxAttemptCount:2);

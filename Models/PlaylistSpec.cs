@@ -71,6 +71,7 @@ namespace spotify_playlist_generator.Models
                     return PlaylistType.None;
 
                 return this.SpecLines
+                    .Where(line => line.IsValidParameter)
                     .GroupBy(line => line.LineType)
                     .OrderByDescending(g => g.Count())
                     .Select(g => g.Key)
@@ -316,6 +317,11 @@ namespace spotify_playlist_generator.Models
         {
             System.IO.File.WriteAllLines(this.Path, this.SpecLines.Select(line => line.RawLine.ReplaceLineEndings()));
         }
+
+        public override string ToString()
+        {
+            return this.PlaylistName + " SpecLines:" + this.SpecLines.Count().ToString("#,##0");
+        }
     }
 
 
@@ -345,11 +351,11 @@ namespace spotify_playlist_generator.Models
             {
                 if (!this.IsValidParameter)
                     return PlaylistType.None;
-                else if (this.ParameterName.Like("likes"))
+                else if (this.ParameterName.Like("likes*"))
                     return PlaylistType.Likes;
-                else if (this.ParameterName.Like("all"))
+                else if (this.ParameterName.Like("all*") || this.ParameterName.Like("album*"))
                     return PlaylistType.AllByArtist;
-                else if (this.ParameterName.Like("top"))
+                else if (this.ParameterName.Like("top*"))
                     return PlaylistType.Top;
                 else
                     return PlaylistType.None;
@@ -375,6 +381,11 @@ namespace spotify_playlist_generator.Models
                 else
                     return ObjectType.None;
             }
+        }
+
+        public override string ToString()
+        {
+            return this.RawLine;
         }
 
     }

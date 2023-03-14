@@ -13,6 +13,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using VaderSharp2;
 
 namespace spotify_playlist_generator
 {
@@ -196,7 +197,7 @@ namespace spotify_playlist_generator
             {
                 ////playlistName = "top*plus";
                 ////playlistName = "*metallum*";
-                playlistName = "test";
+                playlistName = "liked*";
                 //playlistSpecification = "AllByArtist:Froglord";
                 imageAddPhoto = true;
             }
@@ -998,6 +999,7 @@ namespace spotify_playlist_generator
                 var error = false;
                 var attempts = 0;
                 var maxAttempts = 4;
+                var playlistTracks = spotifyWrapper.GetTracksByPlaylist(new string[] { playlist.Id }).ToArray();
 
                 do
                 {
@@ -1018,68 +1020,79 @@ namespace spotify_playlist_generator
                         (playlistSpec.GetPlaylistType == PlaylistType.AllByArtist || playlistSpec.GetPlaylistType == PlaylistType.Top)
                         )
                     {
-                        var mostArtistID = spotifyWrapper.GetTracksByPlaylist(new string[] { playlist.Id })
+                        //get the top 10 artistIDs from a playlist
+                        //with what percent of the playlist they cover
+                        var artistIdDeets = playlistTracks
                                             .SelectMany(t => t.ArtistIds)
                                             .GroupBy(id => id)
                                             .OrderByDescending(g => g.Count())
-                                            .Select(g => g.Key)
-                                            .FirstOrDefault();
+                                            .Select(g => new
+                                            {
+                                                ArtistID = g.Key,
+                                                PercOfPlaylist = g.Count() / (playlistTracks.Count() * 1.00)
+                                            })
+                                            .Take(10)
+                                            .ToArray();
 
-                        var artist = spotifyWrapper.GetArtists(new string[] { mostArtistID }).FirstOrDefault();
-                        var imageURL = artist?.Images?.FirstOrDefault()?.Url;
+                        //a little logic to pick out the obvious winners from a playlist
+                        //don't want art for a single guest musician when the playlist is 90% a different one
+                        var maxPerc = artistIdDeets.Max(x => x.PercOfPlaylist);
+                        var topArtistIdDeets = artistIdDeets
+                            .Where(a => a.PercOfPlaylist >= maxPerc - 0.2)
+                            .ToArray();
+
+                        var artistIdPick = topArtistIdDeets.Select(a => a.ArtistID).ToList().Random();
+
+                        var artist = spotifyWrapper.GetArtists(new string[] { artistIdPick }).FirstOrDefault();
+                        var imageURL = artist?.Images?.Random()?.Url;
 
                         if (!string.IsNullOrWhiteSpace(imageURL))
                             imageSource = new ImageSource(imageURL);
                     }
-
-                    //TODO would be amazing to get some nlp going on in here
-                    // like if your playlist contains an animal name it searches that animal
-                    //TODO clean this up a lot
-                    //TODO try to broaden scope beyond these narrow hits
-                    var mapping = new Dictionary<string, string>();
-                    mapping.Add("bird", "bird");
-                    mapping.Add("dark synth", "bat");
-                    mapping.Add("dark club", "bat");
-                    mapping.Add("goth", "vampire");
-                    mapping.Add("punk", "punk");
-                    mapping.Add("folk", "folk");
-                    mapping.Add("lofi", "lofi");
-                    mapping.Add("atmo black", "fog");
-                    mapping.Add("atmospheric black metal", "forest");
-                    mapping.Add("ambient black metal", "fog");
-                    mapping.Add("doom metal", "swamp");
-                    mapping.Add("dungeon synth", "castle");
-                    mapping.Add("cosmic", "space");
-                    mapping.Add("dark ambient", "space");
-                    mapping.Add("death", "skull");
-                    mapping.Add("oldies", "oldies");
-                    mapping.Add("crooner", "oldies");
-                    mapping.Add("yeehaw", "cowboy");
-                    mapping.Add("cowboy", "cowboy");
-
-                    var searchTerm = mapping.Where(kvp => playlist.Name.Like("*" + kvp.Key + "*")).Select(kvp => kvp.Value).FirstOrDefault();
-
-                    if (searchTerm == null)
-                        searchTerm = new string[] {
-                            "concert", "music", "record player", "dance", "laugh", "man", "woman",
-                            "space", "space", "space", "space", "space",
-                            null, null, null, null
-                        }
-                        .Random();
-
-		    Console.WriteLine("searchTerm: " + searchTerm);
-
-                    if (imageSource == null && searchTerm != "space")
+                    else
                     {
-                        imageSource = ImageTools.GetUnsplashImage(searchTerm);
+
+                        var analyzer = new SentimentIntensityAnalyzer();
+                        var textSampleLines = new List<string>();
+
+                        textSampleLines.AddRange(playlistTracks.Select(t => t.Name));
+                        textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
+                        textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
+                        textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
+                        textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
+                        textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
+
+                        var sentiment = analyzer.PolarityScores(textSampleLines.Join(", "));
+
+                        var searchTerm = new string[] {
+                            "concert", "music", "record player", "party", "guitar", "karaoke"
+                        }
+                            .Random();
+
+                        if (Program.Settings._VerboseDebug)
+                        {
+                            //Console.WriteLine("sentiment score for " + playlist.Name + ": " + sentiment.Compound.ToString("0.0000"));
+                            Console.WriteLine("sentiment score for " + playlist.Name + ":" +
+                                " posi: " + sentiment.Positive.ToString("0.0000") +
+                                " neut: " + sentiment.Neutral.ToString("0.0000") +
+                                " nega: " + sentiment.Negative.ToString("0.0000") +
+                                " comp: " + sentiment.Compound.ToString("0.0000")
+                                );
+                        }
+
+                        //unsplash image for positive sentiment, nasa image for negative sentiment
+                        if (sentiment.Compound >= 0)
+                        {
+                            imageSource = ImageTools.GetUnsplashImage(searchTerm);
+                        }
+                        else
+                        {
+                            // nasa astronomy picture of the day
+                            imageSource = ImageTools.GetNasaApodImage();
+                        }
+
+
                     }
-
-                    // nasa astronomy picture of the day
-                    if (imageSource == null)
-                        imageSource = ImageTools.GetNasaApodImage();
-
-
-                    //TODO factor in ImageTools.GetUnsplashImage
 
                     using (var img = SixLabors.ImageSharp.Image.Load(imageSource.TempFilePath))
                     {
@@ -1450,6 +1463,7 @@ namespace spotify_playlist_generator
 
 
                 // ------------ remove dupes ------------
+
                 //complicated logic for determining duplicates
                 var dupes = playlistTracks
                     .GroupBy(track =>
@@ -1466,12 +1480,13 @@ namespace spotify_playlist_generator
                         .OrderByDescending(track => track.AlbumType == "album") //albums first
                         .ThenBy(track => track.ReleaseDate) // older albums first; this should help de-prioritize deluxe releases and live albums
                         //TODO put some serious thought into how to best handle live albums
+                        .ThenBy(track => track.AlbumId) // all other things the same, de-dupe to the same album
                         .ThenBy(track => track.TrackId) // one last sort to make this deterministic
                         .ToList()
                         )
                     .ToList();
 
-                // the "track != group.First()" method will not handle multiples of the exact same track
+                // the "track != group.First()" method will not handle multiples of the exact same ID'd track
                 // hence the .Distinct() below
                 var removeTracks = dupes
                     .SelectMany(group => group.Where(track => track != group.First())) // remove all but the first track per group
