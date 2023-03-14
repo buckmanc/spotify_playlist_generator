@@ -195,11 +195,12 @@ namespace spotify_playlist_generator
 
             if (Debugger.IsAttached)
             {
-                ////playlistName = "top*plus";
-                ////playlistName = "*metallum*";
-                playlistName = "liked*";
+                //playlistName = "top*plus";
+                playlistName = "*metallum*";
+                //playlistName = "test";
                 //playlistSpecification = "AllByArtist:Froglord";
-                imageAddPhoto = true;
+                //playlistName = "liked*";
+                //imageAddPhoto = true;
             }
 
             if (tabCompletionArgumentNames)
@@ -270,6 +271,15 @@ namespace spotify_playlist_generator
             var shortRun = new bool[] {
                 modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
+
+            //start pulling the users playlists on a different thread if we'll need it later
+            //hopefully speeds things up
+            if (!shortRun)
+                System.Threading.Tasks.Task.Factory.StartNew(() =>
+                {
+                    spotifyWrapper.GetUsersPlaylists();
+                }
+            );
 
             var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification, dontWarn:shortRun);
             var leaveImageAlonePlaylistNames = playlistSpecs
@@ -343,8 +353,8 @@ namespace spotify_playlist_generator
 
             //do work!
             GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
-            LikedGenreReport(spotifyWrapper);
             UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
+            LikedGenreReport(spotifyWrapper);
 
             //refresh the users playlist cache before doing more playlist operations
             //as new playlists won't be in it
@@ -474,9 +484,7 @@ namespace spotify_playlist_generator
                 //TODO find one of the users playlists
                 var playlistLikes = "LikesFromPlaylist:" + playlist.Id + " #" + playlist.Name;
 
-                var likedTracks = spotifyWrapper.GetLikedTracks();
-
-                var topLikedArtistNames = likedTracks
+                var topLikedArtistNames = spotifyWrapper.LikedTracks
                     .SelectMany(t => t.ArtistNames)
                     .GroupBy(x => x)
                     .OrderByDescending(g => g.Count())
@@ -674,8 +682,6 @@ namespace spotify_playlist_generator
             Console.WriteLine("---making updates to playlist spec files---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            var likedTracks = spotifyWrapper.GetLikedTracks();
-
             //swap artist names for artist IDs
             //this will save multiple API hits involved in searching for artists by name and paging over the results
             //TODO nest your progress printers
@@ -701,7 +707,7 @@ namespace spotify_playlist_generator
                 if (artistNameLines.Any())
                 {
 
-                    var likedArtistCounts = likedTracks
+                    var likedArtistCounts = spotifyWrapper.LikedTracks
                         .SelectMany(t => t.ArtistIds)
                         .GroupBy(ID => ID)
                         .ToDictionary(g => g.Key, g => g.Count());
@@ -1247,8 +1253,6 @@ namespace spotify_playlist_generator
             Console.WriteLine("---assembling playlist tracks---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            var likedTracks = spotifyWrapper.GetLikedTracks();
-
             var pp = new ProgressPrinter(playlistSpecs.Count, (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc + ", " + time + " remaining"));
             foreach (var playlistSpec in playlistSpecs)
             {
@@ -1295,7 +1299,7 @@ namespace spotify_playlist_generator
                 var likesByArtist = playlistSpec.GetParameterValues("LikesByArtist");
                 if (likesByArtist.Any())
                 {
-                    var tracks = likedTracks.Where(t =>
+                    var tracks = spotifyWrapper.LikedTracks.Where(t =>
                         t.ArtistNames.Any(artistName => likesByArtist.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)) ||
                         t.ArtistIds.Any(artistID => likesByArtist.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
                         )
@@ -1312,7 +1316,7 @@ namespace spotify_playlist_generator
                         .Distinct()
                         .ToArray();
 
-                    var tracks = likedTracks.Where(t =>
+                    var tracks = spotifyWrapper.LikedTracks.Where(t =>
                         t.ArtistIds.Any(artistID => artistIDs.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
                         )
                         .ToArray();
@@ -1324,7 +1328,7 @@ namespace spotify_playlist_generator
                 if (likesFromPlaylist.Any())
                 {
                     var tracks = spotifyWrapper.GetTracksByPlaylist(likesFromPlaylist)
-                        .Where(t => likedTracks.Contains(t))
+                        .Where(t => spotifyWrapper.LikedTracks.Contains(t))
                         .ToArray();
 
                     playlistTracks.AddRange(tracks);
@@ -1383,7 +1387,7 @@ namespace spotify_playlist_generator
                     var stringsToRemove = new string[] { " ", "-" };
                     var likesByGenreStandardized = likesByGenre.Select(x => x.Remove(stringsToRemove)).ToArray();
 
-                    var tracks = likedTracks.Where(t =>
+                    var tracks = spotifyWrapper.LikedTracks.Where(t =>
                     t.ArtistGenres.Any(genreName => likesByGenreStandardized.Any(g => genreName.Remove(stringsToRemove).Like(g)))
                     )
                     .ToArray();
@@ -1498,7 +1502,7 @@ namespace spotify_playlist_generator
 
                 if (playlistSpec.NoLikes)
                 {
-                    playlistTracks.Remove(t => likedTracks.Contains(t));
+                    playlistTracks.Remove(t => spotifyWrapper.LikedTracks.Contains(t));
                 }
 
                 // ------------ limit per * ------------
@@ -1874,10 +1878,8 @@ namespace spotify_playlist_generator
             Console.WriteLine("---liked genre report---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            var likedTracks = spotifyWrapper.GetLikedTracks();
-
             //TODO simplify this; the data you need is already in likedTracks
-            var artistIDs = likedTracks.SelectMany(t => t.ArtistIds)
+            var artistIDs = spotifyWrapper.LikedTracks.SelectMany(t => t.ArtistIds)
                 .Distinct()
                 .ToList();
 
@@ -1900,7 +1902,7 @@ namespace spotify_playlist_generator
             })
                 .ToArray();
 
-            var trackAllGenres = likedTracks
+            var trackAllGenres = spotifyWrapper.LikedTracks
                 .SelectMany(t => t.ArtistGenres.Select(g => new GenreReportRecord
                 {
                     ItemID = t.TrackId,
@@ -1908,7 +1910,7 @@ namespace spotify_playlist_generator
                 }))
                 .ToArray();
 
-            var trackFirstGenres = likedTracks
+            var trackFirstGenres = spotifyWrapper.LikedTracks
                 .Select(t => new GenreReportRecord
                 {
                     ItemID = t.TrackId,

@@ -273,6 +273,15 @@ namespace spotify_playlist_generator
             return output;
         }
 
+        public static void TryRemove<TKey, TValue>(this IDictionary<TKey, TValue> value, IEnumerable<TKey> keys)
+        {
+            foreach (var key in keys)
+            {
+                if (value.ContainsKey(key))
+                    value.Remove(key, out TValue result);
+            }
+        }
+
         //found here
         //https://stackoverflow.com/a/4146349
         /// <summary>
@@ -349,5 +358,7 @@ namespace spotify_playlist_generator
         {
             return value.ToShortDateString() + " " + value.ToLongTimeString();
         }
+
+        public static ConcurrentBag<T> ToConcurrentBag<T>(this IEnumerable<T> source) => new ConcurrentBag<T>(source);
     }
 }
