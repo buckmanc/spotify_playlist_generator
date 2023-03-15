@@ -1011,40 +1011,126 @@ namespace spotify_playlist_generator
             return success;
 
         }
-
-        public bool Play(string playlistName)
+        private bool DeviceCheck()
         {
-            var playlist = (!string.IsNullOrWhiteSpace(playlistName) ? this.GetFollowedPlaylists(playlistName).FirstOrDefault() : null);
-
             if (!this.spotify.Player.GetAvailableDevices().Result.Devices.Any())
             {
                 Console.WriteLine("No device available found to play on.");
                 return false;
             }
+            return true;
+        }
+
+        public bool Play(string playlistName)
+        {
+            var playlist = (!string.IsNullOrWhiteSpace(playlistName) ? this.GetFollowedPlaylists(playlistName).FirstOrDefault() : null);
+
+            if (!this.DeviceCheck())
+                return false;
 
             var success = false;
 
             if (playlist != null)
+            {
                 success = this.spotify.Player.ResumePlayback(new PlayerResumePlaybackRequest()
                 {
                     ContextUri = playlist.Uri
                 }).Result;
+                Console.WriteLine();
+                Console.WriteLine("|> " + this.GetCurrentTrack().PrettyString());
+            }
             else if (this.spotify.Player.GetCurrentPlayback().Result.IsPlaying)
+            {
                 success = this.spotify.Player.PausePlayback().Result;
+                Console.WriteLine();
+                Console.WriteLine("||");
+            }
             else
+            {
                 success = this.spotify.Player.ResumePlayback().Result;
+                Console.WriteLine();
+                Console.WriteLine("|> " + this.GetCurrentTrack().PrettyString());
+            }
 
             return success;
         }
 
         public bool SkipNext()
         {
-            return this.spotify.Player.SkipNext().Result;
+            return Skip(true);
         }
 
         public bool SkipPrevious()
         {
-            return this.spotify.Player.SkipPrevious().Result;
+            return Skip(false);
+        }
+
+        private bool Skip(bool next)
+        {
+
+            if (!this.DeviceCheck())
+                return false;
+
+            var oldTrack = this.GetCurrentTrack();
+            var output = false;
+            if (next)
+                output = this.spotify.Player.SkipNext().Result;
+            else
+                output = this.spotify.Player.SkipPrevious().Result;
+
+            //wait for the CurrentTrack to actually be updated for the track skip
+            FullTrack newTrack = null;
+            var i = 0;
+            do
+            {
+                if (newTrack != null)
+                    System.Threading.Thread.Sleep(500);
+
+                newTrack = this.GetCurrentTrack();
+                i += 1;
+            } while (newTrack.Id == oldTrack.Id && i < 10);
+
+            var spaceCount = Math.Min(oldTrack.PrettyString().Length, newTrack.PrettyString().Length) / 2;
+
+            Console.WriteLine();
+            if (next)
+            {
+                Console.WriteLine(oldTrack.PrettyString());
+                Console.WriteLine("↓↓".PadLeft(spaceCount));
+                Console.WriteLine(newTrack.PrettyString());
+            }
+            else
+            {
+                Console.WriteLine(newTrack.PrettyString());
+                Console.WriteLine("↑↑".PadLeft(spaceCount));
+                Console.WriteLine(oldTrack.PrettyString());
+            }
+            return output;
+        }
+
+        public bool LikeCurrent()
+        {
+            var track = this.GetCurrentTrack();
+            if (track == null)
+            {
+                Console.WriteLine("Could not get current track.");
+                return false;
+            }
+
+            var liked = this.spotify.Library.CheckTracks(new LibraryCheckTracksRequest(new List<string>() { track.Id })).Result.FirstOrDefault();
+            
+            if (liked && this.spotify.Library.RemoveTracks(new LibraryRemoveTracksRequest(new List<string>() { track.Id })).Result)
+            {
+                Console.WriteLine("💔 Unliked " + track.PrettyString());
+                return true;
+            }
+            else if (!liked && this.spotify.Library.SaveTracks(new LibrarySaveTracksRequest(new List<string>() { track.Id })).Result)
+            {
+                Console.WriteLine("💖  Liked " + track.PrettyString());
+                return true;
+            }
+
+            return false;
         }
 
         public FullPlaylist GetCurrentPlaylist()

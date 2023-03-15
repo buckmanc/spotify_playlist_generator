@@ -35,11 +35,11 @@ namespace spotify_playlist_generator
             public static string _StartPlaylistsWith;
 
             public static string _LyricCommand1;
-            public static string _LyricCommand1FailText;
             public static string _LyricCommand2;
-            public static string _LyricCommand2FailText;
             public static string _LyricCommand3;
-            public static string _LyricCommand3FailText;
+            public static string _LyricFailText1;
+            public static string _LyricFailText2;
+            public static string _LyricFailText3;
 
             public static string _ImageBackupFolderPath
             {
@@ -97,12 +97,33 @@ namespace spotify_playlist_generator
                 return output;
             }
         }
-        public static string TitleText()
+        public static string TitleText_Large()
         {
             var output = Program.AssemblyName
                 .Replace("_", " ")
                 .Split(" ")
                 .Select(word => FiggleFonts.Standard.Render(word))
+                .Join(Environment.NewLine);
+
+            return output;
+        }
+        public static string TitleText_Medium()
+        {
+            var vowels = "aeiou".ToArray();
+            var output = Program.AssemblyName
+                .Replace("_", " ")
+                .Split(" ")
+                .Select(word => FiggleFonts.Standard.Render(word.Substring(0, 4).TrimEnd(vowels)))
+                .Join(Environment.NewLine);
+
+            return output;
+        }
+        public static string TitleText_Small()
+        {
+            var output = Program.AssemblyName
+                .Replace("_", " ")
+                .Split(" ")
+                .Select(word => "[" + word + "]")
                 .Join(Environment.NewLine);
 
             return output;
@@ -186,7 +207,7 @@ namespace spotify_playlist_generator
             bool modifyPlaylistFile, bool excludeCurrentArtist,
             bool imageAddPhoto, bool imageAddText, 
             bool imageBackup, bool imageRestore,
-            bool play, bool skipNext, bool skipPrevious,
+            bool play, bool skipNext, bool skipPrevious, bool like,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
 	        bool commitAnActOfUnspeakableViolence
@@ -196,11 +217,14 @@ namespace spotify_playlist_generator
             if (Debugger.IsAttached)
             {
                 //playlistName = "top*plus";
-                playlistName = "*metallum*";
+                //playlistName = "*metallum*";
                 //playlistName = "test";
                 //playlistSpecification = "AllByArtist:Froglord";
                 //playlistName = "liked*";
                 //imageAddPhoto = true;
+                //skipPrevious = true;
+                //play = true;
+                lyrics = true;
             }
 
             if (tabCompletionArgumentNames)
@@ -213,13 +237,41 @@ namespace spotify_playlist_generator
                 UpdateReadme();
                 return;
             }
-            Console.WriteLine();
-            Console.WriteLine("Welcome to ");
-            Console.WriteLine(Program.TitleText());
-            Console.WriteLine("Please don't expect too much, but also be impressed.");
-            Console.WriteLine("Starting at " + DateTime.Now.ToShortDateTimeString());
-            Console.WriteLine();
 
+            var playerCommand = new bool[] {
+                (play && string.IsNullOrEmpty(playlistSpecification)),
+                skipNext, skipPrevious, like, lyrics
+                }.Any(x => x);
+            var shortRun = new bool[] {
+                modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
+                }.Any(x => x);
+
+            //just don't
+            if (skipNext && skipPrevious)
+            {
+                Console.WriteLine("Seriously? How would that even work?");
+                skipPrevious = false;
+                skipNext = false;
+            }
+
+            if (!playerCommand)
+            {
+                //if (Program.Settings._VerboseDebug)
+                Console.WriteLine("Console.WindowWidth: " + Console.WindowWidth.ToString("#,##0"));
+                Console.WriteLine("Console.WindowWidth: " + Console.WindowWidth.ToString("#,##0"));
+
+                Console.WriteLine();
+                Console.WriteLine("Welcome to ");
+                if (Console.WindowWidth >= Program.TitleText_Large().Split(Environment.NewLine).Max(line => line.Length))
+                    Console.WriteLine(Program.TitleText_Large());
+                else if (Console.WindowWidth >= Program.TitleText_Medium().Split(Environment.NewLine).Max(line => line.Length))
+                    Console.WriteLine(Program.TitleText_Medium());
+                else
+                    Console.WriteLine(Environment.NewLine + Program.TitleText_Small() + Environment.NewLine);
+                Console.WriteLine("Please don't expect too much, but also be impressed.");
+                Console.WriteLine("Starting at " + DateTime.Now.ToShortDateTimeString());
+                Console.WriteLine();
+            }
             var sw = Stopwatch.StartNew();
 
             //important to set these paths BEFORE reading the config file
@@ -247,11 +299,14 @@ namespace spotify_playlist_generator
 
             using var spotifyWrapper = new MySpotifyWrapper();
 
-            var me = spotifyWrapper.spotify.UserProfile.Current().Result;
-            Console.WriteLine($"Hello there, {me.DisplayName}");
-            Console.WriteLine();
-            Console.WriteLine("----------------------");
-            Console.WriteLine();
+            if (!playerCommand)
+            {
+                var me = spotifyWrapper.spotify.UserProfile.Current().Result;
+                Console.WriteLine($"Hello there, {me.DisplayName}");
+                Console.WriteLine();
+                Console.WriteLine("----------------------");
+                Console.WriteLine();
+            }
 
             if (playlistName?.Trim()?.ToLower() == "current"
 		        || (excludeCurrentArtist && string.IsNullOrWhiteSpace(playlistName))
@@ -268,51 +323,41 @@ namespace spotify_playlist_generator
             }
 
             List<FullPlaylist> newPlaylists;
-            var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
-                }.Any(x => x);
 
             //start pulling the users playlists on a different thread if we'll need it later
             //hopefully speeds things up
-            if (!shortRun)
+            if (!shortRun && !playerCommand)
                 System.Threading.Tasks.Task.Factory.StartNew(() =>
                 {
                     spotifyWrapper.GetUsersPlaylists();
                 }
             );
 
+            //TODO make reading playlist specs lazy, or does it load fast enough that it doesn't matter?
             var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification, dontWarn:shortRun);
             var leaveImageAlonePlaylistNames = playlistSpecs
                 .Where(spec => spec.LeaveImageAlone)
                 .Select(p => p.FinalPlaylistName)
                 .ToArray();
 
-            if (play && (shortRun || string.IsNullOrWhiteSpace(playlistName)))
-            {
-                spotifyWrapper.Play(playlistName);
-                //if only toggling playback, don't do anything else
-                if (string.IsNullOrWhiteSpace(playlistName))
-                    return;
-            } else if (skipNext)
-            {
+            // ------------ player commands ------------
+
+            if (skipNext)
                 spotifyWrapper.SkipNext();
-                return;
-            }
             else if (skipPrevious)
-            {
                 spotifyWrapper.SkipPrevious();
-                return;
-            }
+
+            if (play && (shortRun || string.IsNullOrWhiteSpace(playlistName)))
+                spotifyWrapper.Play(playlistName);
 
             if (excludeCurrentArtist)
-            {
                 ExcludeCurrentArtist(spotifyWrapper, playlistSpecs);
-            }
 
             if (lyrics)
-            {
                 Lyrics(spotifyWrapper);
-            }
+
+            if (like)
+                spotifyWrapper.LikeCurrent();
 
             if (modifyPlaylistFile)
             {
@@ -345,7 +390,7 @@ namespace spotify_playlist_generator
             }
 
             //if any of those fancy commands besides the main functionality have been processed, stop here
-            if (shortRun)
+            if (shortRun || playerCommand)
             {
                 Console.WriteLine();
                 Environment.Exit(0);
@@ -429,11 +474,11 @@ namespace spotify_playlist_generator
                 newFile["SETTINGS"]["StartPlaylistsWithString"] = String.Empty;
 
                 newFile["LYRICCOMMANDS"]["LyricCommand1"] = String.Empty;
-                newFile["LYRICCOMMANDS"]["LyricCommand1FailText"] = String.Empty;
+                newFile["LYRICCOMMANDS"]["LyricFailText1"] = String.Empty;
                 newFile["LYRICCOMMANDS"]["LyricCommand2"] = String.Empty;
-                newFile["LYRICCOMMANDS"]["LyricCommand2FailText"] = String.Empty;
+                newFile["LYRICCOMMANDS"]["LyricFailText2"] = String.Empty;
                 newFile["LYRICCOMMANDS"]["LyricCommand3"] = String.Empty;
-                newFile["LYRICCOMMANDS"]["LyricCommand4FailText"] = String.Empty;
+                newFile["LYRICCOMMANDS"]["LyricFailText4"] = String.Empty;
                 iniParser.WriteFile(configIniPath, newFile);
             }
 
@@ -448,11 +493,11 @@ namespace spotify_playlist_generator
             Settings._StartPlaylistsWith = configIni["SETTINGS"]["StartPlaylistsWithString"];
 
             Settings._LyricCommand1 = configIni["LYRICCOMMANDS"]["LyricCommand1"];
-            Settings._LyricCommand1FailText = configIni["LYRICCOMMANDS"]["LyricCommand1FailText"];
             Settings._LyricCommand2 = configIni["LYRICCOMMANDS"]["LyricCommand2"];
-            Settings._LyricCommand2FailText = configIni["LYRICCOMMANDS"]["LyricCommand2FailText"];
             Settings._LyricCommand3 = configIni["LYRICCOMMANDS"]["LyricCommand3"];
-            Settings._LyricCommand3FailText = configIni["LYRICCOMMANDS"]["LyricCommand4FailText"];
+            Settings._LyricFailText1 = configIni["LYRICCOMMANDS"]["LyricFailText1"];
+            Settings._LyricFailText2 = configIni["LYRICCOMMANDS"]["LyricFailText2"];
+            Settings._LyricFailText3 = configIni["LYRICCOMMANDS"]["LyricFailText3"];
 
         }
         static List<PlaylistSpec> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpecification, bool dontWarn)
@@ -577,10 +622,6 @@ namespace spotify_playlist_generator
                 return;
             }
 
-	    //can skip songs here as we've already nabbed the deets we need
-	    //TODO does this need some error handling like the Play method on the wrapper?
-	    var success = spotifyWrapper.spotify.Player.SkipNext().Result;
-
             Console.WriteLine(
                 "Excluding " +
                 artists.Select(a => a.Name).Join(", ") + 
@@ -599,19 +640,13 @@ namespace spotify_playlist_generator
 
         static void Lyrics(MySpotifyWrapper spotifyWrapper)
         {
-            var appSpecs = Array.Empty<int>().Select(x => new
-            {
-                Command = string.Empty,
-                Failtext = string.Empty,
-            }).ToList();
+            var commands = new string[] { Program.Settings._LyricCommand1, Program.Settings._LyricCommand2, Program.Settings._LyricCommand3 };
+            var failText = new string[] { Program.Settings._LyricFailText1, Program.Settings._LyricFailText2, Program.Settings._LyricFailText3 };
 
-            appSpecs.Add(new { Command = Program.Settings._LyricCommand1, Failtext = Program.Settings._LyricCommand1FailText, });
-            appSpecs.Add(new { Command = Program.Settings._LyricCommand2, Failtext = Program.Settings._LyricCommand2FailText, });
-            appSpecs.Add(new { Command = Program.Settings._LyricCommand3, Failtext = Program.Settings._LyricCommand3FailText, });
+            commands = commands.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+            failText = failText.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
 
-            appSpecs = appSpecs.Where(x => !string.IsNullOrWhiteSpace(x.Command)).ToList();
-
-            if (!appSpecs.Any())
+            if (!commands.Any())
             {
                 Console.WriteLine("No lyric commands specified in the config file.");
                 return;
@@ -628,31 +663,31 @@ namespace spotify_playlist_generator
             var artistName = currentTrack.Artists.Select(a => a.Name).FirstOrDefault() ?? String.Empty;
             var trackName = currentTrack.Name ?? String.Empty;
 
-            foreach (var appSpec in appSpecs)
+            foreach (var command in commands)
             {
-                var command = appSpec.Command;
                 var args = "\"" + artistName + "\" \"" + trackName + "\"";
+                var commandMod = command;
 
-                var commandArray = command.Split(" ", 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                var commandArray = commandMod.Split(" ", 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
                 if (commandArray.Count() > 1)
                 {
-                    command = commandArray.First();
+                    commandMod = commandArray.First();
                     args = commandArray.Last() + " " + args;
                 }
 
-                if (Settings._VerboseDebug)
-                {
-                    Console.WriteLine("command: " + command);
-                    Console.WriteLine("args: " + args);
-                }
+                //if (Settings._VerboseDebug)
+                //{
+                //    Console.WriteLine("command: " + commandMod);
+                //    Console.WriteLine("args: " + args);
+                //}
 
                 var lyricCommand = new ProcessStartInfo() {
-                    FileName = command,
+                    FileName = commandMod,
                     Arguments = args,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                     CreateNoWindow = true,
+                    CreateNoWindow = true,
                 };
                 using (var process = Process.Start(lyricCommand))
                 {
@@ -665,11 +700,10 @@ namespace spotify_playlist_generator
 
                     process?.WaitForExit();
 
-                    if (commandOutput.Length > 0 &&
-                        (string.IsNullOrWhiteSpace(appSpec.Failtext) || !commandOutput.ToString().Contains(appSpec.Failtext))
-                        )
+                    if (commandOutput.Length > 0 && !failText.Any(x => commandOutput.ToString().Like("*" + x + "*")))
                     {
-                        Console.WriteLine(commandOutput.ToString());
+                        Console.WriteLine();
+                        Console.WriteLine(commandOutput.ToString().Trim());
                         break;
                     }
                 }
@@ -1846,7 +1880,7 @@ namespace spotify_playlist_generator
                 return;
             }
 
-            var titleText = Program.TitleText().Indent();
+            var titleText = Program.TitleText_Large().Indent();
             var appName = Program.AssemblyName.Replace("_", " ");
             var argsHelp = Help.ArgumentHelp.Substring(Help.ArgumentHelp.IndexOf("Options:") + "Options:".Length).Indent();
             var optionsHelp = Help.OptionHelp.Indent();

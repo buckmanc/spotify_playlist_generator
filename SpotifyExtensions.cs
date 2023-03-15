@@ -36,5 +36,10 @@ namespace spotify_playlist_generator
 
             return output;
         }
+
+        public static string PrettyString(this FullTrack track)
+        {
+            return track.Artists.Select(a => a.Name).Join(", ") + " - " + track.Name;
+        }
     }
 }

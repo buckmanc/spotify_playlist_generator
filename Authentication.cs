@@ -67,6 +67,7 @@ namespace spotify_playlist_generator
                     , Scopes.UserModifyPlaybackState
                     , Scopes.UserReadPlaybackState
                     , Scopes.UserReadCurrentlyPlaying
+                    , Scopes.UserLibraryModify
                 }
                 };
                 var uri = loginRequest.ToUri();
