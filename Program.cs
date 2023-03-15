@@ -1847,6 +1847,7 @@ namespace spotify_playlist_generator
             }
 
             var titleText = Program.TitleText().Indent();
+            var appName = Program.AssemblyName.Replace("_", " ");
             var argsHelp = Help.ArgumentHelp.Substring(Help.ArgumentHelp.IndexOf("Options:") + "Options:".Length).Indent();
             var optionsHelp = Help.OptionHelp.Indent();
             var paramsHelp = Help.ParameterHelp.Indent();
@@ -1855,6 +1856,7 @@ namespace spotify_playlist_generator
             var readmeTemplateText = System.IO.File.ReadAllText(readmeTemplatePath);
 
             readmeTemplateText = readmeTemplateText.Replace("[title text]", titleText);
+            readmeTemplateText = readmeTemplateText.Replace("[app name]", appName);
             readmeTemplateText = readmeTemplateText.Replace("[argument help]", argsHelp);
             readmeTemplateText = readmeTemplateText.Replace("[playlist options]", optionsHelp);
             readmeTemplateText = readmeTemplateText.Replace("[playlist parameters]", paramsHelp);

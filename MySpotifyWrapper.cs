@@ -742,7 +742,7 @@ namespace spotify_playlist_generator
 
             var names = albumNamesOrIDs
                 .Where(x => !albumIDs.Contains(x))
-                .Select(x => x.Split(Program.Settings._SeparatorString, StringSplitOptions.TrimEntries))
+                .Select(x => x.Split(Program.Settings._SeparatorString, 2, StringSplitOptions.TrimEntries))
                 .Select(x => new
                 {
                     ArtistName = x.FirstOrDefault(),
