@@ -13,6 +13,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using VaderSharp2;
 
 namespace spotify_playlist_generator
@@ -218,13 +219,14 @@ namespace spotify_playlist_generator
             {
                 //playlistName = "top*plus";
                 //playlistName = "*metallum*";
-                //playlistName = "test";
-                //playlistSpecification = "AllByArtist:Froglord";
+                playlistName = "test";
+                playlistSpecification = "AllByArtist:Froglord" + Environment.NewLine + "@MaintainSort";
                 //playlistName = "liked*";
                 //imageAddPhoto = true;
                 //skipPrevious = true;
                 //play = true;
-                lyrics = true;
+                //updateReadme = true;
+                //playlistName = "*revan";
             }
 
             if (tabCompletionArgumentNames)
@@ -301,8 +303,8 @@ namespace spotify_playlist_generator
 
             if (!playerCommand)
             {
-                var me = spotifyWrapper.spotify.UserProfile.Current().Result;
-                Console.WriteLine($"Hello there, {me.DisplayName}");
+                Console.Write("Hello there, ");
+                Console.WriteLine(spotifyWrapper.CurrentUser.DisplayName);
                 Console.WriteLine();
                 Console.WriteLine("----------------------");
                 Console.WriteLine();
@@ -342,11 +344,6 @@ namespace spotify_playlist_generator
 
             // ------------ player commands ------------
 
-            if (skipNext)
-                spotifyWrapper.SkipNext();
-            else if (skipPrevious)
-                spotifyWrapper.SkipPrevious();
-
             if (play && (shortRun || string.IsNullOrWhiteSpace(playlistName)))
                 spotifyWrapper.Play(playlistName);
 
@@ -358,6 +355,11 @@ namespace spotify_playlist_generator
 
             if (like)
                 spotifyWrapper.LikeCurrent();
+
+            if (skipNext)
+                spotifyWrapper.SkipNext();
+            else if (skipPrevious)
+                spotifyWrapper.SkipPrevious();
 
             if (modifyPlaylistFile)
             {
@@ -662,6 +664,7 @@ namespace spotify_playlist_generator
 
             var artistName = currentTrack.Artists.Select(a => a.Name).FirstOrDefault() ?? String.Empty;
             var trackName = currentTrack.Name ?? String.Empty;
+	    var foundLyrics = false;
 
             foreach (var command in commands)
             {
@@ -704,10 +707,13 @@ namespace spotify_playlist_generator
                     {
                         Console.WriteLine();
                         Console.WriteLine(commandOutput.ToString().Trim());
+			foundLyrics = true;
                         break;
                     }
                 }
             }
+	    if (!foundLyrics)
+		    Console.WriteLine("Could not find lyrics.");
         }
 
         static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, bool modifyAll = false)
@@ -1543,22 +1549,51 @@ namespace spotify_playlist_generator
 
                 if (playlistSpec.LimitPerArtist > 0)
                 {
-                    playlistTracks = playlistTracks.SelectMany(t => t.ArtistIds.Select(id => new
-                    {
-                        track = t,
-                        artistID = id
-                    }))
-                        .GroupBy(x => x.artistID, x => x.track)
-                        .SelectMany(g => g.Take(playlistSpec.LimitPerArtist))
+                    //allows multiples of an artist if the guests are still unique
+                    //playlistTracks = playlistTracks.SelectMany(t => t.ArtistIds.Select(id => new
+                    //{
+                    //    track = t,
+                    //    artistID = id
+                    //}))
+                    //    .GroupBy(x => x.artistID, x => x.track)
+                    //    .SelectMany(g => g
+                    //        .Distinct()
+                    //        .OrderByDescending(t => t.Popularity)
+                    //        .ThenBy(t => t.TrackId)
+                    //        .Take(playlistSpec.LimitPerArtist)
+                    //    )
+                    //    .Distinct()
+                    //    .ToList();
+
+                    //allow no more than one artist even if it means some guests get entirely cut
+                    var tracksToRemove = playlistTracks
+                        .SelectMany(t => t.ArtistIds)
                         .Distinct()
-                        .ToList();
+                        .SelectMany(id =>
+                            playlistTracks
+                            .Where(t => t.ArtistIds.Contains(id))
+                            .OrderByDescending(t => t.Popularity)
+                            .ThenBy(t => t.TrackId) // one last sort to make this deterministic
+                            .Skip(playlistSpec.LimitPerArtist)
+                            )
+                        .Distinct()
+                        .ToArray();
+
+                    playlistTracks.RemoveRange(tracksToRemove);
+
+
                 }
 
                 if (playlistSpec.LimitPerAlbum > 0)
                 {
                     playlistTracks = playlistTracks
                         .GroupBy(x => x.AlbumId, t => t)
-                        .SelectMany(g => g.Take(playlistSpec.LimitPerAlbum))
+                        .SelectMany(g => g
+					        .Distinct()
+					        .OrderByDescending(t => t.Popularity)
+					        .ThenBy(t => t.TrackId) // one last sort to make this deterministic
+                            .Take(playlistSpec.LimitPerAlbum)
+				        )
                         .Distinct()
                         .ToList();
                 }
@@ -1700,7 +1735,7 @@ namespace spotify_playlist_generator
                     var playlistRequest = new PlaylistCreateRequest(playlistSpec.FinalPlaylistName);
                     playlistRequest.Description = "Automatically generated by " + Program.AssemblyName + ".";
                     playlistRequest.Public = !Settings._NewPlaylistsPrivate;
-                    var newPlaylist = spotifyWrapper.spotify.Playlists.Create(spotifyWrapper.spotify.UserProfile.Current().Result.Id, playlistRequest).Result;
+                    var newPlaylist = spotifyWrapper.spotify.Playlists.Create(spotifyWrapper.CurrentUser.Id, playlistRequest).Result;
 
                     playlist = newPlaylist;
                     
@@ -1865,6 +1900,7 @@ namespace spotify_playlist_generator
 
             var readmePath = System.IO.Path.Join(Program.ProjectPath, "README.MD");
             var readmeTemplatePath = System.IO.Path.Join(Program.ProjectPath, "MarkdownTemplates/README.MD");
+            var csprojPath = System.IO.Path.Join(Program.ProjectPath, Program.AssemblyName + ".csproj");
 
             if (Program.Settings._VerboseDebug)
             {
@@ -1886,6 +1922,17 @@ namespace spotify_playlist_generator
             var optionsHelp = Help.OptionHelp.Indent();
             var paramsHelp = Help.ParameterHelp.Indent();
 
+            var csprojText = System.IO.File.ReadAllText(csprojPath);
+            var packageRefRegex = new Regex("PackageReference Include=\"(.+?)\"");
+            var packageVersionRegex = new Regex("PackageReference.+?Version=\"(.+?)\"");
+            var packageNames = packageRefRegex.Matches(csprojText).Select(m => m.Groups.Values.Last().Value).ToArray();
+            var packageVersions = packageVersionRegex.Matches(csprojText).Select(m => m.Groups.Values.Last().Value).ToArray();
+
+            var packageText = new StringBuilder();
+            for (int i = 0; i < packageNames.Count() -1; i++)
+                packageText.AppendLine("- " + packageNames[i] + " " + packageVersions[i]);
+            packageText.AppendLine("- ...and you as Mega Man X!");
+
             var readmeText = System.IO.File.ReadAllText(readmePath);
             var readmeTemplateText = System.IO.File.ReadAllText(readmeTemplatePath);
 
@@ -1894,6 +1941,7 @@ namespace spotify_playlist_generator
             readmeTemplateText = readmeTemplateText.Replace("[argument help]", argsHelp);
             readmeTemplateText = readmeTemplateText.Replace("[playlist options]", optionsHelp);
             readmeTemplateText = readmeTemplateText.Replace("[playlist parameters]", paramsHelp);
+            readmeTemplateText = readmeTemplateText.Replace("[packages]", packageText.ToString());
 
             //standardize new lines, don't want them flipping about between platforms
             readmeTemplateText = readmeTemplateText.ReplaceLineEndings("\r\n");

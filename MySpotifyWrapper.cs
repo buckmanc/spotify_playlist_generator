@@ -205,6 +205,18 @@ namespace spotify_playlist_generator
             this.spotify = new SpotifyClient(config);
         }
 
+        private PrivateUser _currentUser;
+
+        public PrivateUser CurrentUser
+        {
+            get
+            {
+                _currentUser ??= this.spotify.UserProfile.Current().Result;
+                return _currentUser; 
+            }
+        }
+
+
 
         private System.Collections.Concurrent.ConcurrentDictionary<string, FullArtist> _artistCache = new();
         /// <summary>
@@ -493,7 +505,7 @@ namespace spotify_playlist_generator
 
                     //cache items
                     this.AddToCache(trackDetails);
-                }, maxAttemptCount: 2);
+                }, maxAttemptCount: 4);
 
             return output;
         }
@@ -597,7 +609,7 @@ namespace spotify_playlist_generator
                         .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                         .OrderBy(album => album.ReleaseDate)
                         .ToList();
-            }, maxAttemptCount: 2);
+            }, maxAttemptCount: 4);
 
             //remove a particular album which is 1) a duplicate and 2) behaves erratically
             //only remove if the set contains both this album and its pair
@@ -679,7 +691,7 @@ namespace spotify_playlist_generator
                     this.WriteAlbumTracksCache();
 
                     trackIDs.AddRange(chunkTrackIDs);
-                }, maxAttemptCount:2);
+                }, maxAttemptCount:4);
 
             //get the tracks
             var newTracks = this.GetTracks(trackIDs, Source_AllTracks: true).ToList();
@@ -790,7 +802,7 @@ namespace spotify_playlist_generator
                         ;
 
                     idAlbumTrackIDs.AddRange(chunkIDAlbumTrackIDs);
-                }, maxAttemptCount:2);
+                }, maxAttemptCount:4);
             var idAlbumTracks = this.GetTracks(idAlbumTrackIDs);
 
             //counting on the caching in this method for caching benefits
@@ -844,8 +856,7 @@ namespace spotify_playlist_generator
             }
 
             //only hit the api for artists that we don't already have top tracks for
-            var me = this.spotify.UserProfile.Current().Result;
-            var newTracks = artists.Select(artist => this.spotify.Artists.GetTopTracks(artist.Id, new ArtistsTopTracksRequest(me.Country ?? "US")).Result)
+            var newTracks = artists.Select(artist => this.spotify.Artists.GetTopTracks(artist.Id, new ArtistsTopTracksRequest(this.CurrentUser.Country ?? "US")).Result)
                 .SelectMany(x => x.Tracks.Take(5))
                 .ToArray()
                 ;
@@ -951,7 +962,7 @@ namespace spotify_playlist_generator
         public List<FullPlaylist> GetUsersPlaylists(bool refreshCache = false)
         {
             return this.GetFollowedPlaylists(refreshCache)
-                    .Where(p => p.Owner.Id == this.spotify.UserProfile.Current().Result.Id)
+                    .Where(p => p.Owner.Id == this.CurrentUser.Id)
                     .ToList();
         }
 
@@ -1084,11 +1095,11 @@ namespace spotify_playlist_generator
             do
             {
                 if (newTrack != null)
-                    System.Threading.Thread.Sleep(500);
+                    System.Threading.Thread.Sleep(i <= 10 ? 500 : 1000);
 
                 newTrack = this.GetCurrentTrack();
                 i += 1;
-            } while (newTrack.Id == oldTrack.Id && i < 10);
+            } while (newTrack.Id == oldTrack.Id && i < 20);
 
             var spaceCount = Math.Min(oldTrack.PrettyString().Length, newTrack.PrettyString().Length) / 2;
 

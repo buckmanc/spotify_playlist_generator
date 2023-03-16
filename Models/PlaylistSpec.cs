@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -46,14 +47,21 @@ namespace spotify_playlist_generator.Models
                 return (Settings._StartPlaylistsWith ?? string.Empty) + this.PlaylistName;
             }
         }
+        [Description("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
         public bool AddArtistIDs { get; set; }
+        [Description("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
         public string DefaultParameter { get; set; }
+        [Description("If the playlist has no tracks, delete it.")]
         public bool DeleteIfEmpty { get; set; }
+        [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
         public bool MaintainSort { get; set; }
         public bool NoLikes { get; set; }
+        [Description("Limit the amount of tracks per artist, prioritizing by popularity.")]
         public int LimitPerArtist { get; set; }
+        [Description("Limit the amount of tracks per album, prioritizing by popularity.")]
         public int LimitPerAlbum { get; set; }
+        [Description("Don't touch the artwork, even if told to.")]
         public bool LeaveImageAlone { get; set; }
         public Sort Sort { get; set; }
         public SpecLine[] SpecLines { get; set; }

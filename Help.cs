@@ -1,5 +1,7 @@
-﻿using System;
+﻿using spotify_playlist_generator.Models;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -36,7 +38,23 @@ namespace spotify_playlist_generator
 
                 //TODO create a playlist options parser, define options, and format help for them
 
-                return "documentation pending";
+                var options = typeof(PlaylistSpec).GetProperties()
+                    .Select(prop => new { 
+                        OptionName = prop.Name,
+                        Description = (prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Description))
+                    .OrderBy(x => x.OptionName)
+                    .ToArray();
+
+                var maxNameLen = options.Max(x => x.OptionName.Length);
+
+                _OptionHelp = options
+                    .Select(x => x.OptionName.PadRight(maxNameLen + 2) + x.Description)
+                    .Join(Environment.NewLine)
+                    ;
+
+                return _OptionHelp;
             }
         }
 

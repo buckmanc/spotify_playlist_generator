@@ -87,4 +87,3 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 <!-- Auto generated -->
 # Credits
 [packages]
-- [...and you as Mega Man X!]
