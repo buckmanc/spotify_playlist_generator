@@ -258,10 +258,6 @@ namespace spotify_playlist_generator
 
             if (!playerCommand)
             {
-                //if (Program.Settings._VerboseDebug)
-                Console.WriteLine("Console.WindowWidth: " + Console.WindowWidth.ToString("#,##0"));
-                Console.WriteLine("Console.WindowWidth: " + Console.WindowWidth.ToString("#,##0"));
-
                 Console.WriteLine();
                 Console.WriteLine("Welcome to ");
                 if (Console.WindowWidth >= Program.TitleText_Large().Split(Environment.NewLine).Max(line => line.Length))
@@ -285,6 +281,11 @@ namespace spotify_playlist_generator
 
 
             GetConfig();
+
+            //make output a little more concise for player commands
+            //i mean it's pretty brief already, right?
+            if (playerCommand && Program.Settings._VerboseDebug)
+                Program.Settings._VerboseDebug = false;
 
             //important to deal with this dir AFTER reading the config file
             //clear out any working image files from last time, let them persist per session
@@ -1834,29 +1835,65 @@ namespace spotify_playlist_generator
                         playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
                     }
 
+                    var reorderCount = 0;
                     do
                     {
-                        //something's probably wrong with the api wrapper here
-                        //you can only make one request at a time???
-                        reorderRequests = playlistTracksCurrent.Select(t => new PlaylistReorderItemsRequest(
-                        rangeStart: playlistTracksCurrent.IndexOf(t),
-                        insertBefore: playlistSpec.Tracks.Select(tn => tn.TrackId).ToList().IndexOf(t.Id) + 1
-                        )
-                        { SnapshotId = playlist.SnapshotId })
-                        .Where(x => x.RangeStart + 1 != x.InsertBefore)
-                        .ToList();
+                        reorderCount += 1;
+
+                        if (playlistTracksCurrent.Count() != playlistSpec.Tracks.Count())
+                        {
+                            Console.WriteLine("Skipping sort. Cloud and local playlist tracks no longer match!");
+                            break;
+                        }
+                        
+                        //ridiculously complicated as the API only takes "move this index to this index" commands
+                        //still, it's better than wiping the playlist every time it needs to be sorted
+                        //TODO update playlistTracksCurrent in parallel to the cloud so we don't have to pull them fresh every time
+                        reorderRequests = playlistTracksCurrent
+                            .Select(t => new
+                            {
+                                CloudIndex = playlistTracksCurrent.IndexOf(t),
+                                CloudID = t.Id,
+                                LocalIndex = playlistSpec.Tracks.Select(tn => tn.TrackId).ToList().IndexOf(t.Id),
+                            })
+                            .Select(x => new
+                            {
+                                x.CloudIndex,
+                                x.CloudID,
+                                LocalNextID = playlistSpec.Tracks.ElementAtOrDefault(x.LocalIndex + 1)?.TrackId
+                            })
+                            .Select(x => new PlaylistReorderItemsRequest (
+                                rangeStart: x.CloudIndex,
+                                insertBefore: x.LocalNextID != null
+                                    ? playlistTracksCurrent.Select(t => t.Id).ToList().IndexOf(x.LocalNextID)
+                                    : playlistTracksCurrent.Count() + 1 - 1
+                                ))
+                            .Where(x => x.RangeStart + 1 != x.InsertBefore)
+                            .OrderByDescending(x => x.RangeStart)
+                            .ToList();
 
                         if (reorderRequests.Any())
                         {
-                            spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, reorderRequests.First());
+                            var newSnapshotID = spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, reorderRequests.First()).Result;
                             playlist = spotifyWrapper.spotify.Playlists.Get(playlist.Id).Result;
                             playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
 
                             sortedPlaylistIDs.Add(playlist.Id);
                         }
 
+                        //no idea what amount is reasonable here
+                        if (reorderCount > playlistTracksCurrent.Count() * 10)
+                        {
+                            Console.WriteLine("Too many reorder requests.");
+                            break;
+                        }
+
                     }
                     while (reorderRequests.Any());
+
+                    if (Program.Settings._VerboseDebug)
+                        Console.WriteLine("Sent " + reorderCount.ToString("#,##0") + " playlist reorder requests");
+
                 }
 
                 //write a nice little output report

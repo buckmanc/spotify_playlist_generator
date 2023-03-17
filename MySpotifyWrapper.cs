@@ -936,7 +936,7 @@ namespace spotify_playlist_generator
 
             _GetFollowedPlaylistsRunning = true;
 
-            _followedPlaylists = (this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync()).Result
+            _followedPlaylists = this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync().Result
                 .Select(p => spotify.Playlists.Get(p.Id).Result) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
                 .ToConcurrentBag()
                 ;
