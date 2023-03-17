@@ -55,7 +55,7 @@ namespace spotify_playlist_generator.Models
         public bool DeleteIfEmpty { get; set; }
         [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
-        public bool MaintainSort { get; set; }
+        public bool UpdateSort { get; set; }
         public bool NoLikes { get; set; }
         [Description("Limit the amount of tracks per artist, prioritizing by popularity.")]
         public int LimitPerArtist { get; set; }
@@ -149,8 +149,8 @@ namespace spotify_playlist_generator.Models
             this.AddArtistIDs = playlistSettings
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "addartistids");
 
-            this.MaintainSort = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "maintainsort");
+            this.UpdateSort = playlistSettings
+                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "updatesort");
 
             this.LeaveImageAlone = playlistSettings
                 .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "leaveimagealone");

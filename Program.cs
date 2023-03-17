@@ -34,6 +34,7 @@ namespace spotify_playlist_generator
             public static bool _DeleteOrphanedPlaylists;
             public static bool _VerboseDebug;
             public static string _StartPlaylistsWith;
+            public static bool _UpdateSort;
 
             public static string _LyricCommand1;
             public static string _LyricCommand2;
@@ -219,14 +220,15 @@ namespace spotify_playlist_generator
             {
                 //playlistName = "top*plus";
                 //playlistName = "*metallum*";
-                playlistName = "test";
-                playlistSpecification = "AllByArtist:Froglord" + Environment.NewLine + "@MaintainSort";
+                //playlistName = "test";
+                //playlistSpecification = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
                 //playlistName = "liked*";
                 //imageAddPhoto = true;
                 //skipPrevious = true;
                 //play = true;
                 //updateReadme = true;
                 //playlistName = "*revan";
+                playlistFolderPath = @"D:\Dropbox\test spot dir";
             }
 
             if (tabCompletionArgumentNames)
@@ -289,11 +291,8 @@ namespace spotify_playlist_generator
 
             //important to deal with this dir AFTER reading the config file
             //clear out any working image files from last time, let them persist per session
-            var workingImageFilePaths = System.IO.Directory.GetFiles(Program.Settings._ImageWorkingFolderPath);
-            foreach (var workingImageFile in workingImageFilePaths)
-            {
-                System.IO.File.Delete(workingImageFile);
-            }
+            if (System.IO.Directory.Exists(Program.Settings._ImageWorkingFolderPath))
+                System.IO.Directory.Delete(Program.Settings._ImageWorkingFolderPath);
 
             //if only looking at one playlist, don't delete all the others
             //that'd be a big yikes
@@ -474,7 +473,8 @@ namespace spotify_playlist_generator
                 newFile["SETTINGS"]["RecreatePlaylists"] = "false";
                 newFile["SETTINGS"]["DeleteOrphanedPlaylists"] = "true";
                 newFile["SETTINGS"]["Verbose"] = "false";
-                newFile["SETTINGS"]["StartPlaylistsWithString"] = String.Empty;
+                newFile["SETTINGS"]["StartPlaylistsWithString"] = "#";
+                newFile["SETTINGS"]["UpdateSort"] = "false";
 
                 newFile["LYRICCOMMANDS"]["LyricCommand1"] = String.Empty;
                 newFile["LYRICCOMMANDS"]["LyricFailText1"] = String.Empty;
@@ -494,6 +494,7 @@ namespace spotify_playlist_generator
             Settings._DeleteOrphanedPlaylists = bool.Parse(configIni["SETTINGS"]["DeleteOrphanedPlaylists"]);
             Settings._VerboseDebug = bool.Parse(configIni["SETTINGS"]["Verbose"]);
             Settings._StartPlaylistsWith = configIni["SETTINGS"]["StartPlaylistsWithString"];
+            Settings._UpdateSort = bool.Parse(configIni["SETTINGS"]["UpdateSort"]);
 
             Settings._LyricCommand1 = configIni["LYRICCOMMANDS"]["LyricCommand1"];
             Settings._LyricCommand2 = configIni["LYRICCOMMANDS"]["LyricCommand2"];
@@ -511,7 +512,7 @@ namespace spotify_playlist_generator
 
             if (!System.IO.Directory.Exists(directoryPath))
             {
-                System.IO.Directory.CreateDirectory(directoryPath);
+                Console.WriteLine("Creating some first time example playlists...");
 
                 var exampleMetalPlaylist =
                     Settings._ParameterString + "default:LikesByGenre" + Environment.NewLine +
@@ -524,9 +525,13 @@ namespace spotify_playlist_generator
                     "-artist:Korpiklaani #korpiklaani is more folk metal than symphonic metal!"
                     ;
 
-                var playlist = spotifyWrapper.GetUsersPlaylists()
-                    .OrderByDescending(p => p.Followers.Total)
-                    .ThenBy(p => p.Tracks.Total)
+                var playlist = spotifyWrapper.GetFollowedPlaylists()
+                    //.OrderByDescending(p => p.Followers.Total)
+                    //.ThenBy(p => p.Tracks.Total)
+                    .Where(p =>
+                        p.Owner.Id != spotifyWrapper.CurrentUser.Id &&
+                        p.GetTracks(spotifyWrapper).Where(t => spotifyWrapper.LikedTracks.Any(lt => lt.TrackId == t.Id)).Count() > 2
+                        )
                     .FirstOrDefault();
 
                 //TODO find one of the users playlists
@@ -542,31 +547,17 @@ namespace spotify_playlist_generator
 
                 var exampleArtistLikesPlaylist =
                     Settings._ParameterString + "default:LikesByArtist" + Environment.NewLine +
+                    Settings._ParameterString + "LimitPerArtist:5" + Environment.NewLine +
+                    Environment.NewLine +
                     topLikedArtistNames.Join(Environment.NewLine);
 
-                var exampleGenreContainsPlaylist = "#black metal is great but watch out for not sees" + Environment.NewLine +
-                    "LikesByGenreContains:black metal";
-
-                var exampleFullDiscog =
-                    Settings._ParameterString + "default:AllByArtist" + Environment.NewLine +
-                    "Golden Light" + Environment.NewLine +
-                    "Andvari" + Environment.NewLine +
-                    "Cave Mouth" + Environment.NewLine +
-                    "Crown of Asteria" + Environment.NewLine +
-                    "Enon Chapel" + Environment.NewLine +
-                    "Great Cold Emptiness" + Environment.NewLine +
-                    "6hXonF1DK45IuMCemMiyD2 #Heksebrann" + Environment.NewLine +
-                    "Iarnvidjur" + Environment.NewLine +
-                    "Tomblord"
-                    ;
+                System.IO.Directory.CreateDirectory(directoryPath);
 
                 //write the example files
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Melodic Metal.txt"), exampleMetalPlaylist);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Black Metal Genres.txt"), exampleGenreContainsPlaylist);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Melodic Metal Stuff.txt"), exampleMetalPlaylist);
                 System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - " + playlist.Name + ".txt"), playlistLikes);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Fav Artist.txt"), exampleArtistLikesPlaylist);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Full Discog - Meghan Wood.txt"), exampleFullDiscog);
-            }
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Top 10 Fav Artists.txt"), exampleArtistLikesPlaylist);
+          }
 
 
             if (!listPlaylists && !string.IsNullOrWhiteSpace(playlistSpecification))
@@ -1825,7 +1816,7 @@ namespace spotify_playlist_generator
                 }
 
                 
-                if (playlistSpec.MaintainSort && !newPlaylists.Contains(playlist))
+                if ((playlistSpec.UpdateSort || Program.Settings._UpdateSort) && !newPlaylists.Contains(playlist))
                 {
                     List<PlaylistReorderItemsRequest> reorderRequests = null;
 

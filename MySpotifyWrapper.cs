@@ -33,9 +33,9 @@ namespace spotify_playlist_generator
             set { _spotify = value; }
         }
 
-        private string _trackCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "track_cache.json");
-        private string _artistSearchCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "artist_search_cache.json");
-        private string _albumTracksCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "album_tracks_cache.json");
+        private string _trackCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "caches", "track_cache.json");
+        private string _artistSearchCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "caches", "artist_search_cache.json");
+        private string _albumTracksCachePath = System.IO.Path.Join(Program.AssemblyDirectory, "caches", "album_tracks_cache.json");
         private Guid _sessionID = Guid.NewGuid();
 
         public void Dispose()
@@ -57,6 +57,10 @@ namespace spotify_playlist_generator
                     Console.WriteLine();
                     Console.WriteLine("writing track cache");
                 }
+
+                var dir = System.IO.Path.GetDirectoryName(this._trackCachePath);
+                if (!System.IO.Directory.Exists(dir))
+                    System.IO.Directory.CreateDirectory(dir);
 
                 using var stream = File.Create(this._trackCachePath);
                 System.Text.Json.JsonSerializer.Serialize(stream, this.TrackCache);
@@ -83,6 +87,10 @@ namespace spotify_playlist_generator
                     Console.WriteLine("writing artist search cache");
                 }
 
+                var dir = System.IO.Path.GetDirectoryName(this._artistSearchCachePath);
+                if (!System.IO.Directory.Exists(dir))
+                    System.IO.Directory.CreateDirectory(dir);
+
                 using var stream = File.Create(this._artistSearchCachePath);
                 System.Text.Json.JsonSerializer.Serialize(stream, this.ArtistSearchCache);
                 stream.Dispose();
@@ -107,6 +115,10 @@ namespace spotify_playlist_generator
                     Console.WriteLine();
                     Console.WriteLine("writing album tracks cache");
                 }
+
+                var dir = System.IO.Path.GetDirectoryName(this._albumTracksCachePath);
+                if (!System.IO.Directory.Exists(dir))
+                    System.IO.Directory.CreateDirectory(dir);
 
                 using var stream = File.Create(this._albumTracksCachePath);
                 System.Text.Json.JsonSerializer.Serialize(stream, this.AlbumTracksCache);
@@ -923,15 +935,13 @@ namespace spotify_playlist_generator
         private bool _GetFollowedPlaylistsRunning;
         public System.Collections.Concurrent.ConcurrentBag<FullPlaylist> GetFollowedPlaylists(bool refreshCache = false)
         {
-            if (_followedPlaylists != null && !refreshCache)
-                return _followedPlaylists;
 
             //threadsafe this sucker
             //well *mostly* threadsafe
             while (_GetFollowedPlaylistsRunning)
                 System.Threading.Thread.Sleep(1000);
 
-            if (_followedPlaylists != null)
+            if (_followedPlaylists != null && !refreshCache)
                 return _followedPlaylists;
 
             _GetFollowedPlaylistsRunning = true;
