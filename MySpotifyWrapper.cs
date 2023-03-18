@@ -545,6 +545,18 @@ namespace spotify_playlist_generator
                     .Result
                     .ToList();
 
+                var errorTracks = savedTracks.Where(s => s.Track is null).ToArray();
+                if (errorTracks.Any())
+                    Console.WriteLine("Found " +
+                        errorTracks.Count().ToString("#,##0") +
+                        " phantom tracks liked between " +
+                        errorTracks.Min(t => t.AddedAt).ToShortDateString() +
+                        " and " + errorTracks.Max(t => t.AddedAt).ToShortDateString() +
+                        "."
+                        );
+
+                savedTracks.RemoveRange(errorTracks);
+
                 var artists = this.GetArtists(savedTracks.Select(s => s.Track));
 
                 var tracks = savedTracks
@@ -736,7 +748,7 @@ namespace spotify_playlist_generator
             inputWithIndex.Where(x => t.ArtistIds.Contains(x.value)).Select(x => x?.index).FirstOrDefault() ??
             inputWithIndex.Where(x => t.ArtistNames.FirstOrDefault()?.Like(x.value) ?? false).Select(x => x?.index).FirstOrDefault() ??
             inputWithIndex.Where(x => t.ArtistNames.Any(a => a.Like(x.value))).Select(x => x?.index).FirstOrDefault() ??
-            -1000 //sort sort failures to the top I guess
+            inputWithIndex.Length + 1 //sort sort failures to the end I guess
             )
                 .ThenBy(t => t.ReleaseDate)
                 .ThenBy(t => t.AlbumName)
@@ -873,7 +885,15 @@ namespace spotify_playlist_generator
                 .ToArray()
                 ;
 
-            var newFullTrackDetails = newTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID, topTrack:true)).ToList();
+            var errorTracks = newTracks.Where(t => t is null).ToArray();
+            if (errorTracks.Any())
+                Console.WriteLine("Found " +
+                    errorTracks.Count().ToString("#,##0") +
+                    " phantom tracks");
+
+            newTracks.RemoveRange(errorTracks);
+
+            var newFullTrackDetails = newTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID, topTrack: true)).ToList();
             this.AddToCache(newFullTrackDetails);
 
             if (newFullTrackDetails.Any())
