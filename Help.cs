@@ -41,9 +41,19 @@ namespace spotify_playlist_generator
                 var options = typeof(PlaylistSpec).GetProperties()
                     .Select(prop => new { 
                         OptionName = prop.Name,
-                        Description = (prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description
+                        Description = (prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description,
+                        OptionType = prop.PropertyType
                     })
                     .Where(x => !string.IsNullOrWhiteSpace(x.Description))
+                    .Select(x => new
+                    {
+                        x.OptionName,
+                        x.OptionType,
+                        //swap in an enum values list if possible
+                        Description = (x.OptionType.IsEnum
+                            ? x.Description.Replace("[enum values]", Enum.GetNames(x.OptionType).ToList().Join(", ").Replace("Dont", "Don't"))
+                            : x.Description)
+                    })
                     .OrderBy(x => x.OptionName)
                     .ToArray();
 
@@ -83,10 +93,23 @@ namespace spotify_playlist_generator
                     .Split(Environment.NewLine)
                     .Where(line => !line.Contains("violence")) // easter eggs are more fun if they're tucked away
                     .Select(line => line.Trim())
-                    .Join("\n"); //TODO detect line endings from the file
+                    .Join("\n") //TODO detect line endings from the file
+                    .Trim();
 
                 _ArgumentHelp = helpText;
                 return _ArgumentHelp;
+            }
+        }
+
+        private static string _ConfigSettingsHelp;
+        public static string ConfigSettingsHelp
+        {
+            get
+            {
+                if (_ConfigSettingsHelp != null)
+                    return _ConfigSettingsHelp;
+                _ConfigSettingsHelp = "documentation pending";
+                return _ConfigSettingsHelp;
             }
         }
 

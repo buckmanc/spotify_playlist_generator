@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using static spotify_playlist_generator.Program;
@@ -14,7 +15,7 @@ namespace spotify_playlist_generator.Models
         Likes,
         AllByArtist,
         Top,
-        None
+        None,
     }
 
     enum ObjectType
@@ -24,15 +25,15 @@ namespace spotify_playlist_generator.Models
         Genre,
         Album,
         Track,
-        None
+        None,
     }
 
     enum Sort
     {
+        Dont,
         Liked,
         Release,
-        Top,
-        Dont
+        Artist,
     }
 
     internal class PlaylistSpec
@@ -50,12 +51,14 @@ namespace spotify_playlist_generator.Models
         [Description("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
         public bool AddArtistIDs { get; set; }
         [Description("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
-        public string DefaultParameter { get; set; }
+        public string Default { get; set; }
         [Description("If the playlist has no tracks, delete it.")]
         public bool DeleteIfEmpty { get; set; }
         [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
+        [Description("Actively keep this playlist sorted. Can also be set globally in config.ini")]
         public bool UpdateSort { get; set; }
+        [Description("Exclude liked songs from this playlist.")]
         public bool NoLikes { get; set; }
         [Description("Limit the amount of tracks per artist, prioritizing by popularity.")]
         public int LimitPerArtist { get; set; }
@@ -63,7 +66,20 @@ namespace spotify_playlist_generator.Models
         public int LimitPerAlbum { get; set; }
         [Description("Don't touch the artwork, even if told to.")]
         public bool LeaveImageAlone { get; set; }
-        public Sort Sort { get; set; }
+        private bool _sortSet;
+        private Sort _sort;
+        [Description("How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are [enum values].")]
+        public Sort Sort
+        {
+            get { return _sort; }
+            set 
+            {
+                _sort = value;
+                _sortSet = true;
+            }
+        }
+        public IList<string> OptionsErrors { get; private set; }
+
         public SpecLine[] SpecLines { get; set; }
         public List<FullTrackDetails> Tracks { get; set; }
 
@@ -116,10 +132,10 @@ namespace spotify_playlist_generator.Models
 
         public void UpdateFromDisk(string path)
         {
+            this._sortSet = false;
             var playlistName = System.IO.Path.GetFileNameWithoutExtension(path);
             var filesLines = System.IO.File.ReadAllText(path).ReplaceLineEndings().Split(Environment.NewLine);
             Initialize(path: path, playlistName: playlistName, fileLines: filesLines);
-
         }
 
         private void Initialize(string path, string playlistName, string[] fileLines)
@@ -128,60 +144,13 @@ namespace spotify_playlist_generator.Models
             this.Path = path;
             this.PlaylistName = playlistName;
 
-            var playlistSettings = fileLines
+            var playlistOptions = fileLines
                 .Select(line => line.Split(Program.Settings._CommentString, 2).First())
                 .Where(line => line.StartsWith(Program.Settings._ParameterString))
                 .Distinct()
                 .ToArray();
 
-            this.DefaultParameter = playlistSettings
-                .Where(line => line.StartsWith(Settings._ParameterString + "default:", StringComparison.InvariantCultureIgnoreCase))
-                .Select(line => line.Split(":", 2).Last())
-                .FirstOrDefault()
-                ;
-
-            this.DeleteIfEmpty = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "deleteifempty");
-
-            this.DontRemoveTracks = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "dontremovetracks");
-
-            this.AddArtistIDs = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower().Remove("'") + "addartistids");
-
-            this.UpdateSort = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "updatesort");
-
-            this.LeaveImageAlone = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "leaveimagealone");
-
-            this.NoLikes = playlistSettings
-                .Any(line => line.ToLower() == Settings._ParameterString.ToLower() + "nolikes");
-
-            var sortString = playlistSettings
-                .Where(line => line.StartsWith(Settings._ParameterString + "sort:", StringComparison.InvariantCultureIgnoreCase))
-                .Select(line => line.Split(":", 2).Last())
-                .FirstOrDefault()
-                ;
-
-            // sort enum assigned at the bottom as it depends on spec lines
-
-            var dummy = 0;
-            this.LimitPerArtist = playlistSettings
-                .Where(line => line.StartsWith(Settings._ParameterString + "limitperartist:", StringComparison.InvariantCultureIgnoreCase))
-                .Select(line => line.Split(":", 2).Last())
-                .Where(line => int.TryParse(line, out dummy))
-                .Select(line => int.Parse(line))
-                .FirstOrDefault()
-                ;
-
-            this.LimitPerAlbum = playlistSettings
-                .Where(line => line.StartsWith(Settings._ParameterString + "limitperalbum:", StringComparison.InvariantCultureIgnoreCase))
-                .Select(line => line.Split(":", 2).Last())
-                .Where(line => int.TryParse(line, out dummy))
-                .Select(line => int.Parse(line))
-                .FirstOrDefault()
-                ;
+            this.ParseOptions(playlistOptions);
 
             this.SpecLines = fileLines
                 .Select(line => new
@@ -216,7 +185,7 @@ namespace spotify_playlist_generator.Models
                     SanitizedLine = line.SanitizedLine,
                     Comment = line.Comment,
                     ParameterValue = line.ParameterValue,
-                    ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : DefaultParameter ?? String.Empty).Trim()
+                    ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : Default ?? String.Empty).Trim()
                 })
                 .Distinct()
                 .ToArray();
@@ -279,14 +248,15 @@ namespace spotify_playlist_generator.Models
             }
 
             //assign sorts
-            if (sortString != null)
-                this.Sort = (Sort)Enum.Parse(typeof(Sort), sortString.Remove("'"), true);
-            else if (this.GetPlaylistType == PlaylistType.Likes)
-                this.Sort = Sort.Liked;
-            else if (this.GetPlaylistType == PlaylistType.AllByArtist || this.GetPlaylistType == PlaylistType.None)
-                this.Sort = Sort.Release;
-            else if (this.GetPlaylistType == PlaylistType.Top)
-                this.Sort = Sort.Top;
+            if (!this._sortSet)
+            {
+                if (this.GetPlaylistType == PlaylistType.Likes)
+                    this.Sort = Sort.Liked;
+                else if (this.GetPlaylistType == PlaylistType.AllByArtist || this.GetPlaylistType == PlaylistType.None)
+                    this.Sort = Sort.Release;
+                else if (this.GetPlaylistType == PlaylistType.Top)
+                    this.Sort = Sort.Artist;
+            }
 
             //build a path if necessary
             //need to store paths a little better. Hardcoding the folder named "playlists" isn't great
@@ -302,6 +272,67 @@ namespace spotify_playlist_generator.Models
                 .ToArray()
                 ;
 
+        }
+
+        public void ParseOptions(string[] lines)
+        {
+            var optionProps = typeof(PlaylistSpec).GetProperties()
+                                .Where(prop => !string.IsNullOrWhiteSpace((prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description))
+                                .ToArray();
+
+            var errorText = new List<string>();
+            foreach (var line in lines)
+            {
+                //skip non-option lines
+                if (!line.StartsWith(Program.Settings._ParameterString))
+                    continue;
+
+                //parse out values
+                var keyValue = line.Split(":", 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var optionName = keyValue.First();
+                var optionValue = (keyValue.Length > 1 ? keyValue.Last() : null);
+                var prop = optionProps.Where(p => p.Name.Like(optionName)).FirstOrDefault();
+                if (prop == null)
+                {
+                    errorText.Add("Unknown option: " + optionName);
+                    continue;
+                }
+
+                //assign values based on property/option type
+                var badValue = false;
+                if (prop.PropertyType == typeof(bool))
+                {
+                    //user can either specify the value or just provide the option name for "true"
+                    if (string.IsNullOrWhiteSpace(optionValue))
+                        prop.SetValue(this, true);
+                    else if (bool.TryParse(optionValue, out var result))
+                        prop.SetValue(this, result);
+                    else
+                        badValue = true;
+                }
+                else if (prop.PropertyType == typeof(string))
+                    prop.SetValue(this, optionValue);
+                else if (prop.PropertyType == typeof(int))
+                {
+                    if (int.TryParse(optionValue, out var result))
+                        prop.SetValue(this, result);
+                    else
+                        badValue = true;
+                }
+                else if (prop.PropertyType.IsEnum)
+                {
+                    if (Enum.TryParse(prop.PropertyType, optionValue.Remove("'"), true, out var result))
+                        prop.SetValue(this, result);
+                    else
+                        badValue= true;
+                }
+
+                //report on bad values
+                if (badValue)
+                    errorText.Add("Invalid option value for " + optionName + ": " + optionValue);
+            }
+
+            this.OptionsErrors = errorText;
         }
         public string[] GetParameterValues(string ParameterName)
         {

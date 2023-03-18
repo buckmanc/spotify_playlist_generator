@@ -190,16 +190,17 @@ namespace spotify_playlist_generator
         /// <param name="playlistFolderPath">An alternate path for the playlists folder path. Overrides the value found in paths.ini.</param>
         /// <param name="listPlaylists">List existing playlists from the playlists folder.</param>
         /// <param name="playlistName">The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.</param>
-        /// <param name="playlistSpecification">A playlist specification string for use when creating a new playlist from the command line. Must be combined with --playlist-name.</param>
+        /// <param name="playlistSpecification">A playlist specification string for use when creating a new playlist from the command line.</param>
         /// <param name="modifyPlaylistFile">Exchange artist names for artist IDs. Saves time when running but looks worse.</param>
         /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.</param>
         /// <param name="imageAddPhoto">Assign a new image to the playlist.</param>
         /// <param name="imageAddText">Add the playlist name to the playlist image.</param>
         /// <param name="imageBackup">Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.</param>
         /// <param name="imageRestore">Restore a previously backed up image.</param>
-        /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback.</param>
+        /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-specification to build a new playlist and play it afterward.</param>
         /// <param name="skipNext">Skip forward.</param>
         /// <param name="skipPrevious">Skip backward.</param>
+        /// <param name="like">Like (or unlike) the current track.</param>
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
         /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
         /// <param name="updateReadme">Update readme.md. Only used in development.</param>
@@ -222,13 +223,13 @@ namespace spotify_playlist_generator
                 //playlistName = "*metallum*";
                 //playlistName = "test";
                 //playlistSpecification = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
-                //playlistName = "liked*";
+                //playlistName = "*astral*";
                 //imageAddPhoto = true;
                 //skipPrevious = true;
                 //play = true;
                 //updateReadme = true;
                 //playlistName = "*revan";
-                playlistFolderPath = @"D:\Dropbox\test spot dir";
+                //playlistFolderPath = @"D:\Dropbox\test spot dir";
             }
 
             if (tabCompletionArgumentNames)
@@ -292,7 +293,7 @@ namespace spotify_playlist_generator
             //important to deal with this dir AFTER reading the config file
             //clear out any working image files from last time, let them persist per session
             if (System.IO.Directory.Exists(Program.Settings._ImageWorkingFolderPath))
-                System.IO.Directory.Delete(Program.Settings._ImageWorkingFolderPath);
+                System.IO.Directory.Delete(Program.Settings._ImageWorkingFolderPath, true);
 
             //if only looking at one playlist, don't delete all the others
             //that'd be a big yikes
@@ -604,6 +605,12 @@ namespace spotify_playlist_generator
                 }
             }
 
+            var optionsErrors = playlistSpecs.SelectMany(p => p.OptionsErrors).Distinct().OrderBy(x => x).ToArray();
+
+            //report on errors
+            if (optionsErrors.Any())
+                Console.WriteLine(optionsErrors.Join(Environment.NewLine));
+
             return playlistSpecs;
         }
 
@@ -770,7 +777,7 @@ namespace spotify_playlist_generator
                                 //reassemble the line with artist ID as the parameter value and the name in the comment
                                 //multiple artists will add additional lines, sorted by popularity
                                 line.RawLine = matchingArtists.Select(artist =>
-                                    ((playlistSpec.DefaultParameter ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + ":" : string.Empty) +
+                                    ((playlistSpec.Default ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + ":" : string.Empty) +
                                     artist.Id + " " + Program.Settings._CommentString + "  " + artist.Name +
                                     (matchingArtists.Count() > 1 ? (", " + artist.Genres.FirstOrDefault() ?? String.Empty) + (likedArtistCounts.ContainsKey(artist.Id) ? ", " + likedArtistCounts[artist.Id].ToString("#,##0") + " liked tracks" : String.Empty) : string.Empty) +
                                     (!string.IsNullOrWhiteSpace(line.Comment) ? new string('\t', 3) + line.Comment : string.Empty)
@@ -780,7 +787,7 @@ namespace spotify_playlist_generator
                             {
                                 //if no artist was found, leave a warning in the file about it
                                 line.RawLine =
-                                    ((playlistSpec.DefaultParameter ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + Program.Settings._SeparatorString : string.Empty) +
+                                    ((playlistSpec.Default ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + Program.Settings._SeparatorString : string.Empty) +
                                     line.ParameterValue + " " + Program.Settings._CommentString + " " + findFailureWarning +
                                     (!string.IsNullOrWhiteSpace(line.Comment) ? new string('\t', 3) + line.Comment : string.Empty)
                                     ;
@@ -822,7 +829,7 @@ namespace spotify_playlist_generator
                             .SingleOrDefault();
 
                         line.RawLine =
-                                ((playlistSpec.DefaultParameter ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + Program.Settings._SeparatorString : string.Empty) +
+                                ((playlistSpec.Default ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + Program.Settings._SeparatorString : string.Empty) +
                                 line.ParameterValue + " " +
                                 Program.Settings._CommentString + " " + (matchingPlaylist != null ? matchingPlaylist.Name : findFailureWarning)
                                 ;
@@ -1592,9 +1599,8 @@ namespace spotify_playlist_generator
 
                 // ------------ sort ------------
 
-                //these sorts won't preserve over time
+                //these sorts won't preserve over time without @UpdateSort
                 //for example, what if an old album is added to spotify for a full discog playlist?
-                //unless UpdatePlaylists is modified it'll still be at the very bottom
                 if (playlistSpec.Sort == Sort.Liked)
                 {
                     playlistTracks = playlistTracks
@@ -1610,7 +1616,7 @@ namespace spotify_playlist_generator
                         .ThenBy(t => t.TrackNumber)
                         .ToList();
                 }
-                else if (playlistSpec.Sort == Sort.Top)
+                else if (playlistSpec.Sort == Sort.Artist)
                 {
                     playlistTracks = playlistTracks
                         .OrderBy(t => t.ArtistNames.First())
@@ -1949,6 +1955,7 @@ namespace spotify_playlist_generator
             var argsHelp = Help.ArgumentHelp.Substring(Help.ArgumentHelp.IndexOf("Options:") + "Options:".Length).Indent();
             var optionsHelp = Help.OptionHelp.Indent();
             var paramsHelp = Help.ParameterHelp.Indent();
+            var configSettings = Help.ConfigSettingsHelp.Indent();
 
             var csprojText = System.IO.File.ReadAllText(csprojPath);
             var packageRefRegex = new Regex("PackageReference Include=\"(.+?)\"");
@@ -1956,9 +1963,29 @@ namespace spotify_playlist_generator
             var packageNames = packageRefRegex.Matches(csprojText).Select(m => m.Groups.Values.Last().Value).ToArray();
             var packageVersions = packageVersionRegex.Matches(csprojText).Select(m => m.Groups.Values.Last().Value).ToArray();
 
+            //provide links for packages
+            //packages are added and removed with the project, but links have to be manually added here
+            var packageLinks = new Dictionary<string, string>();
+            packageLinks.Add("APOD.Net", "https://github.com/MarcusOtter/APOD.Net");
+            packageLinks.Add("figgle", "https://github.com/drewnoakes/figgle");
+            packageLinks.Add("ini-parser", "https://github.com/rickyah/ini-parser");
+            packageLinks.Add("MediaTypeMap", "https://github.com/samuelneff/MimeTypeMap");
+            packageLinks.Add("SixLabors.ImageSharp", "https://github.com/SixLabors/ImageSharp");
+            packageLinks.Add("SixLabors.ImageSharp.Drawing", "https://github.com/SixLabors/ImageSharp.Drawing");
+            packageLinks.Add("SpotifyAPI.Web", "https://github.com/JohnnyCrazy/SpotifyAPI-NET");
+            packageLinks.Add("System.CommandLine.DragonFruit", "https://github.com/dotnet/command-line-api/blob/main/docs/Your-first-app-with-System-CommandLine-DragonFruit.md");
+            packageLinks.Add("System.Drawing.Common", "https://www.nuget.org/packages/System.Drawing.Common/");
+            packageLinks.Add("Unsplash.Net", "https://github.com/unsplash-net/unsplash-net");
+
+            //add links in the names if available
+            packageNames = packageNames.Select(x => (packageLinks.ContainsKey(x)
+                ? "[" + x + "](" + packageLinks[x] + ")"
+                : x))
+                .ToArray();
+
             var packageText = new StringBuilder();
             for (int i = 0; i < packageNames.Count() -1; i++)
-                packageText.AppendLine("- " + packageNames[i] + " " + packageVersions[i]);
+                packageText.AppendLine("- " + packageNames[i] + " - " + packageVersions[i]);
             packageText.AppendLine("- ...and you as Mega Man X!");
 
             var readmeText = System.IO.File.ReadAllText(readmePath);
@@ -1969,6 +1996,7 @@ namespace spotify_playlist_generator
             readmeTemplateText = readmeTemplateText.Replace("[argument help]", argsHelp);
             readmeTemplateText = readmeTemplateText.Replace("[playlist options]", optionsHelp);
             readmeTemplateText = readmeTemplateText.Replace("[playlist parameters]", paramsHelp);
+            readmeTemplateText = readmeTemplateText.Replace("[config settings]", configSettings);
             readmeTemplateText = readmeTemplateText.Replace("[packages]", packageText.ToString());
 
             //standardize new lines, don't want them flipping about between platforms
