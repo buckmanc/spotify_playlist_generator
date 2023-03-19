@@ -282,7 +282,7 @@ namespace spotify_playlist_generator
 
         //do not save this cache
         private System.Collections.Concurrent.ConcurrentDictionary<string, string> _artistByNameCache = new();
-        public List<FullArtist> GetArtistsByName(IList<string> artistNames)
+        public List<FullArtist> GetArtistsByName(List<string> artistNames)
         {
 
             artistNames = artistNames.Distinct().ToList();
@@ -818,8 +818,22 @@ namespace spotify_playlist_generator
                     if (ex?.ToString()?.Like("*access token expired*") ?? false)
                         this.RefreshSpotifyClient();
 
-                    var chunkIDAlbumTrackIDs = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
+                    var chunkAlbums = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
                         .Albums
+			.ToList();
+
+		var errorAlbums = chunkAlbums.Where(a => a == null || a.Tracks == null).ToArray();
+
+		if (errorAlbums.Any())
+			Console.WriteLine("Found " +
+					errorAlbums.Length.ToString("#,##0") +
+					" albums with phantom tracks: " +
+					errorAlbums.Select(a => (a?.Id ?? "null") + " " + ( a?.Name ?? "null")).Join(", ")
+					);
+
+		chunkAlbums.RemoveRange(errorAlbums);
+
+		var chunkIDAlbumTrackIDs = chunkAlbums 
                         .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                         .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
                         .ToList()
@@ -882,7 +896,7 @@ namespace spotify_playlist_generator
             //only hit the api for artists that we don't already have top tracks for
             var newTracks = artists.Select(artist => this.spotify.Artists.GetTopTracks(artist.Id, new ArtistsTopTracksRequest(this.CurrentUser.Country ?? "US")).Result)
                 .SelectMany(x => x.Tracks.Take(5))
-                .ToArray()
+                .ToList()
                 ;
 
             var errorTracks = newTracks.Where(t => t is null).ToArray();
@@ -944,6 +958,15 @@ namespace spotify_playlist_generator
                 .ToList();
 
             var artists = this.GetArtists(fullTracks);
+
+
+            var errorTracks = fullTracks.Where(t => t is null).ToArray();
+            if (errorTracks.Any())
+                Console.WriteLine("Found " +
+                    errorTracks.Count().ToString("#,##0") +
+                    " phantom tracks");
+
+            fullTracks.RemoveRange(errorTracks);
 
             var output = fullTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID)).ToList();
             this.AddToCache(output);

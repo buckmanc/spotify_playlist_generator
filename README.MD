@@ -98,25 +98,25 @@ Settings that apply globally to all playlists.
 Arguments for the program itself. These are not the primary function of the app but provide some nifty functionality.
 
     
-    --playlist-folder-path <playlist-folder-path>      An alternate path for the playlists folder path. Overrides the value found in paths.ini.
-    --list-playlists                                   List existing playlists from the playlists folder.
-    --playlist-name <playlist-name>                    The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.
-    --playlist-specification <playlist-specification>  A playlist specification string for use when creating a new playlist from the command line.
-    --modify-playlist-file                             Exchange artist names for artist IDs. Saves time when running but looks worse.
-    --exclude-current-artist                           Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.
-    --image-add-photo                                  Assign a new image to the playlist.
-    --image-add-text                                   Add the playlist name to the playlist image.
-    --image-backup                                     Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.
-    --image-restore                                    Restore a previously backed up image.
-    --play                                             Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-specification to build a new playlist and play it afterward.
-    --skip-next                                        Skip forward.
-    --skip-previous                                    Skip backward.
-    --like                                             Like (or unlike) the current track.
-    --lyrics                                           Pass currently playing info to an external lyrics app specified in the config file.
-    --tab-completion-argument-names                    A space delimited list of these arguments to pass to the bash "complete" function.
-    --update-readme                                    Update readme.md. Only used in development.
-    --version                                          Show version information
-    -?, -h, --help                                     Show help and usage information
+    --playlist-folder-path <playlist-folder-path>  An alternate path for the playlists folder path. Overrides the value found in paths.ini.
+    --list-playlists                               List existing playlists from the playlists folder.
+    --playlist-name <playlist-name>                The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.
+    --playlist-spec <playlist-spec>                A playlist specification string for use when creating a new playlist from the command line.
+    --modify-playlist-file                         Exchange artist names for artist IDs. Saves time when running but looks worse.
+    --exclude-current-artist                       Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.
+    --image-add-photo                              Assign a new image to the playlist.
+    --image-add-text                               Add the playlist name to the playlist image.
+    --image-backup                                 Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.
+    --image-restore                                Restore a previously backed up image.
+    --play                                         Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.
+    --skip-next                                    Skip forward.
+    --skip-previous                                Skip backward.
+    --like                                         Like (or unlike) the current track.
+    --lyrics                                       Pass currently playing info to an external lyrics app specified in the config file.
+    --tab-completion-argument-names                A space delimited list of these arguments to pass to the bash "complete" function.
+    --update-readme                                Update readme.md. Only used in development.
+    --version                                      Show version information
+    -?, -h, --help                                 Show help and usage information
 
 # Usage Examples
 

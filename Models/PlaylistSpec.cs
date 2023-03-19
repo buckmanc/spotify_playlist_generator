@@ -118,9 +118,9 @@ namespace spotify_playlist_generator.Models
         }
 
 
-        public PlaylistSpec(string playlistName, string playlistSpecification)
+        public PlaylistSpec(string playlistName, string playlistSpec)
         {
-            var fileLines = playlistSpecification.ReplaceLineEndings().Split(Environment.NewLine);
+            var fileLines = playlistSpec.ReplaceLineEndings().Split(Environment.NewLine);
             Initialize(path: null, playlistName: playlistName, fileLines: fileLines);
             this.Write();
         }

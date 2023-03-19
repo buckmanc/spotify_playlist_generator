@@ -190,14 +190,14 @@ namespace spotify_playlist_generator
         /// <param name="playlistFolderPath">An alternate path for the playlists folder path. Overrides the value found in paths.ini.</param>
         /// <param name="listPlaylists">List existing playlists from the playlists folder.</param>
         /// <param name="playlistName">The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.</param>
-        /// <param name="playlistSpecification">A playlist specification string for use when creating a new playlist from the command line.</param>
+        /// <param name="playlistSpec">A playlist specification string for use when creating a new playlist from the command line.</param>
         /// <param name="modifyPlaylistFile">Exchange artist names for artist IDs. Saves time when running but looks worse.</param>
         /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.</param>
         /// <param name="imageAddPhoto">Assign a new image to the playlist.</param>
         /// <param name="imageAddText">Add the playlist name to the playlist image.</param>
         /// <param name="imageBackup">Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.</param>
         /// <param name="imageRestore">Restore a previously backed up image.</param>
-        /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-specification to build a new playlist and play it afterward.</param>
+        /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.</param>
         /// <param name="skipNext">Skip forward.</param>
         /// <param name="skipPrevious">Skip backward.</param>
         /// <param name="like">Like (or unlike) the current track.</param>
@@ -206,7 +206,7 @@ namespace spotify_playlist_generator
         /// <param name="updateReadme">Update readme.md. Only used in development.</param>
         /// <param name="commitAnActOfUnspeakableViolence">I wouldn't really do it... would I?</param>
         /// <returns></returns>
-        static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpecification,
+        static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpec,
             bool modifyPlaylistFile, bool excludeCurrentArtist,
             bool imageAddPhoto, bool imageAddText, 
             bool imageBackup, bool imageRestore,
@@ -222,7 +222,7 @@ namespace spotify_playlist_generator
                 //playlistName = "top*plus";
                 //playlistName = "*metallum*";
                 //playlistName = "test";
-                //playlistSpecification = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
+                //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
                 //playlistName = "*astral*";
                 //imageAddPhoto = true;
                 //skipPrevious = true;
@@ -244,7 +244,7 @@ namespace spotify_playlist_generator
             }
 
             var playerCommand = new bool[] {
-                (play && string.IsNullOrEmpty(playlistSpecification)),
+                (play && string.IsNullOrEmpty(playlistSpec)),
                 skipNext, skipPrevious, like, lyrics
                 }.Any(x => x);
             var shortRun = new bool[] {
@@ -297,7 +297,7 @@ namespace spotify_playlist_generator
 
             //if only looking at one playlist, don't delete all the others
             //that'd be a big yikes
-            if (!string.IsNullOrWhiteSpace(playlistSpecification) || !string.IsNullOrWhiteSpace(playlistName))
+            if (!string.IsNullOrWhiteSpace(playlistSpec) || !string.IsNullOrWhiteSpace(playlistName))
                 Program.Settings._DeleteOrphanedPlaylists = false;
 
             using var spotifyWrapper = new MySpotifyWrapper();
@@ -337,7 +337,7 @@ namespace spotify_playlist_generator
             );
 
             //TODO make reading playlist specs lazy, or does it load fast enough that it doesn't matter?
-            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpecification, dontWarn:shortRun);
+            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpec, dontWarn:shortRun);
             var leaveImageAlonePlaylistNames = playlistSpecs
                 .Where(spec => spec.LeaveImageAlone)
                 .Select(p => p.FinalPlaylistName)
@@ -505,7 +505,7 @@ namespace spotify_playlist_generator
             Settings._LyricFailText3 = configIni["LYRICCOMMANDS"]["LyricFailText3"];
 
         }
-        static List<PlaylistSpec> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpecification, bool dontWarn)
+        static List<PlaylistSpec> ReadPlaylistSpecs(MySpotifyWrapper spotifyWrapper, bool listPlaylists, string playlistName, string playlistSpec, bool dontWarn)
         {
 
 
@@ -561,10 +561,10 @@ namespace spotify_playlist_generator
           }
 
 
-            if (!listPlaylists && !string.IsNullOrWhiteSpace(playlistSpecification))
+            if (!listPlaylists && !string.IsNullOrWhiteSpace(playlistSpec))
             {
                 var output = new List<PlaylistSpec>();
-                output.Add(new PlaylistSpec(playlistName, playlistSpecification));
+                output.Add(new PlaylistSpec(playlistName, playlistSpec));
                 return output;
             }
 
@@ -1061,8 +1061,10 @@ namespace spotify_playlist_generator
                     ImageSource imageSource = null;
 
                     // spotify artist image
+                    // these seem to produce pretty poor results
                     if (playlistSpec != null &&
                         (playlistSpec.GetPlaylistType == PlaylistType.AllByArtist || playlistSpec.GetPlaylistType == PlaylistType.Top)
+                        && 1 == 2
                         )
                     {
                         //get the top 10 artistIDs from a playlist

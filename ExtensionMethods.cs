@@ -129,7 +129,7 @@ namespace spotify_playlist_generator
         /// <param name="values"></param>
         /// <param name="collection"></param>
         /// Adding in the suspiciously missing RemoveRange, counterpart to AddRange
-        public static void RemoveRange<T>(this IList<T> values, IEnumerable<T> collection)
+        public static void RemoveRange<T>(this List<T> values, IEnumerable<T> collection)
         {
             foreach (var item in collection)
                 values.Remove(item);
