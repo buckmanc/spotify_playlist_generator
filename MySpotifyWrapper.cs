@@ -387,30 +387,27 @@ namespace spotify_playlist_generator
             //then merge those values into the existing entries
             if (tracks.Any(t => t.Source_AllTracks || t.Source_Liked || t.Source_Top))
             {
-                var existingTracks = this.TrackCache.TryGetValues(tracks.Select(t => t.TrackId).ToArray());
+                // TODO improve performance
+                // making two attempts to find the key in the cache per item
+
+                var existingTracks = tracks.Where(t => this.TrackCache.ContainsKey(t.TrackId)).ToArray();
                 existingTrackIDs = existingTracks.Select(t => t.TrackId).ToList();
 
-                var joinedTracks = existingTracks.Join(tracks,
-                    t => t.TrackId,
-                    t => t.TrackId,
-                    (oldTrack, newTrack) => new { oldTrack, newTrack })
-                    .ToArray();
-
-                foreach (var joinedTrack in joinedTracks)
+                foreach (var existingTrack in existingTracks)
                 {
                     //TODO make sure this actually modifies the stored track
-                    if (joinedTrack.newTrack.Source_AllTracks)
+                    if (existingTrack.Source_AllTracks)
                     {
-                        joinedTrack.oldTrack.Source_AllTracks = true;
+                        this.TrackCache[existingTrack.TrackId].Source_AllTracks = true;
                     }
-                    if (joinedTrack.newTrack.Source_Liked)
+                    if (existingTrack.Source_Liked)
                     {
-                        joinedTrack.oldTrack.LikedAt = joinedTrack.newTrack.LikedAt;
-                        joinedTrack.oldTrack.Source_Liked = true;
+                        this.TrackCache[existingTrack.TrackId].LikedAt = existingTrack.LikedAt;
+                        this.TrackCache[existingTrack.TrackId].Source_Liked = true;
                     }
-                    if (joinedTrack.newTrack.Source_Top)
+                    if (existingTrack.Source_Top)
                     {
-                        joinedTrack.oldTrack.Source_Top = true;
+                        this.TrackCache[existingTrack.TrackId].Source_Top = true;
                     }
 
                 }
@@ -484,7 +481,8 @@ namespace spotify_playlist_generator
         {
             trackIDs = trackIDs.Distinct().ToArray();
 
-            var output = new List<FullTrackDetails>();
+            var apiTracks = new List<FullTrackDetails>();
+            var cacheTracks = new List<FullTrackDetails>();
             var trackIdApiQueue = new List<string>();
 
             //check the local cache for any items that we've already retrieved from the api
@@ -493,7 +491,7 @@ namespace spotify_playlist_generator
             {
                 FullTrackDetails foundTrack;
                 if (this.TrackCache.TryGetValue(trackID, out foundTrack))
-                    output.Add(foundTrack);
+                    cacheTracks.Add(foundTrack);
                 else
                     trackIdApiQueue.Add(trackID);
             }
@@ -513,11 +511,22 @@ namespace spotify_playlist_generator
 
                     var trackDetails = chunkTracks.Select(t => new FullTrackDetails(t, artists, this._sessionID, allTracksTrack:Source_AllTracks)).ToList();
 
-                    output.AddRange(trackDetails);
+                    apiTracks.AddRange(trackDetails);
 
                     //cache items
                     this.AddToCache(trackDetails);
                 }, maxAttemptCount: 4);
+
+            //make sure existing cached tracks get updated appropriately
+            //otherwise liked tracks, for example, get left out of big sets
+            //let me tell you, that is a difficult bug to find
+            if (Source_AllTracks && cacheTracks.Any(t => !t.Source_AllTracks))
+            {
+                cacheTracks.ForEach(t => t.Source_AllTracks = true);
+                this.AddToCache(cacheTracks);
+            }
+
+            var output = cacheTracks.Union(apiTracks).ToList();
 
             return output;
         }
@@ -771,6 +780,9 @@ namespace spotify_playlist_generator
             //shift functionality provided by this method into GetTracksByArtist
             //then you could avoid pulling tracks for albums you're not interested in
 
+            //dash isn't going to work for separator string, as there are multiple dashes out there
+            var separators = new string[] { "-", "–", Program.Settings._SeparatorString }.Distinct().ToArray();
+
             //TODO scope problem with this ID regex
             var albumIDs = albumNamesOrIDs
                 .Where(x => Program.idRegex.Match(x).Success)
@@ -778,11 +790,11 @@ namespace spotify_playlist_generator
 
             var names = albumNamesOrIDs
                 .Where(x => !albumIDs.Contains(x))
-                .Select(x => x.Split(Program.Settings._SeparatorString, 2, StringSplitOptions.TrimEntries))
+                .Select(x => x.Split(separators, 2, StringSplitOptions.TrimEntries))
                 .Select(x => new
                 {
                     ArtistName = x.FirstOrDefault(),
-                    AlbumName = x.LastOrDefault()
+                    AlbumName = x.LastOrDefault(),
                 })
                 .ToList();
 
@@ -791,21 +803,38 @@ namespace spotify_playlist_generator
             //if an album in the cache has been retrieved by All Tracks 
             //then we can be assured that the full album is already in the cache
             //if an album tracklist is changed after this though the cache will need to be cleared to get the update
-            var cachedAlbumTracks = this.TrackCache.Values
+            var cacheIDMatches = this.TrackCache.Values.Where(t =>
+                    t.Source_AllTracks &&
+                    albumIDs.Any(ID => ID == t.AlbumId)
+                    )
+                .ToList();
+
+            //need to process IDs and names separately here so we know which names to remove
+            //previously these were re-searched even if found in the cache
+            var cacheNameMatches = names.Select(n => new
+            {
+                name = n,
+                matchedCachedAlbumTracks = this.TrackCache.Values
                 .Where(t =>
                     t.Source_AllTracks &&
+                    t.ArtistNames.Any(a => a.Like(n.ArtistName)) &&
                     (
-                    albumIDs.Any(ID => ID == t.AlbumId) ||
-                    names.Any(n => t.AlbumName.Like(n.AlbumName) && t.ArtistNames.Any(a => a.Like(n.ArtistName)))
+                        t.AlbumName.Like(n.AlbumName) ||
+                        t.AlbumName.LevenshteinPercentChange(n.AlbumName) <= 0.25
                     )
-                ).ToArray();
+                )
+                .ToArray()
+            })
+                .ToList();
 
-            //TODO make sure this worked
+            var cachedAlbumTracks = cacheIDMatches.Union(cacheNameMatches.SelectMany(x => x.matchedCachedAlbumTracks)).ToArray();
+
             //add the tracks found in the cache to the output, remove the albums from the album we're looking for
             if (cachedAlbumTracks.Any())
             {
                 tracks.AddRange(cachedAlbumTracks);
-                albumIDs.Remove(ID => cachedAlbumTracks.Any(at => at.AlbumId == ID));
+                albumIDs.Remove(ID => cacheIDMatches.Any(at => at.AlbumId == ID));
+                names.Remove(n => cacheNameMatches.Any(x => x.name == n));
             }
 
             //pull tracks from the api
@@ -845,7 +874,14 @@ namespace spotify_playlist_generator
 
             //counting on the caching in this method for caching benefits
             var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistName).Distinct().ToList())
-                .Where(t => names.Any(n => t.AlbumName.Like(n.AlbumName) && t.ArtistNames.Any(a => a.Like(n.ArtistName))))
+                .Where(t =>
+                    names.Any(n =>
+                        t.ArtistNames.Any(a => a.Like(n.ArtistName)) &&
+                        (
+                        t.AlbumName.Like(n.AlbumName) ||
+                        t.AlbumName.LevenshteinPercentChange(n.AlbumName) <= 0.25
+                        )
+                    ))
                 .ToList();
 
             tracks.AddRange(idAlbumTracks);

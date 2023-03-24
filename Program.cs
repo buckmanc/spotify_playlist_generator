@@ -219,17 +219,8 @@ namespace spotify_playlist_generator
 
             if (Debugger.IsAttached)
             {
-                //playlistName = "top*plus";
-                //playlistName = "*metallum*";
                 //playlistName = "test";
                 //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
-                //playlistName = "*astral*";
-                //imageAddPhoto = true;
-                //skipPrevious = true;
-                //play = true;
-                //updateReadme = true;
-                //playlistName = "*revan";
-                //playlistFolderPath = @"D:\Dropbox\test spot dir";
             }
 
             if (tabCompletionArgumentNames)
@@ -245,7 +236,7 @@ namespace spotify_playlist_generator
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, lyrics
+                skipNext, skipPrevious, like, lyrics, excludeCurrentArtist
                 }.Any(x => x);
             var shortRun = new bool[] {
                 modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
@@ -962,7 +953,15 @@ namespace spotify_playlist_generator
                             //Console.WriteLine("font families:");
                             //Console.WriteLine(SystemFonts.Families.Select(f => f.Name).Join(Environment.NewLine));
 
-                            FontFamily fontFamily = SystemFonts.Families.ToList().Random();
+                            var fontFamily = SystemFonts.Families.ToList()
+                                //.Where(f => f.Name.Like("*pressstart*")) // looks TERRIBLE with outlines
+                                .Random();
+
+                            if (fontFamily == default)
+                                fontFamily = SystemFonts.Families.ToList().Random();
+
+
+
                             var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
 
                             var lineCount = textForArt.Split(Environment.NewLine).Count();
@@ -1434,7 +1433,15 @@ namespace spotify_playlist_generator
 					        .OrderByDescending(t => t.Popularity)
 					        .ThenBy(t => t.TrackId) // one last sort to make this deterministic
                             .Take(playlistSpec.LimitPerAlbum)
-				        )
+                        )
+                        // handle duplicate albums that are really the same
+                        .GroupBy(x => (x.ArtistNames.FirstOrDefault() ?? string.Empty)+ "$$$" + x.AlbumName, t => t)
+                        .SelectMany(g => g
+                            .Distinct()
+                            .OrderByDescending(t => t.Popularity)
+                            .ThenBy(t => t.TrackId) // one last sort to make this deterministic
+                            .Take(playlistSpec.LimitPerAlbum)
+                        )
                         .Distinct()
                         .ToList();
                 }
@@ -1446,7 +1453,7 @@ namespace spotify_playlist_generator
                 if (playlistSpec.Sort == Sort.Liked)
                 {
                     playlistTracks = playlistTracks
-                        .OrderByDescending(t => t.LikedAt)
+                        .OrderBy(t => t.LikedAt)
                         .ToList();
                 }
                 else if (playlistSpec.Sort == Sort.Release)

@@ -77,11 +77,11 @@ namespace spotify_playlist_generator
         /// <param name="value"></param>
         /// <param name="trimString"></param>
         /// <returns></returns>
-        public static string TrimStart(this string value, string trimString = " ")
+        public static string TrimStart(this string value, string trimString = " ", StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
         {
             if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(trimString)) return value;
 
-            while (value.StartsWith(trimString))
+            while (value.StartsWith(trimString, comparisonType))
             {
                 value = value.Substring(trimString.Length);
             }
@@ -296,16 +296,18 @@ namespace spotify_playlist_generator
             // this is specifically to handle
             // 1) complex album names with inconsistent spacing, ellipses, or punctuation
             // 2) words with accent marks that are difficult to type
-            str = str.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards: true);
-            pattern = pattern.Trim().RemoveAccents().AlphanumericOnly(preserveWildcards: true);
+            str = str.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly(preserveWildcards: true);
+            pattern = pattern.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly(preserveWildcards: true);
 
             if (Debugger.IsAttached && string.IsNullOrEmpty(pattern))
                 throw new ArgumentNullException(nameof(pattern), "Damn son, what have we here?");
 
-            return new Regex(
+            var output = new Regex(
                 "^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline
             ).IsMatch(str);
+
+            return output;
         }
         public static string Indent(this string value, int spaceCount = 4)
         {
@@ -360,5 +362,63 @@ namespace spotify_playlist_generator
         }
 
         public static ConcurrentBag<T> ToConcurrentBag<T>(this IEnumerable<T> source) => new ConcurrentBag<T>(source);
+
+        //https://www.dotnetperls.com/levenshtein
+        public static int LevenshteinDistance(this string s, string t)
+        {
+            s = s.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly().ToLower();
+            t = t.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly().ToLower();
+
+            int n = s.Length;
+            int m = t.Length;
+            int[,] d = new int[n + 1, m + 1];
+
+            // Verify arguments.
+            if (n == 0)
+            {
+                return m;
+            }
+
+            if (m == 0)
+            {
+                return n;
+            }
+
+            // Initialize arrays.
+            for (int i = 0; i <= n; d[i, 0] = i++)
+            {
+            }
+
+            for (int j = 0; j <= m; d[0, j] = j++)
+            {
+            }
+
+            // Begin looping.
+            for (int i = 1; i <= n; i++)
+            {
+                for (int j = 1; j <= m; j++)
+                {
+                    // Compute cost.
+                    int cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
+                    d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+                }
+            }
+            // Return cost.
+            return d[n, m];
+        }
+
+        public static double LevenshteinPercentChange(this string s, string t)
+        {
+            var dist = s.LevenshteinDistance(t);
+            var perc = dist * 1.0 / Math.Max(s.Length, t.Length);
+
+            if (s == "The Mystic Toad")
+            {
+                Console.Write("test");
+            }
+            return perc;
+        }
     }
 }
