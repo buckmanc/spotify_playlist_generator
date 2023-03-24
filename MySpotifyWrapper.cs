@@ -1208,7 +1208,7 @@ namespace spotify_playlist_generator
             return output;
         }
 
-        public bool LikeCurrent()
+        public bool LikeCurrent(bool like)
         {
             var track = this.GetCurrentTrack();
             if (track == null)
@@ -1218,13 +1218,17 @@ namespace spotify_playlist_generator
             }
 
             var liked = this.spotify.Library.CheckTracks(new LibraryCheckTracksRequest(new List<string>() { track.Id })).Result.FirstOrDefault();
-            
-            if (liked && this.spotify.Library.RemoveTracks(new LibraryRemoveTracksRequest(new List<string>() { track.Id })).Result)
+
+            if (like && liked)
+                Console.WriteLine("Already liked " + track.PrettyString());
+            else if (!like && !liked)
+                Console.WriteLine("Not currently liked " + track.PrettyString());
+            else if (!like && this.spotify.Library.RemoveTracks(new LibraryRemoveTracksRequest(new List<string>() { track.Id })).Result)
             {
                 Console.WriteLine("💔 Unliked " + track.PrettyString());
                 return true;
             }
-            else if (!liked && this.spotify.Library.SaveTracks(new LibrarySaveTracksRequest(new List<string>() { track.Id })).Result)
+            else if (like && this.spotify.Library.SaveTracks(new LibrarySaveTracksRequest(new List<string>() { track.Id })).Result)
             {
                 Console.WriteLine("💖  Liked " + track.PrettyString());
                 return true;

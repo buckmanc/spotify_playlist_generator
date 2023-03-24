@@ -200,7 +200,8 @@ namespace spotify_playlist_generator
         /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.</param>
         /// <param name="skipNext">Skip forward.</param>
         /// <param name="skipPrevious">Skip backward.</param>
-        /// <param name="like">Like (or unlike) the current track.</param>
+        /// <param name="like">Like the current track.</param>
+        /// <param name="unlike">Unlike the current track.</param>
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
         /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
         /// <param name="updateReadme">Update readme.md. Only used in development.</param>
@@ -210,7 +211,7 @@ namespace spotify_playlist_generator
             bool modifyPlaylistFile, bool excludeCurrentArtist,
             bool imageAddPhoto, bool imageAddText, 
             bool imageBackup, bool imageRestore,
-            bool play, bool skipNext, bool skipPrevious, bool like,
+            bool play, bool skipNext, bool skipPrevious, bool like, bool unlike,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
 	        bool commitAnActOfUnspeakableViolence
@@ -236,19 +237,11 @@ namespace spotify_playlist_generator
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, lyrics, excludeCurrentArtist
+                skipNext, skipPrevious, like, unlike, lyrics, excludeCurrentArtist
                 }.Any(x => x);
             var shortRun = new bool[] {
                 modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
-
-            //just don't
-            if (skipNext && skipPrevious)
-            {
-                Console.WriteLine("Seriously? How would that even work?");
-                skipPrevious = false;
-                skipNext = false;
-            }
 
             if (!playerCommand)
             {
@@ -346,11 +339,15 @@ namespace spotify_playlist_generator
                 Lyrics(spotifyWrapper);
 
             if (like)
-                spotifyWrapper.LikeCurrent();
+                spotifyWrapper.LikeCurrent(like: true);
+
+            if (unlike)
+                spotifyWrapper.LikeCurrent(like: false);
 
             if (skipNext)
                 spotifyWrapper.SkipNext();
-            else if (skipPrevious)
+            
+            if (skipPrevious)
                 spotifyWrapper.SkipPrevious();
 
             if (modifyPlaylistFile)
