@@ -70,7 +70,24 @@ This documentation is a work in progress. ymmv
 ## Playlist Parameters:
 Playlist parameters tell the app what songs to add to the playlist. The core use of the app is right here.
 
-    documentation pending
+All of these can accept the name of the artist/album/playlist or the Spotify ID. (You can pull the IDs from the share URL.) Most of these accept wildcards. (All except AllByArtist and TopByArtist... but those *might* work anyway.) Playlist names only work for playlists you follow or own, otherwise the ID is required.
+
+LikesByGenre is the most broadly useful playlist parameter.
+
+    Album                      All tracks on this album. Accepts album ID or names in the form "Artist Name - Album Name". Album ID performs significantly faster.
+    AllByArtist                All tracks by this artist. Can be intensive. Specifying artist ID instead of artist name can reduce the load somewhat. Using an artist name is very likely to include duplicate artists with the same name.
+    AllByArtistFromPlaylist    All tracks by all artists in this playlist
+    LikesByArtist              Liked tracks by this artist.
+    LikesByArtistFromPlaylist  Liked tracks by all artists in this playlist.
+    LikesByGenre               All liked tracks with the specified genre. Wildcards are very useful here.
+    LikesFromPlaylist          All liked tracks in this playlist.
+    TopByArtist                The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.
+    TopByArtistFromPlaylist    The top five tracks on Spotify by every artist in this playlist.
+    -Album                     Exclude all tracks matching this album.
+    -Artist                    Exclude all tracks matching this artist.
+    -Genre                     Exclude all tracks matching this genre.
+    -PlaylistArtists           Exclude all artists in this playlist.
+    -PlaylistTracks            Exclude all tracks in this playlist.
 
 <!-- Auto generated -->
 ## Playlist Options:

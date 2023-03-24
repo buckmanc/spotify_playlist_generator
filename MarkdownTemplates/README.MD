@@ -50,6 +50,10 @@ This documentation is a work in progress. ymmv
 ## Playlist Parameters:
 Playlist parameters tell the app what songs to add to the playlist. The core use of the app is right here.
 
+All of these can accept the name of the artist/album/playlist or the Spotify ID. (You can pull the IDs from the share URL.) Most of these accept wildcards. (All except AllByArtist and TopByArtist... but those *might* work anyway.) Playlist names only work for playlists you follow or own, otherwise the ID is required.
+
+LikesByGenre is the most broadly useful playlist parameter.
+
 [playlist parameters]
 
 <!-- Auto generated -->

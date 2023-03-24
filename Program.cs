@@ -1304,207 +1304,47 @@ namespace spotify_playlist_generator
                     Console.WriteLine("Playlist: " + playlistSpec.PlaylistName);
                 }
 
-                ////this is really messy... but pretty neat
-                ////find the definition for each parameter name in this playlist and run it
-                //var testPlaylistTracks = playlistSpec.GetGroupedParameters()
-                //    .SelectMany(kvp =>
-                //        PlaylistParameterDefinition.AllDefinitions
-                //        .Where(d => d.ParameterName == kvp.Key)
-                //        .Select(d => new
-                //        {
-                //            Definition = d,
-                //            ParameterValues = kvp.Value
-                //        })
-                //    )
-                //    .Select(x => new
-                //    {
-                //        x.Definition,
-                //        x.ParameterValues,
-                //        Tracks = (!x.Definition.Exclusion
-                //            ? x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, likedTracks: likedTracks)
-                //            : new List<FullTrackDetails>())
-                //    })
-                //    .Select(x => new
-                //    {
-                //        x.Tracks,
-                //        ExclusionTracks = (x.Definition.Exclusion
-                //            ? x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, existingTracks: x.Tracks)
-                //            : new List<FullTrackDetails>())
-                //    })
-                //    .SelectMany(x => x.Tracks.Where(t => !x.ExclusionTracks.Contains(t)))
-                //    .ToList();
-
                 // ------------ get tracks ------------
-                var playlistTracks = new List<FullTrackDetails>();
 
-                var likesByArtist = playlistSpec.GetParameterValues("LikesByArtist");
-                if (likesByArtist.Any())
-                {
-                    var tracks = spotifyWrapper.LikedTracks.Where(t =>
-                        t.ArtistNames.Any(artistName => likesByArtist.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)) ||
-                        t.ArtistIds.Any(artistID => likesByArtist.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
-                        )
-                        .ToArray();
-
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var likesByArtistFromPlaylist = playlistSpec.GetParameterValues("LikesByArtistFromPlaylist");
-                if (likesByArtistFromPlaylist.Any())
-                {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(likesByArtistFromPlaylist)
-                        .SelectMany(t => t.ArtistIds)
-                        .Distinct()
-                        .ToArray();
-
-                    var tracks = spotifyWrapper.LikedTracks.Where(t =>
-                        t.ArtistIds.Any(artistID => artistIDs.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
-                        )
-                        .ToArray();
-
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var likesFromPlaylist = playlistSpec.GetParameterValues("LikesFromPlaylist");
-                if (likesFromPlaylist.Any())
-                {
-                    var tracks = spotifyWrapper.GetTracksByPlaylist(likesFromPlaylist)
-                        .Where(t => spotifyWrapper.LikedTracks.Contains(t))
-                        .ToArray();
-
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var allByArtist = playlistSpec.GetParameterValues("AllByArtist");
-                if (allByArtist.Any())
-                {
-                    var tracks = spotifyWrapper.GetTracksByArtists(allByArtist);
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var allByArtistFromPlaylist = playlistSpec.GetParameterValues("AllByArtistFromPlaylist");
-                if (allByArtistFromPlaylist.Any())
-                {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(allByArtistFromPlaylist)
-                        .SelectMany(t => t.ArtistIds)
-                        .Distinct()
-                        .ToArray();
-
-                    var tracks = spotifyWrapper.GetTracksByArtists(artistIDs);
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var topByArtist = playlistSpec.GetParameterValues("TopByArtist");
-                if (topByArtist.Any())
-                {
-                    //TODO how many tracks does this method actually return? do we need to limit to 5?
-                    var tracks = spotifyWrapper.GetTopTracksByArtists(topByArtist);
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var albums = playlistSpec.GetParameterValues("Album");
-                if (albums.Any())
-                {
-                    var tracks = spotifyWrapper.GetTracksByAlbum(albums);
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var topByArtistFromPlaylist = playlistSpec.GetParameterValues("TopByArtistFromPlaylist");
-                if (topByArtistFromPlaylist.Any())
-                {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(topByArtistFromPlaylist)
-                        .SelectMany(t => t.ArtistIds)
-                        .Distinct()
-                        .ToArray();
-
-                    //TODO how many tracks does this method actually return? do we need to limit to 5?
-                    var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs);
-                    playlistTracks.AddRange(tracks);
-                }
-
-                var likesByGenre = playlistSpec.GetParameterValues("LikesByGenre");
-                if (likesByGenre.Any())
-                {
-                    var stringsToRemove = new string[] { " ", "-" };
-                    var likesByGenreStandardized = likesByGenre.Select(x => x.Remove(stringsToRemove)).ToArray();
-
-                    var tracks = spotifyWrapper.LikedTracks.Where(t =>
-                    t.ArtistGenres.Any(genreName => likesByGenreStandardized.Any(g => genreName.Remove(stringsToRemove).Like(g)))
+                //find the definition for each parameter name in this playlist and run it
+                var playlistTracks = playlistSpec.GetGroupedParameters()
+                    .SelectMany(kvp =>
+                        PlaylistParameterDefinition.AllDefinitions
+                        .Where(d =>
+                            d.ParameterName.Like(kvp.Key) &&
+                            !d.Exclusion
+                            )
+                        .Select(d => new
+                        {
+                            Definition = d,
+                            ParameterValues = kvp.Value
+                        })
                     )
-                    .ToArray();
-
-                    playlistTracks.AddRange(tracks);
-                }
+                    .SelectMany(x => x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, likedTracks: spotifyWrapper.LikedTracks))
+                    .Distinct()
+                    .ToList();
 
                 // ------------ exclude tracks ------------
-                var excludeArtists = playlistSpec.GetParameterValues("-Artist");
-                if (excludeArtists.Any())
-                {
-                    playlistTracks.Remove(t =>
-                        t.ArtistNames.Any(artistName => excludeArtists.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)) ||
-                        t.ArtistIds.Any(artistID => excludeArtists.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
-                        );
-                }
 
-                var excludeAlbums = playlistSpec.GetParameterValues("-Album");
-                if (excludeAlbums.Any())
-                {
-                    var separators = new string[] { Settings._SeparatorString, ":" };
-
-                    var excludeAlbumDetails = excludeAlbums
-                        .Select(x => x.Split(separators, 2, StringSplitOptions.TrimEntries))
-                        .Where(x => x.Length == 2)
-                        .Select(x => new
+                var excludeTracks = playlistSpec.GetGroupedParameters()
+                    .SelectMany(kvp =>
+                        PlaylistParameterDefinition.AllDefinitions
+                        .Where(d =>
+                            d.ParameterName.Like(kvp.Key) &&
+                            d.Exclusion
+                            )
+                        .Select(d => new
                         {
-                            ArtistNameOrID = x[0],
-                            AlbumName = x[1]
+                            Definition = d,
+                            ParameterValues = kvp.Value
                         })
-                        .ToArray();
+                    )
+                    .SelectMany(x => x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, existingTracks: playlistTracks))
+                    .ToList();
 
-                    var albumIDs = excludeAlbums
-                        .Where(x => idRegex.Match(x).Success && !separators.Any(sep => x.Contains(sep)))
-                        .ToArray();
+                playlistTracks.RemoveRange(excludeTracks);
 
-                    playlistTracks.Remove(t =>
-                        //artist check
-                        (
-                        t.ArtistNames.Any(artistName => excludeAlbumDetails.Any(exAlbum => exAlbum.ArtistNameOrID.ToLower() == artistName.ToLower())) ||
-                        t.ArtistIds.Any(artistID => excludeAlbumDetails.Any(exAlbum => exAlbum.ArtistNameOrID.ToLower() == artistID.ToLower()))
-                        )
-                        && excludeAlbumDetails.Any(exAlbum => exAlbum.ArtistNameOrID.ToLower() == t.AlbumName.ToLower())
-                        );
 
-                    playlistTracks.Remove(t => albumIDs.Any(exAlbumID => t.AlbumId == exAlbumID));
-                }
-
-                var excludePlaylistTracks = playlistSpec.GetParameterValues("-PlaylistTracks");
-                if (excludePlaylistTracks.Any())
-                {
-                    var tracks = spotifyWrapper.GetTracksByPlaylist(excludePlaylistTracks)
-                        .ToArray();
-                    playlistTracks.RemoveRange(tracks);
-                }
-
-                var excludePlaylistArtists = playlistSpec.GetParameterValues("-PlaylistArtists");
-                if (excludePlaylistArtists.Any())
-                {
-                    var artistIDs = spotifyWrapper.GetTracksByPlaylist(excludePlaylistArtists)
-                        .SelectMany(t => t.ArtistIds)
-                        .Distinct()
-                        .ToArray();
-
-                    playlistTracks.Remove(t =>
-                        t.ArtistIds.Any(artistID => artistIDs.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
-                        );
-                }
-
-                var excludeGenres = playlistSpec.GetParameterValues("-Genre");
-                if (excludeGenres.Any())
-                {
-                    playlistTracks.Remove(t =>
-                        t.ArtistGenres.Any(g => excludeGenres.Any(eg => g.Like(eg)))
-                    );
-                }
 
 
                 // ------------ remove dupes ------------

@@ -22,9 +22,16 @@ namespace spotify_playlist_generator
                 if (_ParameterHelp != null)
                     return _ParameterHelp;
 
-                //TODO format playlist parameter help from definitions
+                var maxNameLen = PlaylistParameterDefinition.AllDefinitions.Max(x => x.ParameterName.Length);
 
-                return "documentation pending";
+                _ParameterHelp = PlaylistParameterDefinition.AllDefinitions
+                    .OrderBy(x => x.ParameterName.StartsWith("-"))
+                    .ThenBy(x => x.ParameterName)
+                    .Select(x => x.ParameterName.PadRight(maxNameLen + 2) + x.Description)
+                    .Join(Environment.NewLine)
+                    ;
+
+                return _ParameterHelp;
             }
         }
 
