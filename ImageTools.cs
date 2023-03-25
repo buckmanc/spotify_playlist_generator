@@ -120,8 +120,8 @@ namespace spotify_playlist_generator
             }
 
             var apod = apodResonse.AllContent.Where(c =>
-            c.MediaType == MediaType.Image &&
-            !System.IO.Path.GetExtension(c.ContentUrlHD).Like("*mp4")
+                c.MediaType == MediaType.Image &&
+                !System.IO.Path.GetExtension(c.ContentUrlHD).Like("*mp4")
             ).FirstOrDefault();
             //if (Program.Settings._VerboseDebug)
             //{
@@ -143,7 +143,7 @@ namespace spotify_playlist_generator
             Unsplash.Models.Photo.IBasic photo = null;
 
             if (!string.IsNullOrWhiteSpace(search))
-                photo = client.Search.PhotosAsync(search, new Unsplash.Api.SearchPhotosParams(page: 1, perPage: 20))
+                photo = client.Search.PhotosAsync(search, new Unsplash.Api.SearchPhotosParams(page: 1, perPage: 100))
                     .Result.Results.ToList().Random();
             else
 		try

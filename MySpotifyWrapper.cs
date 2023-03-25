@@ -1,4 +1,6 @@
-﻿using spotify_playlist_generator.Models;
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using spotify_playlist_generator.Models;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Http;
 using System;
@@ -1083,13 +1085,77 @@ namespace spotify_playlist_generator
 
         public bool UploadPlaylistImage(FullPlaylist playlist, string imagePath)
         {
+
+            var success = false;
+            var attempts = 0;
+            var maxAttempts = 4;
+
+            do
+            {
+                attempts += 1;
+
+                var dropPercBy = 0.1;
+                var sizeRatio = 1 - dropPercBy;
+                var attemptRatio = 1 - (sizeRatio * (attempts - 1));
+
+                // shrink the image per subsequent attempt
+                if (attempts > 1)
+                {
+                    if (Program.Settings._VerboseDebug)
+                        Console.WriteLine("Image upload failed. Making " + attempts.AddOrdinal() + " attempt.");
+
+                    using (var img = SixLabors.ImageSharp.Image.Load(imagePath))
+                    {
+
+                        // drop the size by x percent every attempt
+                        var resizeSize = new Size((int)Math.Round(img.Width * sizeRatio, 0), (int)Math.Round(img.Height * sizeRatio, 0));
+
+                        img.Mutate(i => i.Resize(resizeSize));
+
+                        var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
+                        jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
+
+                        // drop the encoding quality every attempt
+                        jpgEncoder.Quality = (int)Math.Round((jpgEncoder.Quality ?? 75) * attemptRatio, 0);
+
+                        if (attempts == maxAttempts)
+                        {
+                            // could take desparate measures here
+                            // but probably better to just increase maxAttempts instead
+                        }
+
+                        img.SaveAsJpeg(imagePath, jpgEncoder);
+                    }
+                }
+
+                // attempt to upload the image
+                success = UploadPlaylistImage_Attempt(playlist, imagePath);
+
+            }
+            while (!success && attempts <= maxAttempts);
+
+            return success;
+        }
+
+        private bool UploadPlaylistImage_Attempt(FullPlaylist playlist, string imagePath)
+        {
             var bytes = File.ReadAllBytes(imagePath);
-            var file = Convert.ToBase64String(bytes);
+            var kb = bytes.Length / 1024;
+
+            // if the image is too large, don't even try
+            if (kb >= 256)
+            {
+                if (Program.Settings._VerboseDebug)
+                    Console.WriteLine("Image filesize too large: " + kb.ToString("#,##0") + " kilobytes.");
+                return false;
+            }
+
+            var fileString = Convert.ToBase64String(bytes);
 
             var success = false;
             try
             {
-                success = this.spotify.Playlists.UploadCover(playlist.Id, file).Result;
+                success = this.spotify.Playlists.UploadCover(playlist.Id, fileString).Result;
             }
             catch (Exception ex)
             {

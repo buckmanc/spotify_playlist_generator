@@ -158,32 +158,6 @@ namespace spotify_playlist_generator
         {
             Console.SetCursorPosition(CursorLeft, Console.GetCursorPosition().Top);
         }
-        public static string AddOrdinal(int num)
-        {
-            //https://stackoverflow.com/a/20175
-
-            if (num <= 0) return num.ToString();
-
-            switch (num % 100)
-            {
-                case 11:
-                case 12:
-                case 13:
-                    return num + "th";
-            }
-
-            switch (num % 10)
-            {
-                case 1:
-                    return num + "st";
-                case 2:
-                    return num + "nd";
-                case 3:
-                    return num + "rd";
-                default:
-                    return num + "th";
-            }
-        }
 
         //TODO the descriptions are not making it to the command line help details
         /// <summary>A file based way to add smart playlists to Spotify.</summary> //--help breaks without a summary
@@ -220,8 +194,10 @@ namespace spotify_playlist_generator
 
             if (Debugger.IsAttached)
             {
-                //playlistName = "test";
+                playlistName = "test";
                 //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
+                imageAddPhoto = true;
+                imageAddText = true;
             }
 
             if (tabCompletionArgumentNames)
@@ -915,117 +891,93 @@ namespace spotify_playlist_generator
 
             foreach (var playlist in playlists)
             {
-                var error = false;
-                var attempts = 0;
-                var maxAttempts = 4;
+                var textForArt = playlist.Name.Replace(" - ", Environment.NewLine);
 
-                do
+                using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
                 {
-                    attempts += 1;
+                    var fontSize = img.Height / 7;
 
-                    var textForArt = playlist.Name.Replace(" - ", Environment.NewLine);
+                    var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
 
-                    using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
-                    {
+                    // TODO package the font with the app
+                    // TODO tier some fallback font choices
+                    // TODO try glow instead of outline
+                    var fontFamily = SystemFonts.Families
+                        .Where(f => f.Name.Like("*pressstart*"))
+                        //.Where(f => f.Name.Like("*montserrat*"))
+                        .ToList()
+                        .Random();
 
-                        var attemptRatio = 1 - (0.1 * (attempts - 1));
-
-                        //shrink the image 10% per subsequent attempt
-                        //this should be in a small loop at the end, not around the entire block
-                        if (attempts > 1)
-                        {
-                            var resizeSize = new Size((int)Math.Round(img.Width * attemptRatio, 0), (int)Math.Round(img.Height * attemptRatio, 0));
-
-                            img.Mutate(i => i.Resize(resizeSize));
-                        }
-                        else
-                        {
-
-                            var fontSize = img.Height / 7;
-
-                            var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
-                            //var test = SixLabors.Shapes.TextBuilder.GenerateGlyphs("yo", new SixLabors.Fonts.RendererOptions());
-
-                            //TODO actually pick a font
-                            //Console.WriteLine("font families:");
-                            //Console.WriteLine(SystemFonts.Families.Select(f => f.Name).Join(Environment.NewLine));
-
-                            var fontFamily = SystemFonts.Families.ToList()
-                                //.Where(f => f.Name.Like("*pressstart*")) // looks TERRIBLE with outlines
-                                .Random();
-
-                            if (fontFamily == default)
-                                fontFamily = SystemFonts.Families.ToList().Random();
+                    if (fontFamily == default)
+                        fontFamily = SystemFonts.Families.ToList().Random();
 
 
 
-                            var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
+                    var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
 
-                            var lineCount = textForArt.Split(Environment.NewLine).Count();
+                    var lineCount = textForArt.Split(Environment.NewLine).Count();
 
-                            //const double pointToPixelRatio = 1.333333;
-                            //const double verticalLineSpacePercent = 0.05;
-                            const double pointToPixelRatio = 1;
-                            const double verticalLineSpacePercent = 0.25;
+                    //const double pointToPixelRatio = 1.333333;
+                    //const double verticalLineSpacePercent = 0.05;
+                    const double pointToPixelRatio = 1;
+                    const double verticalLineSpacePercent = 0.25;
 
-                            var fontHeightNoSpacing = (fontSize * pointToPixelRatio) * lineCount;
-                            var lineSpacingAdjustmentPercent = (1 + ((lineCount - 1) * verticalLineSpacePercent));
+                    var fontHeightNoSpacing = (fontSize * pointToPixelRatio) * lineCount;
+                    var lineSpacingAdjustmentPercent = (1 + ((lineCount - 1) * verticalLineSpacePercent));
 
-                            //TODO slap the font ratio to a constant?
-                            //line height should have some relation to font size
-                            var fontHeight = (float)(
-                                (fontSize * pointToPixelRatio) * lineCount     //point to pixel conversion
-                                * (1 + ((lineCount - 1) * verticalLineSpacePercent))    //line spacing adjustment for multiple lines
-                                                                                        //* (1 + (lineCount - 1) )	//line spacing adjustment for multiple lines
-                                )
-                                ;
+                    //TODO slap the font ratio to a constant?
+                    //line height should have some relation to font size
+                    var fontHeight = (float)(
+                        (fontSize * pointToPixelRatio) * lineCount     //point to pixel conversion
+                        * (1 + ((lineCount - 1) * verticalLineSpacePercent))    //line spacing adjustment for multiple lines
+                                                                                //* (1 + (lineCount - 1) )	//line spacing adjustment for multiple lines
+                        )
+                        ;
 
-                            //if (Settings._VerboseDebug)
-                            //{
-                            //    Console.WriteLine("font size in points: " + fontSize.ToString());
-                            //    Console.WriteLine("font height:         " + fontHeight.ToString());
-                            //    Console.WriteLine("edge distance:       " + edgeDistance.ToString());
-                            //    Console.WriteLine("cover height:        " + img.Height.ToString());
-                            //    Console.WriteLine("y calc:              " + (img.Height - fontHeight - edgeDistance).ToString());
-                            //}
-
-                            img.Mutate(x => x.DrawText(
-                                textForArt,
-                                font,
-                                Brushes.Solid(Color.White),
-                                Pens.Solid(Color.Black, 2f),
-                                //new PointF(edgeDistance, img.Height - edgeDistance)
-                                new PointF(edgeDistance, img.Height - fontHeight - edgeDistance)
-                                //new PointF(10, 10)
-                                ));
-                        }
-
-                        var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-                        jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
-
-                        if (attempts > 1)
-                            jpgEncoder.Quality = (int)Math.Round((jpgEncoder.Quality ?? 75) * attemptRatio, 0);
-
-                        img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
-                    }
-
-                    //if (System.Diagnostics.Debugger.IsAttached)
+                    //if (Settings._VerboseDebug)
                     //{
-                    //    Process.Start("explorer.exe", "\"" + playlist.GetWorkingImagePath() + "\"");
-                    //}
-                    //else
-                    //{
-
-                    error = !spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
-
-                    if (error)
-                        Console.WriteLine("An error occurred, trying " + (maxAttempts - attempts).ToString("#,##0") + " more times");
-
-
+                    //    Console.WriteLine("font:                " + font.Name.ToString());
+                    //    Console.WriteLine("font size in points: " + fontSize.ToString());
+                    //    Console.WriteLine("font height:         " + fontHeight.ToString());
+                    //    Console.WriteLine("edge distance:       " + edgeDistance.ToString());
+                    //    Console.WriteLine("cover height:        " + img.Height.ToString());
+                    //    Console.WriteLine("y calc:              " + (img.Height - fontHeight - edgeDistance).ToString());
                     //}
 
+                    // intermittent bug occurs here when picking a random font
+                    // there's likely a font that's incompatible somehow
+                    img.Mutate(x => x.DrawText(
+                        textForArt,
+                        font,
+                        Brushes.Solid(Color.White),
+                        Pens.Solid(Color.Black, 2f),
+                        //new PointF(edgeDistance, img.Height - edgeDistance)
+                        new PointF(edgeDistance, img.Height - fontHeight - edgeDistance)
+                        //new PointF(10, 10)
+                        ));
+                    
+
+                    var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
+                    jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
+
+                    img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
                 }
-                while (error && attempts <= maxAttempts);
+
+                //if (System.Diagnostics.Debugger.IsAttached)
+                //{
+                //    Process.Start("explorer.exe", "\"" + playlist.GetWorkingImagePath() + "\"");
+                //}
+                //else
+                //{
+
+                var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
+
+                if (!success)
+                    Console.WriteLine("An error occurred uploading playlist image.");
+
+
+                //}
+
                 pp.PrintProgress();
             }
         }
@@ -1037,178 +989,155 @@ namespace spotify_playlist_generator
             var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rAdding new photos: " + perc + ", " + time + " remaining"));
             foreach (var playlist in playlists)
             {
-                var error = false;
-                var attempts = 0;
-                var maxAttempts = 4;
                 var playlistTracks = spotifyWrapper.GetTracksByPlaylist(new string[] { playlist.Id }).ToArray();
 
-                do
-                {
-                    attempts += 1;
+                //you can do image operations on non-managed playlists
+                //so the playlist spec WILL be null sometimes
+                var playlistSpec = playlistSpecs
+                    .Where(spec => spec.FinalPlaylistName.ToLower() == playlist.Name.ToLower())
+                    .FirstOrDefault();
 
-                    //you can do image operations on non-managed playlists
-                    //so the playlist spec WILL be null sometimes
-                    var playlistSpec = playlistSpecs
-                        .Where(spec => spec.FinalPlaylistName.ToLower() == playlist.Name.ToLower())
-                        .FirstOrDefault();
+                //could only assign imageSource if it's null
+                //then shrink and compress at a ratio * attempts
+                ImageSource imageSource = null;
 
-                    //could only assign imageSource if it's null
-                    //then shrink and compress at a ratio * attempts
-                    ImageSource imageSource = null;
+                //// spotify artist image
+                //// these seem to produce pretty poor results
+                //if (playlistSpec != null &&
+                //    (playlistSpec.GetPlaylistType == PlaylistType.AllByArtist || playlistSpec.GetPlaylistType == PlaylistType.Top)
+                //    && 1 == 2
+                //    )
+                //{
+                //    //get the top 10 artistIDs from a playlist
+                //    //with what percent of the playlist they cover
+                //    var artistIdDeets = playlistTracks
+                //                        .SelectMany(t => t.ArtistIds)
+                //                        .GroupBy(id => id)
+                //                        .OrderByDescending(g => g.Count())
+                //                        .Select(g => new
+                //                        {
+                //                            ArtistID = g.Key,
+                //                            PercOfPlaylist = g.Count() / (playlistTracks.Count() * 1.00)
+                //                        })
+                //                        .Take(10)
+                //                        .ToArray();
 
-                    // spotify artist image
-                    // these seem to produce pretty poor results
-                    if (playlistSpec != null &&
-                        (playlistSpec.GetPlaylistType == PlaylistType.AllByArtist || playlistSpec.GetPlaylistType == PlaylistType.Top)
-                        && 1 == 2
-                        )
-                    {
-                        //get the top 10 artistIDs from a playlist
-                        //with what percent of the playlist they cover
-                        var artistIdDeets = playlistTracks
-                                            .SelectMany(t => t.ArtistIds)
-                                            .GroupBy(id => id)
-                                            .OrderByDescending(g => g.Count())
-                                            .Select(g => new
-                                            {
-                                                ArtistID = g.Key,
-                                                PercOfPlaylist = g.Count() / (playlistTracks.Count() * 1.00)
-                                            })
-                                            .Take(10)
-                                            .ToArray();
+                //    //a little logic to pick out the obvious winners from a playlist
+                //    //don't want art for a single guest musician when the playlist is 90% a different one
+                //    var maxPerc = artistIdDeets.Max(x => x.PercOfPlaylist);
+                //    var topArtistIdDeets = artistIdDeets
+                //        .Where(a => a.PercOfPlaylist >= maxPerc - 0.2)
+                //        .ToArray();
 
-                        //a little logic to pick out the obvious winners from a playlist
-                        //don't want art for a single guest musician when the playlist is 90% a different one
-                        var maxPerc = artistIdDeets.Max(x => x.PercOfPlaylist);
-                        var topArtistIdDeets = artistIdDeets
-                            .Where(a => a.PercOfPlaylist >= maxPerc - 0.2)
-                            .ToArray();
+                //    var artistIdPick = topArtistIdDeets.Select(a => a.ArtistID).ToList().Random();
 
-                        var artistIdPick = topArtistIdDeets.Select(a => a.ArtistID).ToList().Random();
+                //    var artist = spotifyWrapper.GetArtists(new string[] { artistIdPick }).FirstOrDefault();
+                //    var imageURL = artist?.Images?.Random()?.Url;
 
-                        var artist = spotifyWrapper.GetArtists(new string[] { artistIdPick }).FirstOrDefault();
-                        var imageURL = artist?.Images?.Random()?.Url;
+                //    if (!string.IsNullOrWhiteSpace(imageURL))
+                //        imageSource = new ImageSource(imageURL);
+                //}
+                //else
 
-                        if (!string.IsNullOrWhiteSpace(imageURL))
-                            imageSource = new ImageSource(imageURL);
-                    }
-                    else
-                    {
+                var analyzer = new SentimentIntensityAnalyzer();
+                var textSampleLines = new List<string>();
 
-                        var analyzer = new SentimentIntensityAnalyzer();
-                        var textSampleLines = new List<string>();
+                textSampleLines.AddRange(playlistTracks.Select(t => t.Name));
+                textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
+                textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
+                textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
+                textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
+                textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
 
-                        textSampleLines.AddRange(playlistTracks.Select(t => t.Name));
-                        textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
-                        textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
-                        textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
-                        textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
-                        textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
+                var sentiment = analyzer.PolarityScores(textSampleLines.Join(", "));
 
-                        var sentiment = analyzer.PolarityScores(textSampleLines.Join(", "));
-
-                        var searchTerm = new string[] {
-                            "concert", "music", "record player", "party", "guitar", "karaoke"
-                        }
-                            .Random();
-
-                        if (Program.Settings._VerboseDebug)
-                        {
-                            //Console.WriteLine("sentiment score for " + playlist.Name + ": " + sentiment.Compound.ToString("0.0000"));
-                            Console.WriteLine("sentiment score for " + playlist.Name + ":" +
-                                " posi: " + sentiment.Positive.ToString("0.0000") +
-                                " neut: " + sentiment.Neutral.ToString("0.0000") +
-                                " nega: " + sentiment.Negative.ToString("0.0000") +
-                                " comp: " + sentiment.Compound.ToString("0.0000")
-                                );
-                        }
-
-                        //unsplash image for positive sentiment, nasa image for negative sentiment
-                        if (sentiment.Compound >= 0)
-                        {
-                            imageSource = ImageTools.GetUnsplashImage(searchTerm);
-                        }
-                        else
-                        {
-                            // nasa astronomy picture of the day
-                            imageSource = ImageTools.GetNasaApodImage();
-                        }
-
-
-                    }
-
-                    using (var img = SixLabors.ImageSharp.Image.Load(imageSource.TempFilePath))
-                    {
-                        var targetDim = 640;
-                        if (attempts == maxAttempts)
-                            targetDim = 600;
-
-                        var minDim = new int[] { img.Width, img.Height }.Min();
-                        // make it a little bigger so we can punch an image out of the middle
-                        var ratio = (targetDim * 1.5) / minDim;
-                        var resizeSize = new Size((int)Math.Round(img.Width * ratio, 0), (int)Math.Round(img.Height * ratio, 0));
-
-                        //if (ratio > 1 || resizeSize.Width == 0 || resizeSize.Height == 0)
-                        //{
-                        //    resizeSize = new Size(minDim, minDim);
-                        //}
-
-                        //Console.WriteLine("targetDim:	" + targetDim.ToString());
-                        //Console.WriteLine("minDim:	" + minDim.ToString());
-                        //Console.WriteLine("ratio:	" + ratio.ToString());
-                        //Console.WriteLine("resizeSize:	" + resizeSize.Width.ToString() + " width, " + resizeSize.Height.ToString() + " height");
-
-                        img.Mutate(
-                            i => i
-                                  .Resize(resizeSize)
-                                  .Crop(new Rectangle(
-                                      x: (resizeSize.Width - targetDim) / 2,
-                                      y: (resizeSize.Height - targetDim) / 2,
-                                      width: targetDim,
-                                      height: targetDim
-                                      ))
-                                  );
-
-                        var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-                        jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
-
-                        if (attempts == maxAttempts)
-                            jpgEncoder.Quality = 50;
-
-                        img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
-                    }
-
-                    var req = new PlaylistChangeDetailsRequest();
-                    var oldAttribText = new Regex(@"Cover: .*").Match(playlist.Description).Value;
-                    var newAttribText = "Cover: " + imageSource.TinyURL;
-                    if (!string.IsNullOrWhiteSpace(oldAttribText))
-                    {
-                        req.Description = playlist.Description.Replace(oldAttribText, newAttribText, StringComparison.InvariantCultureIgnoreCase);
-                    }
-                    else
-                    {
-                        req.Description = playlist.Description + " " + newAttribText;
-                    }
-
-                    var kb = new System.IO.FileInfo(playlist.GetWorkingImagePath()).Length / 1024;
-
-
-                    if (kb >= 256)
-                    {
-                        Console.WriteLine("Image filesize too large: " + kb.ToString("#,##0") + " kilobytes.");
-                        error = true;
-                    }
-                    else
-                        error = !spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
-                    
-
-                    if (!error)
-                        spotifyWrapper.spotify.Playlists.ChangeDetails(playlist.Id, req);
-                    else if (error)
-                        Console.WriteLine("An error occurred, trying " + (maxAttempts - attempts).ToString("#,##0") + " more times");
-
+                var searchTerm = new string[] {
+                    //"concert", "music", "record player", "party", "guitar", "karaoke"
+                    "forest", "mountains", "scenic", "nature", "dark nature", "landscape", "night"
                 }
-                while (error && attempts <= maxAttempts);
+                    .Random();
+
+                if (Program.Settings._VerboseDebug)
+                {
+                    //Console.WriteLine("sentiment score for " + playlist.Name + ": " + sentiment.Compound.ToString("0.0000"));
+                    Console.WriteLine("sentiment score for " + playlist.Name + ":" +
+                        " posi: " + sentiment.Positive.ToString("0.0000") +
+                        " neut: " + sentiment.Neutral.ToString("0.0000") +
+                        " nega: " + sentiment.Negative.ToString("0.0000") +
+                        " comp: " + sentiment.Compound.ToString("0.0000")
+                        );
+                }
+
+                //unsplash image for positive sentiment, nasa image for negative sentiment
+                if (sentiment.Compound >= 0)
+                {
+                    imageSource = ImageTools.GetUnsplashImage(searchTerm);
+                }
+                else
+                {
+                    // nasa astronomy picture of the day
+                    imageSource = ImageTools.GetNasaApodImage();
+                }
+
+                //scale and crop image to fit
+                using (var img = SixLabors.ImageSharp.Image.Load(imageSource.TempFilePath))
+                {
+                    var targetDim = 640;
+
+                    var minDim = new int[] { img.Width, img.Height }.Min();
+                    // make it a little bigger so we can punch an image out of the middle
+                    var ratio = (targetDim * 1.5) / minDim;
+                    var resizeSize = new Size((int)Math.Round(img.Width * ratio, 0), (int)Math.Round(img.Height * ratio, 0));
+
+                    //if (ratio > 1 || resizeSize.Width == 0 || resizeSize.Height == 0)
+                    //{
+                    //    resizeSize = new Size(minDim, minDim);
+                    //}
+
+                    //Console.WriteLine("targetDim:	" + targetDim.ToString());
+                    //Console.WriteLine("minDim:	" + minDim.ToString());
+                    //Console.WriteLine("ratio:	" + ratio.ToString());
+                    //Console.WriteLine("resizeSize:	" + resizeSize.Width.ToString() + " width, " + resizeSize.Height.ToString() + " height");
+
+                    img.Mutate(
+                        i => i
+                                .Resize(resizeSize)
+                                .Crop(new Rectangle(
+                                    x: (resizeSize.Width - targetDim) / 2,
+                                    y: (resizeSize.Height - targetDim) / 2,
+                                    width: targetDim,
+                                    height: targetDim
+                                    ))
+                                );
+
+                    var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
+                    jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
+
+                    img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
+                }
+
+                //prep description update
+                var req = new PlaylistChangeDetailsRequest();
+                var oldAttribText = new Regex(@"Cover: .*").Match(playlist.Description).Value;
+                var newAttribText = "Cover: " + imageSource.TinyURL;
+                if (!string.IsNullOrWhiteSpace(oldAttribText))
+                {
+                    req.Description = playlist.Description.Replace(oldAttribText, newAttribText, StringComparison.InvariantCultureIgnoreCase);
+                }
+                else
+                {
+                    req.Description = playlist.Description + " " + newAttribText;
+                }
+
+                //attempt to update image
+                var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
+
+                //update description if image update was successful
+                if (success)
+                    spotifyWrapper.spotify.Playlists.ChangeDetails(playlist.Id, req);
+                else if (!success)
+                    Console.WriteLine("An error occurred uploading playlist image.");
+
                 pp.PrintProgress();
             }
         }
