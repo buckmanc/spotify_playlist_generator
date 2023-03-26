@@ -194,7 +194,7 @@ namespace spotify_playlist_generator
 
             if (Debugger.IsAttached)
             {
-                playlistName = "test";
+                playlistName = "*slash*";
                 //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
                 imageAddPhoto = true;
                 imageAddText = true;
@@ -895,9 +895,12 @@ namespace spotify_playlist_generator
 
                 using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
                 {
+                    //a rough target size, works out to be the max
                     var fontSize = img.Height / 7;
+                    var textWrappingLength = -1;
 
                     var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
+                    var targetTextWidth = (img.Width - (edgeDistance * 2));
 
                     // TODO package the font with the app
                     // TODO tier some fallback font choices
@@ -915,47 +918,37 @@ namespace spotify_playlist_generator
 
                     var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
 
-                    var lineCount = textForArt.Split(Environment.NewLine).Count();
+                    var txtSizeInitial = TextMeasurer.Measure(text: textForArt, new TextOptions(font));
 
-                    //const double pointToPixelRatio = 1.333333;
-                    //const double verticalLineSpacePercent = 0.05;
-                    const double pointToPixelRatio = 1;
-                    const double verticalLineSpacePercent = 0.25;
+                    if (txtSizeInitial.Width > targetTextWidth)
+                    {
+                        // TODO would be nice to factor in height too, but *probably* won't be an issue
+                        var scalingFactor = targetTextWidth / txtSizeInitial.Width;
 
-                    var fontHeightNoSpacing = (fontSize * pointToPixelRatio) * lineCount;
-                    var lineSpacingAdjustmentPercent = (1 + ((lineCount - 1) * verticalLineSpacePercent));
+                        //minimum scale
+                        if (scalingFactor < 0.75)
+                        {
+                            scalingFactor = 0.75F;
+                            textWrappingLength = targetTextWidth;
+                        }
 
-                    //TODO slap the font ratio to a constant?
-                    //line height should have some relation to font size
-                    var fontHeight = (float)(
-                        (fontSize * pointToPixelRatio) * lineCount     //point to pixel conversion
-                        * (1 + ((lineCount - 1) * verticalLineSpacePercent))    //line spacing adjustment for multiple lines
-                                                                                //* (1 + (lineCount - 1) )	//line spacing adjustment for multiple lines
-                        )
-                        ;
-
-                    //if (Settings._VerboseDebug)
-                    //{
-                    //    Console.WriteLine("font:                " + font.Name.ToString());
-                    //    Console.WriteLine("font size in points: " + fontSize.ToString());
-                    //    Console.WriteLine("font height:         " + fontHeight.ToString());
-                    //    Console.WriteLine("edge distance:       " + edgeDistance.ToString());
-                    //    Console.WriteLine("cover height:        " + img.Height.ToString());
-                    //    Console.WriteLine("y calc:              " + (img.Height - fontHeight - edgeDistance).ToString());
-                    //}
+                        font = fontFamily.CreateFont(fontSize * scalingFactor, FontStyle.Regular);
+                    }
+                    var txtSizeFinal = TextMeasurer.Measure(text: textForArt, new TextOptions(font) { WrappingLength = textWrappingLength});
 
                     // intermittent bug occurs here when picking a random font
                     // there's likely a font that's incompatible somehow
                     img.Mutate(x => x.DrawText(
-                        textForArt,
-                        font,
-                        Brushes.Solid(Color.White),
-                        Pens.Solid(Color.Black, 2f),
-                        //new PointF(edgeDistance, img.Height - edgeDistance)
-                        new PointF(edgeDistance, img.Height - fontHeight - edgeDistance)
-                        //new PointF(10, 10)
-                        ));
-                    
+                        textOptions: new TextOptions(font)
+                        {
+                            Origin = new PointF(edgeDistance, img.Height - txtSizeFinal.Height - edgeDistance),
+                            WrappingLength = textWrappingLength
+                        },
+                        text: textForArt,
+                        brush: Brushes.Solid(Color.White),
+                        pen: Pens.Solid(Color.Black, 2f)
+                        )
+                    );                    
 
                     var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
                     jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;

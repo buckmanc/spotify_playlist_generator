@@ -1088,7 +1088,7 @@ namespace spotify_playlist_generator
 
             var success = false;
             var attempts = 0;
-            var maxAttempts = 4;
+            var maxAttempts = 6;
 
             do
             {
@@ -1116,7 +1116,7 @@ namespace spotify_playlist_generator
                         jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
 
                         // drop the encoding quality every attempt
-                        jpgEncoder.Quality = (int)Math.Round((jpgEncoder.Quality ?? 75) * attemptRatio, 0);
+                        //jpgEncoder.Quality = (int)Math.Round((jpgEncoder.Quality ?? 75) * attemptRatio, 0);
 
                         if (attempts == maxAttempts)
                         {
