@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -26,7 +27,7 @@ namespace spotify_playlist_generator
             public static string _PathsIniFolderPath;
             public static string _PlaylistFolderPath;
             public static string _CommentString = "#";      //TODO consider pulling this from a config file
-            public static string _ParameterString = "@";      //TODO consider pulling this from a config file
+            public static string _OptionString = "@";      //TODO consider pulling this from a config file
             public static string _ExclusionString = "-";    //TODO consider pulling this from a config file
             public static string _SeparatorString = "-";    //TODO consider pulling this from a config file
             public static bool _NewPlaylistsPrivate;
@@ -194,10 +195,13 @@ namespace spotify_playlist_generator
 
             if (Debugger.IsAttached)
             {
-                playlistName = "*slash*";
+                //playlistName = "Top - Female Fronted Black Metal Plus";
+                //modifyPlaylistFile = true;
+                playlistName = "test";
                 //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
-                imageAddPhoto = true;
-                imageAddText = true;
+                //imageAddPhoto = true;
+                //imageAddText = true;
+                //playlistName = "*metallum*";
             }
 
             if (tabCompletionArgumentNames)
@@ -328,7 +332,7 @@ namespace spotify_playlist_generator
 
             if (modifyPlaylistFile)
             {
-                ModifyPlaylistSpecFiles(spotifyWrapper, playlistSpecs, modifyAll:string.IsNullOrEmpty(playlistName));
+                ModifyPlaylistSpecFiles(spotifyWrapper, playlistSpecs, modifyPlaylistFile);
             }
 
             if (imageRestore)
@@ -479,16 +483,16 @@ namespace spotify_playlist_generator
             {
                 Console.WriteLine("Creating some first time example playlists...");
 
-                var exampleMetalPlaylist =
-                    Settings._ParameterString + "default:LikesByGenre" + Environment.NewLine +
-                    Settings._CommentString + " genres to be used in this playlist should be specified here" + Environment.NewLine +
-                    Environment.NewLine +
-                    "symphonic metal" + Environment.NewLine +
-                    "melodic metal" + Environment.NewLine +
-                    "power metal" + Environment.NewLine +
-                    "progressive metal" + Environment.NewLine +
-                    "-artist:Korpiklaani #korpiklaani is more folk metal than symphonic metal!"
-                    ;
+                //var exampleMetalPlaylist =
+                //    Settings._ParameterString + "default:LikesByGenre" + Environment.NewLine +
+                //    Settings._CommentString + " genres to be used in this playlist should be specified here" + Environment.NewLine +
+                //    Environment.NewLine +
+                //    "symphonic metal" + Environment.NewLine +
+                //    "melodic metal" + Environment.NewLine +
+                //    "power metal" + Environment.NewLine +
+                //    "progressive metal" + Environment.NewLine +
+                //    "-artist:Korpiklaani #korpiklaani is more folk metal than symphonic metal!"
+                //    ;
 
                 var playlist = spotifyWrapper.GetFollowedPlaylists()
                     //.OrderByDescending(p => p.Followers.Total)
@@ -500,29 +504,47 @@ namespace spotify_playlist_generator
                     .FirstOrDefault();
 
                 //TODO find one of the users playlists
-                var playlistLikes = "LikesFromPlaylist:" + playlist.Id + " #" + playlist.Name;
+                var playlistLikes = "LikesFromPlaylist:" + playlist.Id + " # " + playlist.Name;
 
-                var topLikedArtistNames = spotifyWrapper.LikedTracks
-                    .SelectMany(t => t.ArtistNames)
+                //var topLikedArtistNames = spotifyWrapper.LikedTracks
+                //    .SelectMany(t => t.ArtistNames)
+                //    .GroupBy(x => x)
+                //    .OrderByDescending(g => g.Count())
+                //    .Select(g => g.Key)
+                //    .Take(10)
+                //    .ToArray();
+
+                //var exampleArtistLikesPlaylist =
+                //    Settings._ParameterString + "default:LikesByArtist" + Environment.NewLine +
+                //    Settings._ParameterString + "LimitPerArtist:5" + Environment.NewLine +
+                //    Environment.NewLine +
+                //    topLikedArtistNames.Join(Environment.NewLine);
+
+                var topGenre = spotifyWrapper.LikedTracks
+                    .SelectMany(t => t.ArtistGenres)
                     .GroupBy(x => x)
                     .OrderByDescending(g => g.Count())
                     .Select(g => g.Key)
-                    .Take(10)
-                    .ToArray();
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .FirstOrDefault();
 
-                var exampleArtistLikesPlaylist =
-                    Settings._ParameterString + "default:LikesByArtist" + Environment.NewLine +
-                    Settings._ParameterString + "LimitPerArtist:5" + Environment.NewLine +
-                    Environment.NewLine +
-                    topLikedArtistNames.Join(Environment.NewLine);
+                var genrePlaylist = "LikesByGenre:" + topGenre;
+                var bossaNova = "LikesByGenre:bossa nova";
+                var bossaNovaPlus = "@default:LikesByGenre" + Environment.NewLine + Environment.NewLine +
+                        "bossa nova" + Environment.NewLine +
+                        "samba";
+
 
                 System.IO.Directory.CreateDirectory(directoryPath);
 
                 //write the example files
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Melodic Metal Stuff.txt"), exampleMetalPlaylist);
+                //System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Melodic Metal Stuff.txt"), exampleMetalPlaylist);
                 System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - " + playlist.Name + ".txt"), playlistLikes);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Top 10 Fav Artists.txt"), exampleArtistLikesPlaylist);
-          }
+                //System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Top 10 Fav Artists.txt"), exampleArtistLikesPlaylist);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - " + topGenre), genrePlaylist);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Bossa Nova"), bossaNova);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Bossa Nova Plus"), bossaNovaPlus);
+            }
 
 
             if (!listPlaylists && !string.IsNullOrWhiteSpace(playlistSpec))
@@ -679,7 +701,7 @@ namespace spotify_playlist_generator
 		    Console.WriteLine("Could not find lyrics.");
         }
 
-        static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, bool modifyAll = false)
+        static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, bool modifyArg)
         {
             Console.WriteLine();
             Console.WriteLine("---making updates to playlist spec files---");
@@ -689,119 +711,162 @@ namespace spotify_playlist_generator
             //this will save multiple API hits involved in searching for artists by name and paging over the results
             //TODO nest your progress printers
             //var pp1 = new ProgressPrinter(playlistSpecs.Length, (perc, time) => ConsoleWriteAndClearLine("\rAdding artist IDs to playlist files: " + perc + ", " + time + " remaining"));
-            foreach (var playlistSpec in playlistSpecs.Where(p => modifyAll || p.AddArtistIDs))
+            foreach (var playlistSpec in playlistSpecs.Where(p => modifyArg || p.AddArtistIDs))
             {
-                //----------- swap artist names for ids -----------
+                var findFailureWarning = "Could not find item. Remove this comment to try again";
+                var linesUpdated = 0;
+                var idCharLength = 22;
 
-                var findFailureWarning = "Could not find this item. Remove this comment to try again";
-
-                var artistNameLines = playlistSpec.SpecLines
-                    .Where(line =>
-                        line.IsValidParameter &&
-                        line.SubjectType == ObjectType.Artist &&
-                        !line.Comment.Contains(findFailureWarning) &&
-                        !idRegex.Match(line.ParameterValue).Success
-                    )
-                    .ToArray();
-
-                //no need to work further with artist names if none were found
-                //TODO add a comment warning if the artist isn't found, then check for that warning string and exclude those later?
-                //"delete this comment to try again"
-                if (artistNameLines.Any())
+                //go one line at a time for simplicity and intra-run progress writing
+                foreach (var line in playlistSpec.SpecLines)
                 {
+                    if (!line.IsValidParameter || line.SubjectType == ObjectType.Genre)
+                        continue;
 
-                    var likedArtistCounts = spotifyWrapper.LikedTracks
-                        .SelectMany(t => t.ArtistIds)
-                        .GroupBy(ID => ID)
-                        .ToDictionary(g => g.Key, g => g.Count());
+                    var newLines = new List<string>();
 
-                    //pull out the artist names, chunk them so that progress is saved if the program crashes on your 1.3k artist playlist
-                    var artistNameChunks = artistNameLines
-                        .Select(line => line.ParameterValue)
-                        .ChunkBy(50)
-                        .ToArray()
-                        ;
-
-                    var pp1 = new ProgressPrinter(artistNameChunks.Length, (perc, time) => ConsoleWriteAndClearLine("\rAdding artist IDs to " + playlistSpec.PlaylistName + " : " + perc + ", " + time + " remaining"));
-                    foreach (var artistNameChunk in artistNameChunks)
+                    //----------- swap names for ids -----------
+                    if (!idRegex.IsMatch(line.ParameterValue))
                     {
-
-                        var artists = spotifyWrapper.GetArtistsByName(artistNameChunk);
-                        //TODO make sure this .Contains call works
-                        //TODO make sure it actually updates the SpecLines in playlistSpec
-                        foreach (var line in playlistSpec.SpecLines.Where(line => artistNameLines.Contains(line)))
+                        //artist
+                        if (line.SubjectType == ObjectType.Artist)
                         {
-                            var matchingArtists = artists
-                                .Where(a => a.Name.Trim().ToLower() == line.ParameterValue.Trim().ToLower())
-                                .OrderByDescending(a => a.Popularity)
-                                .ToArray();
+                            var matchingArtists = spotifyWrapper.GetArtistsByName(new List<string> { line.ParameterValue })
+                                //do some shenannigans since I'm not sure .Distinct will work
+                                .GroupBy(a => a.Id)
+                                .Select(g => g.First())
+                                .Distinct()
+                                .ToList();
 
-                            if (matchingArtists.Any())
+                            foreach (var artist in matchingArtists)
                             {
-                                //reassemble the line with artist ID as the parameter value and the name in the comment
-                                //multiple artists will add additional lines, sorted by popularity
-                                line.RawLine = matchingArtists.Select(artist =>
-                                    ((playlistSpec.Default ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + ":" : string.Empty) +
-                                    artist.Id + " " + Program.Settings._CommentString + "  " + artist.Name +
-                                    (matchingArtists.Count() > 1 ? (", " + artist.Genres.FirstOrDefault() ?? String.Empty) + (likedArtistCounts.ContainsKey(artist.Id) ? ", " + likedArtistCounts[artist.Id].ToString("#,##0") + " liked tracks" : String.Empty) : string.Empty) +
-                                    (!string.IsNullOrWhiteSpace(line.Comment) ? new string('\t', 3) + line.Comment : string.Empty)
-                                    ).Join(Environment.NewLine);
+                                var newLine = string.Empty;
+
+                                //append artist ID and name as a comment
+                                newLine += artist.Id + " " + Program.Settings._CommentString + "  " + artist.Name;
+
+                                //additional deets for help differentiating multiple matching artists
+                                if (matchingArtists.Count() > 1)
+                                {
+                                    //genre
+                                    if (artist.Genres.Any())
+                                        newLine += ", " + artist.Genres.FirstOrDefault() ?? String.Empty;
+
+                                    //likes
+                                    var likedCount = spotifyWrapper.LikedTracks.Count(t => t.ArtistIds.Any(id => id == artist.Id));
+                                    if (likedCount > 0)
+                                        newLine += ", " + likedCount.ToString("#,##0") + " liked tracks";
+                                }
+
+                                newLines.Add(newLine);
                             }
-                            else
+
+                            if (!matchingArtists.Any())
                             {
-                                //if no artist was found, leave a warning in the file about it
-                                line.RawLine =
-                                    ((playlistSpec.Default ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + Program.Settings._SeparatorString : string.Empty) +
-                                    line.ParameterValue + " " + Program.Settings._CommentString + " " + findFailureWarning +
-                                    (!string.IsNullOrWhiteSpace(line.Comment) ? new string('\t', 3) + line.Comment : string.Empty)
-                                    ;
+                                var newLine = string.Empty;
+
+                                //put the value back with a warning in the comment
+                                newLine += line.ParameterValue.PadRight(idCharLength) + " " + Program.Settings._CommentString + "  " + findFailureWarning;
+
+                                newLines.Add(newLine);
                             }
                         }
-                        //write changes
-                        playlistSpec.Write();
-                        playlistSpec.UpdateFromDisk();
+                        //playlist
+                        else if (line.SubjectType == ObjectType.Playlist)
+                        {
+                            //there are valid reasons to use playlist name instead of ID, don't swap those
+                        }
+                        //album
+                        else if (line.SubjectType == ObjectType.Album)
+                        {
+                            //duplicate artist/album combos should be exceedingly rare
+                            //therefore leaving off differentiating data points
 
-                        pp1.PrintProgress();
+                            var newAlbumLines = spotifyWrapper.GetTracksByAlbum(new List<string> { line.ParameterValue })
+                                .GroupBy(t => t.AlbumId)
+                                .Select(g =>
+                                    g.Key + " " + Program.Settings._CommentString + " " +
+                                    (g.SelectMany(t => t.ArtistNames
+                                        //only artist names that appear on every track on the album
+                                        .Where(a => g.All(tx => tx.ArtistNames.Contains(a)))
+                                        ).Distinct().Join(", ")
+                                        .NullIfEmpty() ?? "various") + " - " +
+                                    g.First().AlbumName
+                                )
+                                .ToList();
+                            if (!newAlbumLines.Any())
+                                newAlbumLines.Add(line.ParameterValue.PadRight(idCharLength) + " " + Program.Settings._CommentString + "  " + findFailureWarning);
+
+                            newLines.AddRange(newAlbumLines);
+                        }
+                        //track
+                        else if (line.SubjectType == ObjectType.Track)
+                        {
+                            // TODO support swapping track names for IDs in ModifyPlaylistSpecFiles
+                        }
                     }
-                }
-                //----------- add playlist names -----------
-
-
-                var playlistLines = playlistSpec.SpecLines
-                    .Where(line =>
-                        line.IsValidParameter &&
-                        string.IsNullOrEmpty(line.Comment) &&
-                        line.SubjectType == ObjectType.Playlist &&
-                        idRegex.Match(line.ParameterValue).Success &&
-                        !line.Comment.Contains(findFailureWarning) //unlikely
-                    )
-                    .ToArray();
-
-                var playlists = playlistLines.Select(line => line.ParameterValue)
-                    .Distinct()
-                    .Select(ID => spotifyWrapper.spotify.Playlists.Get(ID).ResultSafe())
-                    .Where(p => p != null)
-                    .ToList();
-
-                if (playlists.Any())
-                {
-                    //TODO make sure this .Contains call works
-                    foreach (var line in playlistSpec.SpecLines.Where(line => playlistLines.Contains(line)))
+                    //----------- add name comments where missing -----------
+                    else if (string.IsNullOrWhiteSpace(line.Comment)) // and implicitly line is an ID
                     {
-                        var matchingPlaylist = playlists
-                            .Where(p => p.Id.Trim().ToLower() == line.ParameterValue.Trim().ToLower())
-                            .SingleOrDefault();
+                        string name = null;
+                        if (line.SubjectType == ObjectType.Artist)
+                        {
+                            name = spotifyWrapper.GetArtists(new List<string> { line.ParameterValue }).FirstOrDefault()?.Name;
+                        }
+                        else if (line.SubjectType == ObjectType.Playlist)
+                        {
+                            name = spotifyWrapper.spotify.Playlists.Get(line.ParameterValue).Result.Name;
+                        }
+                        else if (line.SubjectType == ObjectType.Album)
+                        {
+                            name = spotifyWrapper.spotify.Albums.Get(line.ParameterValue).Result.Name;
+                        }
+                        else if (line.SubjectType == ObjectType.Track)
+                        {
+                            name = spotifyWrapper.spotify.Tracks.Get(line.ParameterValue).Result.Name;
+                        }
 
-                        line.RawLine =
-                                ((playlistSpec.Default ?? String.Empty).ToLower() != line.ParameterName.ToLower() ? line.ParameterName + Program.Settings._SeparatorString : string.Empty) +
-                                line.ParameterValue + " " +
-                                Program.Settings._CommentString + " " + (matchingPlaylist != null ? matchingPlaylist.Name : findFailureWarning)
-                                ;
+                        if (line.SubjectType != ObjectType.None)
+                        {
+                            newLines.Add(line.ParameterValue + " " + Program.Settings._CommentString + " " +
+                                name ?? findFailureWarning
+                                );
+                        }
                     }
 
-                    //write changes
-                    System.IO.File.WriteAllLines(playlistSpec.Path, playlistSpec.SpecLines.Select(line => line.RawLine));
+                    //mark exclusions
+                    if (line.IsExclusionParameter)
+                        newLines = newLines.Select(newLine => "-" + newLine).ToList();
+
+                    //prepend parameter name if not default
+                    if (!playlistSpec.Default.Like(line.ParameterName))
+                        newLines = newLines.Select(newLine => line.ParameterName + Program.Settings._SeparatorString + newLine).ToList();
+
+                    //slap any existing comment on the end, adding the comment character if necessary
+                    if (!string.IsNullOrWhiteSpace(line.Comment))
+                        newLines = newLines.Select(newLine =>
+                        (newLine.Contains(Program.Settings._CommentString) ? String.Empty : Program.Settings._CommentString) +
+                        newLine + new string('\t', 3) + line.Comment
+                        ).ToList();
+
+                    newLines = newLines.Distinct().ToList();
+
+                    if (newLines.Any())
+                    {
+                        //update the line
+                        line.RawLine = newLines.Join(Environment.NewLine);
+                        linesUpdated += 1;
+                    }
+
+
+                    //write every 20 lines
+                    if (linesUpdated > 0 && linesUpdated % 20 == 0)
+                        playlistSpec.Write();
+
                 }
+
+                if (linesUpdated > 0)
+                    playlistSpec.Write();
 
                 //pp1.PrintProgress();
             }
@@ -1249,6 +1314,7 @@ namespace spotify_playlist_generator
                         PlaylistParameterDefinition.AllDefinitions
                         .Where(d =>
                             d.ParameterName.Like(kvp.Key) &&
+                            kvp.Key.Trim().StartsWith("-") &&
                             d.Exclusion
                             )
                         .Select(d => new
@@ -1518,6 +1584,7 @@ namespace spotify_playlist_generator
                 var removeTrackRequestItems = playlistTracksCurrent
                     .Where(gpt => !playlistSpec.DontRemoveTracks && !playlistSpec.Tracks.Any(glt => glt.TrackId == gpt.Id))
                     .Select(gpt => new PlaylistRemoveItemsRequest.Item() { Uri = gpt.Uri })
+                    .Distinct()
                     .ToList();
 
                 //get the technical dupes (not logical dupes) in the playlist in spotify right now
@@ -1551,7 +1618,6 @@ namespace spotify_playlist_generator
                     removedDupesCounter += dupePositionsToRemove.Count;
                 }
 
-
                 if (removeTrackRequestItems.Any())
                 {
                     //the API only accepts 100 tracks at a time, so divide up and run each set of 100 separately
@@ -1580,11 +1646,19 @@ namespace spotify_playlist_generator
                     //the API only accepts 100 tracks at a time, so divide up and run each set of 100 separately
                     var addRequests = addTrackURIs
                         .ChunkBy(100)
-                        .Select(uris => new PlaylistAddItemsRequest(uris))
+                        .Select(uris => new PlaylistAddItemsRequest(uris) { })
                         .ToList();
 
+                    var chunkCount = 0;
                     foreach (var addRequest in addRequests)
+                    {
+                        //as of 2023-03-30 spotify started losing track of the order of PlaylistAddItemsRequests unless an explicit position or delay is provided
+                        //the problem only manifested with more than one chunk / PlaylistAddItemsRequest
+                        addRequest.Position = chunkCount * 100;
                         spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest);
+
+                        chunkCount += 1;
+                    }
 
                     addedTracksCounter += addTrackURIs.Count;
                 }
@@ -1608,6 +1682,7 @@ namespace spotify_playlist_generator
                         if (playlistTracksCurrent.Count() != playlistSpec.Tracks.Count())
                         {
                             Console.WriteLine("Skipping sort. Cloud and local playlist tracks no longer match!");
+			    Console.WriteLine("playlistTracksCurrent: " + playlistTracksCurrent.Count().ToString("#,##0") + " playlistSpec: " + playlistSpec.Tracks.Count().ToString("#,##0"));
                             break;
                         }
                         

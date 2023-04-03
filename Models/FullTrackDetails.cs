@@ -122,7 +122,7 @@ namespace spotify_playlist_generator.Models
 
         public override string ToString()
         {
-            return this.ArtistNames.Join(", ") + " - " + this.Name;
+            return this.ArtistNames.Join(", ") + " - " + this.Name + " " + this.ReleaseDate;
         }
     }
 }

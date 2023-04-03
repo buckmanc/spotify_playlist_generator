@@ -44,6 +44,10 @@ This documentation is a work in progress. ymmv
 3. do some login stuff
 4. profit
 
+## Option 3
+1. buy it
+2. store it
+
 # Options
 
 <!-- Auto generated -->

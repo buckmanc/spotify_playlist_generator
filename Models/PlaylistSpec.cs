@@ -138,15 +138,30 @@ namespace spotify_playlist_generator.Models
             Initialize(path: path, playlistName: playlistName, fileLines: filesLines);
         }
 
+        public void UpdateFromMemory()
+        {
+            // TODO test this
+            // if it works, dump the FromDisk versions
+            this._sortSet = false;
+            Initialize(path: this.Path, playlistName: this.PlaylistName, fileLines: this.SpecLines.Select(line => line.RawLine).ToArray());
+        }
+
         private void Initialize(string path, string playlistName, string[] fileLines)
         {
+
+            var i = 0;
+            var nextInt = () =>
+            {
+                i++;
+                return i;
+            };
 
             this.Path = path;
             this.PlaylistName = playlistName;
 
             var playlistOptions = fileLines
                 .Select(line => line.Split(Program.Settings._CommentString, 2).First())
-                .Where(line => line.StartsWith(Program.Settings._ParameterString))
+                .Where(line => line.StartsWith(Program.Settings._OptionString))
                 .Distinct()
                 .ToArray();
 
@@ -187,8 +202,16 @@ namespace spotify_playlist_generator.Models
                     ParameterValue = line.ParameterValue,
                     ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : Default ?? String.Empty).Trim()
                 })
-                .Distinct()
+                //remove duplicate parameter lines but leave everything else alone
+                .GroupBy(line =>
+                    (line.IsValidParameter
+                        ? line.ParameterName.Trim().ToLower() + "zzz" + line.ParameterValue.Trim().ToLower()
+                        : "zzz" + nextInt().ToString())
+                 )
+                .Select(g => g.First())
                 .ToArray();
+
+
 
             //randomly name the playlist if the user forgot to
             if (string.IsNullOrWhiteSpace(this.Path) && string.IsNullOrWhiteSpace(this.PlaylistName))
@@ -284,7 +307,7 @@ namespace spotify_playlist_generator.Models
             foreach (var line in lines)
             {
                 //skip non-option lines
-                if (!line.StartsWith(Program.Settings._ParameterString))
+                if (!line.StartsWith(Program.Settings._OptionString))
                     continue;
 
                 //parse out values
@@ -377,10 +400,18 @@ namespace spotify_playlist_generator.Models
             get
             {
                 return
-                    !this.SanitizedLine.StartsWith(Program.Settings._ParameterString) &&
+                    !this.SanitizedLine.StartsWith(Program.Settings._OptionString) &&
                     !string.IsNullOrWhiteSpace(this.SanitizedLine) &&
                     !string.IsNullOrWhiteSpace(this.ParameterValue);
                     ;
+            }
+        }
+
+        public bool IsExclusionParameter
+        {
+            get
+            {
+                return this.IsValidParameter && this.SanitizedLine.StartsWith("-");
             }
         }
 
@@ -405,17 +436,18 @@ namespace spotify_playlist_generator.Models
         {
             get
             {
+                //order here is quite important
                 if (!this.IsValidParameter)
                     return ObjectType.None;
-                else if (this.ParameterName.Like("playlist"))
+                else if (this.ParameterName.Like("*playlist*"))
                     return ObjectType.Playlist;
-                else if (this.ParameterName.Like("artist"))
+                else if (this.ParameterName.Like("*artist*"))
                     return ObjectType.Artist;
-                else if (this.ParameterName.Like("genre"))
+                else if (this.ParameterName.Like("*genre*"))
                     return ObjectType.Genre;
-                else if (this.ParameterName.Like("album"))
+                else if (this.ParameterName.Like("*album*"))
                     return ObjectType.Album;
-                else if (this.ParameterName.Like("track"))
+                else if (this.ParameterName.Like("*track*"))
                     return ObjectType.Track;
                 else
                     return ObjectType.None;

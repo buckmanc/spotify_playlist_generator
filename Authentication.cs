@@ -71,20 +71,24 @@ namespace spotify_playlist_generator
                 }
                 };
                 var uri = loginRequest.ToUri();
+                var tinyLoginURL = ImageTools.MakeTinyUrl(uri.AbsoluteUri);
 
-                var ps = new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri)
-                {
-                    UseShellExecute = true,
-                    Verb = "open"
-                };
+                //var ps = new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri)
+                //{
+                //    UseShellExecute = true,
+                //    Verb = "open"
+                //};
 
                 //TODO somehow detect if the user is on a CLI/browserless installation and display the URL to the user with instructions instead
-                System.Diagnostics.Process.Start(ps);
+                //System.Diagnostics.Process.Start(ps);
 
                 //TODO spin up a temp local web server to auto receive the code if not pasted
                 //would only work if the user is running this locally and not on a personal server
                 //https://docs.microsoft.com/en-us/dotnet/api/system.net.httplistener?redirectedfrom=MSDN&view=net-5.0
-
+                //for now just show the user the URL as this is more versatile
+                Console.WriteLine();
+                Console.WriteLine(tinyLoginURL);
+                Console.WriteLine();
                 Console.WriteLine("Please login to Spotify in your browser. Once done, paste the URL from the resulting error page here.");
 
                 //wait for user input

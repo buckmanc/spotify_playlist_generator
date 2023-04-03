@@ -64,6 +64,10 @@ This documentation is a work in progress. ymmv
 3. do some login stuff
 4. profit
 
+## Option 3
+1. buy it
+2. store it
+
 # Options
 
 <!-- Auto generated -->
@@ -88,6 +92,7 @@ LikesByGenre is the most broadly useful playlist parameter.
     -Genre                     Exclude all tracks matching this genre.
     -PlaylistArtists           Exclude all artists in this playlist.
     -PlaylistTracks            Exclude all tracks in this playlist.
+    -Track                     Exclude all tracks with a matching name or ID.
 
 <!-- Auto generated -->
 ## Playlist Options:

@@ -18,7 +18,9 @@ namespace spotify_playlist_generator
 
         public List<FullTrackDetails> GetTracks(MySpotifyWrapper spotifyWrapper, IEnumerable<string> parameterValues, IList<FullTrackDetails> likedTracks = null, IList<FullTrackDetails> existingTracks = null)
         {
-            return this.TracksFunc.Invoke(spotifyWrapper, parameterValues, likedTracks, existingTracks);
+            var output = this.TracksFunc.Invoke(spotifyWrapper, parameterValues, likedTracks, existingTracks);
+
+            return output;
         }
         protected Func<MySpotifyWrapper, IEnumerable<string>, IList<FullTrackDetails>, IList<FullTrackDetails>, List<FullTrackDetails>> TracksFunc { get; set; }
 
@@ -198,14 +200,15 @@ namespace spotify_playlist_generator
 
                             tracks.AddRange(
                                 existingTracks.Where(t =>
-                                    //artist check
+                                excludeAlbumDetails.Any(exAlbum =>
                                     (
-                                    t.ArtistNames.Any(artistName => excludeAlbumDetails.Any(exAlbum => exAlbum.ArtistNameOrID.ToLower() == artistName.ToLower())) ||
-                                    t.ArtistIds.Any(artistID => excludeAlbumDetails.Any(exAlbum => exAlbum.ArtistNameOrID.ToLower() == artistID.ToLower()))
+                                    t.ArtistNames.Any(artistName => artistName.Like(exAlbum.ArtistNameOrID)) ||
+                                    t.ArtistIds.Any(artistID => artistID == exAlbum.ArtistNameOrID)
                                     )
-                                    && excludeAlbumDetails.Any(exAlbum => exAlbum.ArtistNameOrID.ToLower() == t.AlbumName.ToLower())
-                                    )
-                            );
+                                    && t.AlbumName.Like(exAlbum.AlbumName)
+                                )
+                                )
+                                );
 
                             tracks.AddRange(
                                 existingTracks.Where(t => albumIDs.Any(exAlbumID => t.AlbumId == exAlbumID))
@@ -254,6 +257,20 @@ namespace spotify_playlist_generator
                         {
                             var tracks = existingTracks.Where(t =>
                                     t.ArtistGenres.Any(g => parameterValues.Any(eg => g.Like(eg)))
+                                ).ToList();
+
+                            return tracks;
+                        }
+                    },
+                    new PlaylistParameterDefinition()
+                    {
+                        ParameterName = "-Track",
+                        Description = "Exclude all tracks with a matching name or ID.",
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        {
+                            var tracks = existingTracks.Where(t =>
+                                    parameterValues.Any(x => t.Name.Like(x)) ||
+                                    parameterValues.Any(x => t.TrackId == x)
                                 ).ToList();
 
                             return tracks;

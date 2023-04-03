@@ -795,7 +795,7 @@ namespace spotify_playlist_generator
                 .Select(x => x.Split(separators, 2, StringSplitOptions.TrimEntries))
                 .Select(x => new
                 {
-                    ArtistName = x.FirstOrDefault(),
+                    ArtistNameOrID = x.FirstOrDefault(),
                     AlbumName = x.LastOrDefault(),
                 })
                 .ToList();
@@ -819,7 +819,7 @@ namespace spotify_playlist_generator
                 matchedCachedAlbumTracks = this.TrackCache.Values
                 .Where(t =>
                     t.Source_AllTracks &&
-                    t.ArtistNames.Any(a => a.Like(n.ArtistName)) &&
+                    t.ArtistNames.Any(a => a.Like(n.ArtistNameOrID)) &&
                     (
                         t.AlbumName.Like(n.AlbumName) ||
                         t.AlbumName.LevenshteinPercentChange(n.AlbumName) <= 0.25
@@ -827,6 +827,7 @@ namespace spotify_playlist_generator
                 )
                 .ToArray()
             })
+                .Where(x => x.matchedCachedAlbumTracks.Any())
                 .ToList();
 
             var cachedAlbumTracks = cacheIDMatches.Union(cacheNameMatches.SelectMany(x => x.matchedCachedAlbumTracks)).ToArray();
@@ -875,10 +876,10 @@ namespace spotify_playlist_generator
             var idAlbumTracks = this.GetTracks(idAlbumTrackIDs);
 
             //counting on the caching in this method for caching benefits
-            var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistName).Distinct().ToList())
+            var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistNameOrID).Distinct().ToList())
                 .Where(t =>
                     names.Any(n =>
-                        t.ArtistNames.Any(a => a.Like(n.ArtistName)) &&
+                        t.ArtistNames.Any(a => a.Like(n.ArtistNameOrID)) &&
                         (
                         t.AlbumName.Like(n.AlbumName) ||
                         t.AlbumName.LevenshteinPercentChange(n.AlbumName) <= 0.25

@@ -122,6 +122,7 @@ namespace spotify_playlist_generator
                 .Select(x => x.Select(v => v.Value).ToList())
                 .ToList();
         }
+
         /// <summary>
         /// Removes the elements in the collection from the List<T>.
         /// </summary>
@@ -296,8 +297,8 @@ namespace spotify_playlist_generator
             // this is specifically to handle
             // 1) complex album names with inconsistent spacing, ellipses, or punctuation
             // 2) words with accent marks that are difficult to type
-            str = str.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly(preserveWildcards: true);
-            pattern = pattern.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly(preserveWildcards: true);
+            str = str.Standardize();
+            pattern = pattern.Standardize();
 
             if (Debugger.IsAttached && string.IsNullOrEmpty(pattern))
                 throw new ArgumentNullException(nameof(pattern), "Damn son, what have we here?");
@@ -366,8 +367,8 @@ namespace spotify_playlist_generator
         //https://www.dotnetperls.com/levenshtein
         public static int LevenshteinDistance(this string s, string t)
         {
-            s = s.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly().ToLower();
-            t = t.Trim().TrimStart("the ").RemoveAccents().AlphanumericOnly().ToLower();
+            s = s.Standardize();
+            t = t.Standardize();
 
             int n = s.Length;
             int m = t.Length;
@@ -413,11 +414,6 @@ namespace spotify_playlist_generator
         {
             var dist = s.LevenshteinDistance(t);
             var perc = dist * 1.0 / Math.Max(s.Length, t.Length);
-
-            if (s == "The Mystic Toad")
-            {
-                Console.Write("test");
-            }
             return perc;
         }
         public static string AddOrdinal(this int num)
@@ -446,5 +442,27 @@ namespace spotify_playlist_generator
                     return num + "th";
             }
         }
+
+        public static string Standardize(this string value)
+        {
+            return value
+                .Trim()
+                .TrimStart("the ")
+                .Replace(" & ", " and ")
+                .RemoveAccents()
+                .AlphanumericOnly(preserveWildcards: true)
+                .ToLower()
+                ;
+        }
+
+        public static string NullIfEmpty(this string s)
+        {
+            return string.IsNullOrEmpty(s) ? null : s;
+        }
+        public static string NullIfWhiteSpace(this string s)
+        {
+            return string.IsNullOrWhiteSpace(s) ? null : s;
+        }
+
     }
 }
