@@ -66,6 +66,27 @@ namespace spotify_playlist_generator.Models
         public int LimitPerAlbum { get; set; }
         [Description("Don't touch the artwork, even if told to.")]
         public bool LeaveImageAlone { get; set; }
+        [Description("Limit to tracks released in the last X days.")]
+        public int LastXDays
+        {
+            get 
+            {
+                if (!this.ReleasedAfter.HasValue) return 0;
+
+                return this.ReleasedAfter.Value.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
+            }
+            set
+            {
+                if (value == 0) return;
+
+                this.ReleasedAfter = DateOnly.FromDateTime(DateTime.Today.AddDays(value * -1));
+            }
+        }
+
+        [Description("Limit to tracks released before this date.")]
+        public DateOnly? ReleasedBefore { get; set; }
+        [Description("Limit to tracks released after this date.")]
+        public DateOnly? ReleasedAfter { get; set; }
         private bool _sortSet;
         private Sort _sort;
         [Description("How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are [enum values].")]

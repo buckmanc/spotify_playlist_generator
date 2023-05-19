@@ -125,7 +125,7 @@ namespace spotify_playlist_generator
                         Description = "All tracks on this album. Accepts album ID or names in the form \"Artist Name - Album Name\". Album ID performs significantly faster.",
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
                         {
-                            var tracks = spotifyWrapper.GetTracksByAlbum(parameterValues);
+                            var tracks = spotifyWrapper.GetTracksByAlbum(parameterValues.ToList());
 
                             return tracks;
                         }
@@ -158,6 +158,18 @@ namespace spotify_playlist_generator
                             .ToList();
 
                             return tracks;
+                        }
+                    },
+                    new PlaylistParameterDefinition()
+                    {
+                        ParameterName = "PlaylistTracks",
+                        Description = "Tracks in this playlist.",
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        {
+                            var playlistTracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
+                                .ToList();
+
+                            return playlistTracks;
                         }
                     },
                     new PlaylistParameterDefinition()

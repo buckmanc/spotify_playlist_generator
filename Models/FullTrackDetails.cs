@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace spotify_playlist_generator.Models
@@ -22,7 +23,7 @@ namespace spotify_playlist_generator.Models
         public DateTime LikedAt;
         public string Name { get; set; }
         public int Popularity { get; set; }
-        public string ReleaseDate { get; set; }
+        public DateOnly ReleaseDate { get; set; }
         public Guid SessionID { get; set; }
         public string TrackId { get; set; }
         public int TrackNumber { get; set; }
@@ -88,7 +89,10 @@ namespace spotify_playlist_generator.Models
             ArtistNames = fullArtists.Select(a => a.Name).ToList();
             Name = fullTrack.Name;
             Popularity = fullTrack.Popularity;
-            ReleaseDate = fullTrack.Album.ReleaseDate;
+            var year = fullTrack.Album.ReleaseDate.Substring(0, 4);
+            var month = fullTrack.Album.ReleaseDate.SoftSubstring(5, 2).NullIfEmpty() ?? "01";
+            var day = fullTrack.Album.ReleaseDate.SoftSubstring(8, 2).NullIfEmpty() ?? "01";
+            ReleaseDate = new DateOnly(int.Parse(year), int.Parse(month), int.Parse(day));
             TrackId = fullTrack.Id;
             TrackNumber = fullTrack.TrackNumber;
             TrackUri = fullTrack.Uri;
@@ -115,6 +119,35 @@ namespace spotify_playlist_generator.Models
             return TrackId.Equals(item.TrackId);
         }
 
+        public bool AlbumStringIsMatch(string value)
+        {
+
+            var valueArray = value.Split(Program.dashes, 2, StringSplitOptions.TrimEntries);
+
+            //if given one id and it doesn't match the album, return false
+            if (valueArray.Length == 1 && Program.idRegex.IsMatch(value))
+                return this.AlbumId == value;
+            else if (valueArray.Length <= 1)
+                return false;
+
+            var artistNameOrID = valueArray[0];
+            var albumName = valueArray[1];
+
+            //if album name doesn't match, return false
+            if (!(
+                        this.AlbumName.Like(albumName) ||
+                        this.AlbumName.LevenshteinPercentChange(albumName) <= 0.25)
+                )
+                return false;
+
+            //return match on artist id or artist name as appropro
+            if (Program.idRegex.IsMatch(artistNameOrID))
+                return this.ArtistIds.Any(id => id == artistNameOrID);
+            else
+                return this.ArtistNames.Any(name => name.Like(artistNameOrID));
+
+        }
+
         public override int GetHashCode()
         {
             return TrackId.GetHashCode();
@@ -122,7 +155,7 @@ namespace spotify_playlist_generator.Models
 
         public override string ToString()
         {
-            return this.ArtistNames.Join(", ") + " - " + this.Name + " " + this.ReleaseDate;
+            return this.ArtistNames.Join(", ") + " - " + this.Name + " " + this.ReleaseDate.ToString("yyyy-mm-dd");
         }
     }
 }

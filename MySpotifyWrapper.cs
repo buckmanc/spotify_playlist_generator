@@ -639,7 +639,7 @@ namespace spotify_playlist_generator
                 if (ex?.ToString()?.Like("*access token expired*") ?? false)
                     this.RefreshSpotifyClient();
 
-                return artistIDs.Select(artistID => spotify.Artists.GetAlbums(artistID).Result)
+                return artistIDs.Select(artistID => spotify.Artists.GetAlbums(artistID, new ArtistsAlbumsRequest() { Limit = 50, Market = this.CurrentUser.Country ?? "US" }).Result)
                         //.Where(x => ppAlbums.PrintProgress())
                         .SelectMany(item => spotify.Paginate(item, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
                         .OrderBy(album => album.ReleaseDate)
@@ -777,13 +777,10 @@ namespace spotify_playlist_generator
 
             return tracks;
         }
-        public List<FullTrackDetails> GetTracksByAlbum(IEnumerable<string> albumNamesOrIDs)
+        public List<FullTrackDetails> GetTracksByAlbum(IList<string> albumNamesOrIDs)
         {
             //shift functionality provided by this method into GetTracksByArtist
             //then you could avoid pulling tracks for albums you're not interested in
-
-            //dash isn't going to work for separator string, as there are multiple dashes out there
-            var separators = new string[] { "-", "–", Program.Settings._SeparatorString }.Distinct().ToArray();
 
             //TODO scope problem with this ID regex
             var albumIDs = albumNamesOrIDs
@@ -792,12 +789,6 @@ namespace spotify_playlist_generator
 
             var names = albumNamesOrIDs
                 .Where(x => !albumIDs.Contains(x))
-                .Select(x => x.Split(separators, 2, StringSplitOptions.TrimEntries))
-                .Select(x => new
-                {
-                    ArtistNameOrID = x.FirstOrDefault(),
-                    AlbumName = x.LastOrDefault(),
-                })
                 .ToList();
 
             var tracks = new List<FullTrackDetails>();
@@ -806,8 +797,7 @@ namespace spotify_playlist_generator
             //then we can be assured that the full album is already in the cache
             //if an album tracklist is changed after this though the cache will need to be cleared to get the update
             var cacheIDMatches = this.TrackCache.Values.Where(t =>
-                    t.Source_AllTracks &&
-                    albumIDs.Any(ID => ID == t.AlbumId)
+                    albumIDs.Any(x => t.AlbumStringIsMatch(x))
                     )
                 .ToList();
 
@@ -818,12 +808,7 @@ namespace spotify_playlist_generator
                 name = n,
                 matchedCachedAlbumTracks = this.TrackCache.Values
                 .Where(t =>
-                    t.Source_AllTracks &&
-                    t.ArtistNames.Any(a => a.Like(n.ArtistNameOrID)) &&
-                    (
-                        t.AlbumName.Like(n.AlbumName) ||
-                        t.AlbumName.LevenshteinPercentChange(n.AlbumName) <= 0.25
-                    )
+                    albumIDs.Any(x => t.AlbumStringIsMatch(x))
                 )
                 .ToArray()
             })
@@ -854,41 +839,52 @@ namespace spotify_playlist_generator
                         .Albums
 			.ToList();
 
-		var errorAlbums = chunkAlbums.Where(a => a == null || a.Tracks == null).ToArray();
+		    var errorAlbums = chunkAlbums.Where(a => a == null || a.Tracks == null).ToArray();
 
-		if (errorAlbums.Any())
-			Console.WriteLine("Found " +
-					errorAlbums.Length.ToString("#,##0") +
-					" albums with phantom tracks: " +
-					errorAlbums.Select(a => (a?.Id ?? "null") + " " + ( a?.Name ?? "null")).Join(", ")
-					);
+		    if (errorAlbums.Any())
+			    Console.WriteLine("Found " +
+					    errorAlbums.Length.ToString("#,##0") +
+					    " albums with phantom tracks: " +
+					    errorAlbums.Select(a => (a?.Id ?? "null") + " " + ( a?.Name ?? "null")).Join(", ")
+					    );
 
-		chunkAlbums.RemoveRange(errorAlbums);
+		    chunkAlbums.RemoveRange(errorAlbums);
 
-		var chunkIDAlbumTrackIDs = chunkAlbums 
-                        .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
-                        .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
-                        .ToList()
-                        ;
+		    var chunkIDAlbumTrackIDs = chunkAlbums 
+                            .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                            .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                            .ToList()
+                            ;
 
                     idAlbumTrackIDs.AddRange(chunkIDAlbumTrackIDs);
                 }, maxAttemptCount:4);
             var idAlbumTracks = this.GetTracks(idAlbumTrackIDs);
 
+            var artistNames = names
+                .Select(x => x.Split(Program.dashes, 2, StringSplitOptions.TrimEntries).FirstOrDefault())
+                .Distinct()
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+
             //counting on the caching in this method for caching benefits
-            var nameAlbumTracks = this.GetTracksByArtists(names.Select(n => n.ArtistNameOrID).Distinct().ToList())
+            var nameAlbumTracks = this.GetTracksByArtists(artistNames)
                 .Where(t =>
-                    names.Any(n =>
-                        t.ArtistNames.Any(a => a.Like(n.ArtistNameOrID)) &&
-                        (
-                        t.AlbumName.Like(n.AlbumName) ||
-                        t.AlbumName.LevenshteinPercentChange(n.AlbumName) <= 0.25
-                        )
-                    ))
+                    names.Any(x => t.AlbumStringIsMatch(x))
+                    )
                 .ToList();
 
             tracks.AddRange(idAlbumTracks);
             tracks.AddRange(nameAlbumTracks);
+
+            //restore provided album order
+            tracks = tracks
+                .OrderBy(t => albumNamesOrIDs.IndexOf(albumNamesOrIDs.First(x => t.AlbumStringIsMatch(x))))
+                // the below is duplicate logic unfort
+                .ThenBy(t => t.ReleaseDate)
+                .ThenBy(t => t.ArtistNames.FirstOrDefault())
+                .ThenBy(t => t.AlbumName)
+                .ThenBy(t => t.TrackNumber)
+                .ToList();
 
             return tracks;
         }

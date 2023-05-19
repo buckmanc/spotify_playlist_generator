@@ -85,6 +85,7 @@ LikesByGenre is the most broadly useful playlist parameter.
     LikesByArtistFromPlaylist  Liked tracks by all artists in this playlist.
     LikesByGenre               All liked tracks with the specified genre. Wildcards are very useful here.
     LikesFromPlaylist          All liked tracks in this playlist.
+    PlaylistTracks             Tracks in this playlist.
     TopByArtist                The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.
     TopByArtistFromPlaylist    The top five tracks on Spotify by every artist in this playlist.
     -Album                     Exclude all tracks matching this album.
@@ -102,10 +103,13 @@ Playlist options are preceded by "@" and affect the playlist as a whole.
     Default           Assume any lines with no parameter are this parameter. Great for pasting lists of artists.
     DeleteIfEmpty     If the playlist has no tracks, delete it.
     DontRemoveTracks  If tracks no longer fall within the scope of the playlist leave them anyway.
+    LastXDays         Limit to tracks released in the last X days.
     LeaveImageAlone   Don't touch the artwork, even if told to.
     LimitPerAlbum     Limit the amount of tracks per album, prioritizing by popularity.
     LimitPerArtist    Limit the amount of tracks per artist, prioritizing by popularity.
     NoLikes           Exclude liked songs from this playlist.
+    ReleasedAfter     Limit to tracks released after this date.
+    ReleasedBefore    Limit to tracks released before this date.
     Sort              How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are Don't, Liked, Release, Artist.
     UpdateSort        Actively keep this playlist sorted. Can also be set globally in config.ini
 

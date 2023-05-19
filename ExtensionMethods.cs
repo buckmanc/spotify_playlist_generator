@@ -463,6 +463,12 @@ namespace spotify_playlist_generator
         {
             return string.IsNullOrWhiteSpace(s) ? null : s;
         }
+        public static string SoftSubstring(this string s, int startIndex, int length)
+        {
+            if (s.Length < startIndex) return null;
+
+            return s.Substring(startIndex, length);
+        }
 
     }
 }

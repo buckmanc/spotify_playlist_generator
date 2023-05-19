@@ -73,6 +73,9 @@ namespace spotify_playlist_generator
         private const int MaxPlaylistSize = 11000; //max playlist size as of 2021-07-15; the api throws an error once you pass this
         public static Regex idRegex = new Regex(@"[a-zA-Z0-9]{22}");
         public static Regex urlRegex = new Regex(@"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)");
+        //hyphen minus, en dash, em dash, and minus
+        public static string[] dashes = new string[] { "-", "–", "—", "−" }.Distinct().ToArray();
+
         public static string AssemblyDirectory
         {
             get
@@ -197,7 +200,7 @@ namespace spotify_playlist_generator
             {
                 //playlistName = "Top - Female Fronted Black Metal Plus";
                 //modifyPlaylistFile = true;
-                playlistName = "test";
+                playlistName = "*avgc*";
                 //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
                 //imageAddPhoto = true;
                 //imageAddText = true;
@@ -1431,6 +1434,23 @@ namespace spotify_playlist_generator
                         .ToList();
                 }
 
+                // ------------ date limits ------------
+
+                if (playlistSpec.ReleasedAfter.HasValue)
+                {
+                    playlistTracks = playlistTracks
+                        .Where(t => t.ReleaseDate > playlistSpec.ReleasedAfter.Value)
+                        .ToList();
+                }
+
+
+                if (playlistSpec.ReleasedBefore.HasValue)
+                {
+                    playlistTracks = playlistTracks
+                        .Where(t => t.ReleaseDate < playlistSpec.ReleasedBefore.Value)
+                        .ToList();
+                }
+
                 // ------------ sort ------------
 
                 //these sorts won't preserve over time without @UpdateSort
@@ -1453,7 +1473,7 @@ namespace spotify_playlist_generator
                 else if (playlistSpec.Sort == Sort.Artist)
                 {
                     playlistTracks = playlistTracks
-                        .OrderBy(t => t.ArtistNames.First())
+                        .OrderBy(t => t.ArtistNames.FirstOrDefault())
                         .ThenByDescending(t => t.Popularity)
                         .ToList();
                 }
@@ -1465,14 +1485,13 @@ namespace spotify_playlist_generator
                 {
                     // just leave it alone
                     // if you only have one type of parameter I guess it *should* be a file sort
+                    // more or less
                 }
 
                 //keep playlists from overflowing
                 if (playlistTracks.Count > Program.MaxPlaylistSize)
                 {
                     playlistTracks = playlistTracks.Take(Program.MaxPlaylistSize).ToList();
-                    //TODO warn
-                    //TODO take from the beginning instead of the end
                 }
 
                 playlistSpec.Tracks = playlistTracks;
@@ -1646,7 +1665,7 @@ namespace spotify_playlist_generator
                     //the API only accepts 100 tracks at a time, so divide up and run each set of 100 separately
                     var addRequests = addTrackURIs
                         .ChunkBy(100)
-                        .Select(uris => new PlaylistAddItemsRequest(uris) { })
+                        .Select(uris => new PlaylistAddItemsRequest(uris))
                         .ToList();
 
                     var chunkCount = 0;
@@ -1681,8 +1700,9 @@ namespace spotify_playlist_generator
 
                         if (playlistTracksCurrent.Count() != playlistSpec.Tracks.Count())
                         {
+                            // on 2023-04-02 this occurred repeatedly when Spotify simply failed to add or remove tracks
                             Console.WriteLine("Skipping sort. Cloud and local playlist tracks no longer match!");
-			    Console.WriteLine("playlistTracksCurrent: " + playlistTracksCurrent.Count().ToString("#,##0") + " playlistSpec: " + playlistSpec.Tracks.Count().ToString("#,##0"));
+			                Console.WriteLine("playlistTracksCurrent: " + playlistTracksCurrent.Count().ToString("#,##0") + " playlistSpec: " + playlistSpec.Tracks.Count().ToString("#,##0"));
                             break;
                         }
                         
@@ -1871,47 +1891,50 @@ namespace spotify_playlist_generator
 
             //report records, assemble!
 
-            var artistAllGenres = artists.SelectMany(a => a.Genres.Select(g => new GenreReportRecord
-            {
-                ItemID = a.Id,
-                GenreName = g
-            }))
+            var artistAllGenres = artists.SelectMany(a => a.Genres)
                 .ToArray();
 
-            var artistFirstGenres = artists.Select(a => new GenreReportRecord
-            {
-                ItemID = a.Id,
-                GenreName = a.Genres.FirstOrDefault()
-            })
+            var artistFirstGenres = artists.Select(a => a.Genres.FirstOrDefault())
                 .ToArray();
 
             var trackAllGenres = spotifyWrapper.LikedTracks
-                .SelectMany(t => t.ArtistGenres.Select(g => new GenreReportRecord
-                {
-                    ItemID = t.TrackId,
-                    GenreName = g
-                }))
+                .SelectMany(t => t.ArtistGenres)
                 .ToArray();
 
             var trackFirstGenres = spotifyWrapper.LikedTracks
-                .Select(t => new GenreReportRecord
-                {
-                    ItemID = t.TrackId,
-                    GenreName = t.ArtistGenres.FirstOrDefault()
-                })
+                .Select(t => t.ArtistGenres.FirstOrDefault())
                 .ToArray();
 
             //write reports!
-            WriteGenreReport(artistAllGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "All Artist Genres"));
-            WriteGenreReport(artistFirstGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "First Artist Genres"));
+            WriteGroupyReport(artistAllGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "All Artist Genres"));
+            WriteGroupyReport(artistFirstGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "First Artist Genres"));
             //WriteGenreReport(albumAllGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "All Album Genres"));
             //WriteGenreReport(albumFirstGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "First Album Genres"));
-            WriteGenreReport(trackAllGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "All Track Genres"));
-            WriteGenreReport(trackFirstGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "First Track Genres"));
+            WriteGroupyReport(trackAllGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "All Track Genres"));
+            WriteGroupyReport(trackFirstGenres, System.IO.Path.Join(Settings._ReportsFolderPath, "Genres", "First Track Genres"));
 
         }
-    
-        private static void WriteGenreReport(IEnumerable<GenreReportRecord> records, string path)
+
+        static void ReportPlaylistDetails(MySpotifyWrapper spotifyWrapper)
+        {
+            var dir = System.IO.Path.Join(Settings._ReportsFolderPath, "Playlist Details");
+
+            var playlists = spotifyWrapper.GetUsersPlaylists(refreshCache: true);
+
+            foreach (var playlist in playlists)
+            {
+                var tracks = spotifyWrapper.GetTracksByPlaylist(new string[] { playlist.Id });
+
+                var artistNames = tracks.SelectMany(t => t.ArtistNames).ToArray();
+                var genreNames = tracks.SelectMany(t => t.ArtistGenres).ToArray();
+
+                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name + " - top artists;"));
+                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name + " - top genres;"));
+            }
+
+        }
+
+        private static void WriteGroupyReport(IEnumerable<string> records, string path)
         {
             //gronk checks
             var dir = System.IO.Path.GetDirectoryName(path);
@@ -1931,32 +1954,27 @@ namespace spotify_playlist_generator
 
             var nullReplacementString = "[null]";
 
-            var maxNameLength = records.Max(r => (r.GenreName ?? nullReplacementString).Length);
+            var maxNameLength = records.Max(x => (x ?? nullReplacementString).Length);
 
             //format report
             var reportLines = records
-                .Where(x => x.GenreName != null)
-                .GroupBy(x => x.GenreName)
+                .Where(x => x != null)
+                .GroupBy(x => x)
                 .Select(g => new
                 {
-                    GenreName = g.Key,
+                    GroupString = g.Key,
                     RecordCount = g.Count(),
                 })
                 .OrderByDescending(x => x.RecordCount)
-                .ThenBy(x => x.GenreName)
+                .ThenBy(x => x.GroupString)
                 .Select(g =>
-                    (g.GenreName ?? nullReplacementString) + new String(' ', maxNameLength - g.GenreName.Length) + " -- " + g.RecordCount.ToString("#,##0")
+                    (g.GroupString ?? nullReplacementString) + new String(' ', maxNameLength - g.GroupString.Length) + " -- " + g.RecordCount.ToString("#,##0")
                 )
                 .ToArray()
                 ;
 
             //write report
             System.IO.File.WriteAllLines(path, reportLines);
-        }
-        private class GenreReportRecord
-        {
-            public string GenreName { get; set; }
-            public string ItemID { get; set; }
         }
     }
 }

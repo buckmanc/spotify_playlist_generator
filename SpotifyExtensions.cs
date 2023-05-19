@@ -1,4 +1,5 @@
-﻿using SpotifyAPI.Web;
+﻿using spotify_playlist_generator.Models;
+using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
 using System.Linq;
