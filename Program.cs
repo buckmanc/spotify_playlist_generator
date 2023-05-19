@@ -1674,7 +1674,7 @@ namespace spotify_playlist_generator
                         //as of 2023-03-30 spotify started losing track of the order of PlaylistAddItemsRequests unless an explicit position or delay is provided
                         //the problem only manifested with more than one chunk / PlaylistAddItemsRequest
                         addRequest.Position = chunkCount * 100;
-                        spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest);
+                        spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest).Wait();
 
                         chunkCount += 1;
                     }
