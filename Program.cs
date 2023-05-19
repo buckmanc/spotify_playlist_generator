@@ -205,6 +205,7 @@ namespace spotify_playlist_generator
                 //imageAddPhoto = true;
                 //imageAddText = true;
                 //playlistName = "*metallum*";
+                //playlistName = "test";
             }
 
             if (tabCompletionArgumentNames)
@@ -1298,7 +1299,8 @@ namespace spotify_playlist_generator
                         PlaylistParameterDefinition.AllDefinitions
                         .Where(d =>
                             d.ParameterName.Like(kvp.Key) &&
-                            !d.Exclusion
+                            !kvp.Key.Trim().StartsWith(Program.dashes) &&
+                            !d.IsExclusion
                             )
                         .Select(d => new
                         {
@@ -1317,8 +1319,8 @@ namespace spotify_playlist_generator
                         PlaylistParameterDefinition.AllDefinitions
                         .Where(d =>
                             d.ParameterName.Like(kvp.Key) &&
-                            kvp.Key.Trim().StartsWith("-") &&
-                            d.Exclusion
+                            kvp.Key.Trim().StartsWith(Program.dashes) &&
+                            d.IsExclusion
                             )
                         .Select(d => new
                         {

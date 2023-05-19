@@ -469,6 +469,9 @@ namespace spotify_playlist_generator
 
             return s.Substring(startIndex, length);
         }
-
+        public static bool StartsWith(this string s, IEnumerable<string> values)
+        {
+            return values.Any(x => s.StartsWith(x));
+        }
     }
 }

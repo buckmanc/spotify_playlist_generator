@@ -432,7 +432,7 @@ namespace spotify_playlist_generator.Models
         {
             get
             {
-                return this.IsValidParameter && this.SanitizedLine.StartsWith("-");
+                return this.IsValidParameter && this.SanitizedLine.StartsWith(Program.dashes);
             }
         }
 

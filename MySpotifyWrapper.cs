@@ -287,7 +287,10 @@ namespace spotify_playlist_generator
         public List<FullArtist> GetArtistsByName(List<string> artistNames)
         {
 
-            artistNames = artistNames.Distinct().ToList();
+            artistNames = artistNames
+                .Distinct()
+                .Where(x => x.Trim() != "*")
+                .ToList();
 
             //the only example of searching with the API wrapper
             //https://johnnycrazy.github.io/SpotifyAPI-NET/docs/pagination

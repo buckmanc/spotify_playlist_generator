@@ -25,7 +25,7 @@ namespace spotify_playlist_generator
                 var maxNameLen = PlaylistParameterDefinition.AllDefinitions.Max(x => x.ParameterName.Length);
 
                 _ParameterHelp = PlaylistParameterDefinition.AllDefinitions
-                    .OrderBy(x => x.ParameterName.StartsWith("-"))
+                    .OrderBy(x => x.IsExclusion)
                     .ThenBy(x => x.ParameterName)
                     .Select(x => x.ParameterName.PadRight(maxNameLen + 2) + x.Description)
                     .Join(Environment.NewLine)

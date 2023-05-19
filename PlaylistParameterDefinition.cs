@@ -14,7 +14,14 @@ namespace spotify_playlist_generator
     {
         public string ParameterName { get; set; }
         public string Description { get; set; }
-        public bool Exclusion { get => this.ParameterName.Trim().StartsWith("-"); }
+        public bool IsExclusion
+        {
+            get
+            {
+                var output = this.ParameterName.Trim().StartsWith(Program.dashes);
+                return output;
+            }
+        }
 
         public List<FullTrackDetails> GetTracks(MySpotifyWrapper spotifyWrapper, IEnumerable<string> parameterValues, IList<FullTrackDetails> likedTracks = null, IList<FullTrackDetails> existingTracks = null)
         {
