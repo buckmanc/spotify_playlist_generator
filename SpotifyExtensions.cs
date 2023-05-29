@@ -31,11 +31,22 @@ namespace spotify_playlist_generator
 
         public static IList<FullTrack> GetTracks(this FullPlaylist value, MySpotifyWrapper spotifyWrapper)
         {
-            var output = (spotifyWrapper.spotify.Paginate(value.Tracks).ToListAsync()).Result
-                    .Select(x => (FullTrack)x.Track)
-                    .ToList();
+            return Retry.Do(() =>
+            {
+                var output = (spotifyWrapper.spotify.Paginate(value.Tracks).ToListAsync()).Result
+                        .Select(x => (FullTrack)x.Track)
+                        .ToList();
 
-            return output;
+                if (Program.Settings._VerboseDebug && output.Any(t => t == null))
+                {
+                    Console.WriteLine("Spotify returned null tracks from a playlist!");
+                    Console.WriteLine("Playlist: " + (value?.Name ?? "null"));
+                    Console.WriteLine("Tracks: " + (output?.Count() ?? 0).ToString("#,##0"));
+                    throw new Exception("Spotify returned null tracks from a playlist!");
+                }
+
+                return output;
+            });
         }
 
         public static string PrettyString(this FullTrack track)

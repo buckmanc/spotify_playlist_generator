@@ -1603,13 +1603,14 @@ namespace spotify_playlist_generator
                 //main work part 1 - remove existing playlist tracks that no longer belong
                 //"don't" check goes here, else the reporting is wrong
                 var removeTrackRequestItems = playlistTracksCurrent
-                    .Where(gpt => !playlistSpec.DontRemoveTracks && !playlistSpec.Tracks.Any(glt => glt.TrackId == gpt.Id))
+                    .Where(gpt => !playlistSpec.DontRemoveTracks && gpt != null && !playlistSpec.Tracks.Any(glt => glt.TrackId == gpt.Id))
                     .Select(gpt => new PlaylistRemoveItemsRequest.Item() { Uri = gpt.Uri })
                     .Distinct()
                     .ToList();
 
                 //get the technical dupes (not logical dupes) in the playlist in spotify right now
                 var dupesCurrent = playlistTracksCurrent
+                    .Where(t => t != null)
                     .GroupBy(t => t.Id)
                     .Where(g => g.Count() > 1)
                     .Select(g => g.First())
@@ -1617,7 +1618,7 @@ namespace spotify_playlist_generator
 
                 var dupePositionsToRemove = dupesCurrent
                     .SelectMany(t => Enumerable.Range(0, playlistTracksCurrent.Count() - 1)
-                                 .Where(i => playlistTracksCurrent[i].Id == t.Id)
+                                 .Where(i => (playlistTracksCurrent[i]?.Id ?? string.Empty) == t.Id)
                                  .Skip(1)
                                  )
                     .ToList();
@@ -1657,7 +1658,7 @@ namespace spotify_playlist_generator
 
                 //main work part 2 - add new tracks to playlists
                 var addTrackURIs = playlistSpec.Tracks
-                    .Where(glt => !playlistTracksCurrent.Any(gpt => gpt.Id == glt.TrackId))
+                    .Where(glt => !playlistTracksCurrent.Any(gpt => gpt != null && gpt.Id == glt.TrackId))
                     //.Select(glt => new PlaylistAddItemsRequest.Item() { Uri = glt.Uri }) //add track requires URIs, whereas remove track requires a custom object based on URIs
                     .Select(glt => glt.TrackUri)
                     .ToList();
@@ -1692,7 +1693,7 @@ namespace spotify_playlist_generator
                     if (addTrackURIs.Any())
                     {
                         playlist = spotifyWrapper.spotify.Playlists.Get(playlist.Id).Result;
-                        playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
+                        playlistTracksCurrent = playlist.GetTracks(spotifyWrapper).Where(t => t != null).ToList();
                     }
 
                     var reorderCount = 0;

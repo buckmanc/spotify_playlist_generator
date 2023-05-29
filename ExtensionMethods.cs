@@ -36,10 +36,12 @@ namespace spotify_playlist_generator
                     itemCount += 1;
                 }
             }
-            catch (SpotifyAPI.Web.APIException)
+            catch (SpotifyAPI.Web.APIException ex)
             {
                 //if the spotify api throws an exception, just eat it
                 //TODO either refine this a bit or supress the compiler warning
+                //if (System.Diagnostics.Debugger.IsAttached)
+                Console.WriteLine("APIException thrown in ToListAsync: " + ex.ToString());
             }
             return returnValues;
 
