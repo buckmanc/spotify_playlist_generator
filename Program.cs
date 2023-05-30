@@ -1438,10 +1438,10 @@ namespace spotify_playlist_generator
 
                 // ------------ date limits ------------
 
-                if (playlistSpec.ReleasedAfter.HasValue)
+                if (playlistSpec.ReleasedAfterCalc.HasValue)
                 {
                     playlistTracks = playlistTracks
-                        .Where(t => t.ReleaseDate > playlistSpec.ReleasedAfter.Value)
+                        .Where(t => t.ReleaseDate > playlistSpec.ReleasedAfterCalc.Value)
                         .ToList();
                 }
 

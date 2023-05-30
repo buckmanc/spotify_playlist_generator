@@ -66,27 +66,24 @@ namespace spotify_playlist_generator.Models
         public int LimitPerAlbum { get; set; }
         [Description("Don't touch the artwork, even if told to.")]
         public bool LeaveImageAlone { get; set; }
-        [Description("Limit to tracks released in the last X days.")]
-        public int LastXDays
-        {
-            get 
-            {
-                if (!this.ReleasedAfter.HasValue) return 0;
-
-                return this.ReleasedAfter.Value.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
-            }
-            set
-            {
-                if (value == 0) return;
-
-                this.ReleasedAfter = DateOnly.FromDateTime(DateTime.Today.AddDays(value * -1));
-            }
-        }
 
         [Description("Limit to tracks released before this date.")]
         public DateOnly? ReleasedBefore { get; set; }
         [Description("Limit to tracks released after this date.")]
         public DateOnly? ReleasedAfter { get; set; }
+        [Description("Limit to tracks released in the last X days.")]
+        public int LastXDays { get; set; }
+        public DateOnly? ReleasedAfterCalc
+        {
+            get
+            {
+                if (this.LastXDays == 0) return this.ReleasedAfter;
+
+                var lastXDaysDate = DateOnly.FromDateTime(DateTime.Today.AddDays(this.LastXDays * -1));
+
+                return (lastXDaysDate > this.ReleasedAfter ? lastXDaysDate : this.ReleasedAfter);
+            }
+        }
         private bool _sortSet;
         private Sort _sort;
         [Description("How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are [enum values].")]
@@ -198,7 +195,7 @@ namespace spotify_playlist_generator.Models
                 {
                     line.RawLine,
                     SanitizedLine = line.SanitizedStart.First().Trim(),
-                    Comment = (line.SanitizedStart.Length > 1 ? line.SanitizedStart.Last() : String.Empty)
+                    Comment = (line.SanitizedStart.Length > 1 ? line.SanitizedStart.Last() : string.Empty)
                 })
                 .Select(line => new
                 {
@@ -221,7 +218,7 @@ namespace spotify_playlist_generator.Models
                     SanitizedLine = line.SanitizedLine,
                     Comment = line.Comment,
                     ParameterValue = line.ParameterValue,
-                    ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : Default ?? String.Empty).Trim()
+                    ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : Default ?? string.Empty).Trim()
                 })
                 //remove duplicate parameter lines but leave everything else alone
                 .GroupBy(line =>
@@ -368,7 +365,14 @@ namespace spotify_playlist_generator.Models
                     if (Enum.TryParse(prop.PropertyType, optionValue.Remove("'"), true, out var result))
                         prop.SetValue(this, result);
                     else
-                        badValue= true;
+                        badValue = true;
+                }
+                else if (prop.PropertyType == typeof(DateOnly) || prop.PropertyType == typeof(Nullable<DateOnly>))
+                {
+                    if (DateOnly.TryParse(optionValue, out var result))
+                        prop.SetValue(this, result);
+                    else
+                        badValue = true;
                 }
 
                 //report on bad values
