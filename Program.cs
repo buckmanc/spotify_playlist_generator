@@ -1696,6 +1696,7 @@ namespace spotify_playlist_generator
                         playlistTracksCurrent = playlist.GetTracks(spotifyWrapper).Where(t => t != null).ToList();
                     }
 
+		            var snapshotID = playlist.SnapshotId;
                     var reorderCount = 0;
                     do
                     {
@@ -1708,7 +1709,7 @@ namespace spotify_playlist_generator
 			                Console.WriteLine("playlistTracksCurrent: " + playlistTracksCurrent.Count().ToString("#,##0") + " playlistSpec: " + playlistSpec.Tracks.Count().ToString("#,##0"));
                             break;
                         }
-                        
+
                         //ridiculously complicated as the API only takes "move this index to this index" commands
                         //still, it's better than wiping the playlist every time it needs to be sorted
                         //TODO update playlistTracksCurrent in parallel to the cloud so we don't have to pull them fresh every time
@@ -1719,35 +1720,38 @@ namespace spotify_playlist_generator
                                 CloudID = t.Id,
                                 LocalIndex = playlistSpec.Tracks.Select(tn => tn.TrackId).ToList().IndexOf(t.Id),
                             })
+                            .Where(x => x.CloudIndex != x.LocalIndex)
                             .Select(x => new
                             {
                                 x.CloudIndex,
                                 x.CloudID,
-                                LocalNextID = playlistSpec.Tracks.ElementAtOrDefault(x.LocalIndex + 1)?.TrackId
+                                x.LocalIndex,
+                                LocalNextIndex = x.LocalIndex + 1
                             })
-                            .Select(x => new PlaylistReorderItemsRequest (
+                            .Select(x => new PlaylistReorderItemsRequest(
                                 rangeStart: x.CloudIndex,
-                                insertBefore: x.LocalNextID != null
-                                    ? playlistTracksCurrent.Select(t => t.Id).ToList().IndexOf(x.LocalNextID)
-                                    : playlistTracksCurrent.Count() + 1 - 1
-                                ))
-                            .Where(x => x.RangeStart + 1 != x.InsertBefore)
-                            .OrderByDescending(x => x.RangeStart)
+                                insertBefore: x.LocalNextIndex - 1
+                                )
+                            {
+                                SnapshotId = snapshotID
+                            })
+                            .Mash()
+                            .OrderBy(x => x.InsertBefore)
                             .ToList();
 
                         if (reorderRequests.Any())
                         {
-                            var newSnapshotID = spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, reorderRequests.First()).Result;
-                            playlist = spotifyWrapper.spotify.Playlists.Get(playlist.Id).Result;
-                            playlistTracksCurrent = playlist.GetTracks(spotifyWrapper);
+				            var req = reorderRequests.First();
+                            snapshotID = spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, req).Result.SnapshotId;
+			                playlistTracksCurrent = playlistTracksCurrent.Reorder(req);
 
                             sortedPlaylistIDs.Add(playlist.Id);
                         }
 
                         //no idea what amount is reasonable here
-                        if (reorderCount > playlistTracksCurrent.Count() * 10)
+                        if (reorderCount > playlistTracksCurrent.Count())
                         {
-                            Console.WriteLine("Too many reorder requests.");
+                            Console.WriteLine("Too many reorder requests. (" + reorderCount.ToString("#,##0") + ")");
                             break;
                         }
 

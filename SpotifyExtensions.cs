@@ -53,5 +53,44 @@ namespace spotify_playlist_generator
         {
             return track.Artists.Select(a => a.Name).Join(", ") + " - " + track.Name;
         }
+
+        public static IList<PlaylistReorderItemsRequest> Mash(this IEnumerable<PlaylistReorderItemsRequest> value)
+        {
+            var requests = value
+                .Distinct()
+                .OrderBy(x => x.InsertBefore)
+                .ThenBy(x => x.RangeStart)
+                .ToList();
+
+            for (int i = 0; i < requests.Count -1; i++)
+            {
+                var currentItem = requests[i];
+                var nextItem = requests[i + 1];
+
+                if (currentItem.RangeStart + (currentItem.RangeLength ?? 1) == nextItem.RangeStart &&
+                    currentItem.InsertBefore + (currentItem.RangeLength ?? 1) == nextItem.InsertBefore)
+                {
+                    currentItem.RangeLength = (currentItem.RangeLength ?? 1) + (nextItem.RangeLength ?? 1);
+                    requests.Remove(nextItem);
+                    i--;
+                }
+            }
+
+            return requests;
+        }
+        public static IList<FullTrack> Reorder(this IList<FullTrack> value, PlaylistReorderItemsRequest request)
+        {
+            var tracks = value.ToList();
+            var movingTracks = tracks.GetRange(request.RangeStart, request.RangeLength ?? 1);
+            tracks.RemoveRange(request.RangeStart, request.RangeLength ?? 1);
+
+            var insertIndex = request.InsertBefore;
+            if (insertIndex > request.RangeStart)
+                insertIndex = insertIndex - (request.RangeLength ?? 1);
+
+            tracks.InsertRange(insertIndex, movingTracks);
+
+            return tracks;
+        }
     }
 }
