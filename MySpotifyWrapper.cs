@@ -1028,7 +1028,13 @@ namespace spotify_playlist_generator
             _GetFollowedPlaylistsRunning = true;
 
             _followedPlaylists = this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync().Result
-                .Select(p => spotify.Playlists.Get(p.Id).Result) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
+                .Select(p => Retry.Do(() =>
+                {
+                    //errors encountered here:
+                    //timeout
+                    //not found
+                    return spotify.Playlists.Get(p.Id).Result;
+                })) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
                 .ToConcurrentBag()
                 ;
 
@@ -1203,7 +1209,7 @@ namespace spotify_playlist_generator
                     ContextUri = playlist.Uri
                 }).Result;
                 Console.WriteLine();
-                Console.WriteLine("|> " + this.GetCurrentTrack().PrettyString());
+                Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString() ?? " unknown track");
             }
             else if (this.spotify.Player.GetCurrentPlayback().Result.IsPlaying)
             {
@@ -1215,7 +1221,7 @@ namespace spotify_playlist_generator
             {
                 success = this.spotify.Player.ResumePlayback().Result;
                 Console.WriteLine();
-                Console.WriteLine("|> " + this.GetCurrentTrack().PrettyString());
+                Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString() ?? "unknown track");
             }
 
             return success;
@@ -1277,11 +1283,7 @@ namespace spotify_playlist_generator
         public bool LikeCurrent(bool like)
         {
             var track = this.GetCurrentTrack();
-            if (track == null)
-            {
-                Console.WriteLine("Could not get current track.");
-                return false;
-            }
+            if (track == null) return false;
 
             var liked = this.spotify.Library.CheckTracks(new LibraryCheckTracksRequest(new List<string>() { track.Id })).Result.FirstOrDefault();
 
@@ -1303,6 +1305,11 @@ namespace spotify_playlist_generator
             return false;
         }
 
+	public void PrintCurrent(){
+                Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString() ?? "unknown track");
+
+	}
+
         public FullPlaylist GetCurrentPlaylist()
         {
             //TODO pick the more reliable of the two
@@ -1316,11 +1323,15 @@ namespace spotify_playlist_generator
 	        return this.spotify.Playlists.Get(ID).ResultSafe();
         }
 
-        public FullTrack GetCurrentTrack()
+        public FullTrack GetCurrentTrack(bool warn = false)
         {
             var playbackItem = this.GetCurrentlyPlaying()?.Item;
 
-            return playbackItem as FullTrack;
+            var output = playbackItem as FullTrack;
+	    if (warn && output == null)
+                Console.WriteLine("Could not get current track.");
+
+	    return output;
         }
 
         private CurrentlyPlaying GetCurrentlyPlaying()

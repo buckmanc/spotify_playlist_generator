@@ -1,4 +1,4 @@
-﻿using Figgle;
+using Figgle;
 using IniParser;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
@@ -180,6 +180,7 @@ namespace spotify_playlist_generator
         /// <param name="skipPrevious">Skip backward.</param>
         /// <param name="like">Like the current track.</param>
         /// <param name="unlike">Unlike the current track.</param>
+        /// <param name="what">Print details about the current track.</param>
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
         /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
         /// <param name="updateReadme">Update readme.md. Only used in development.</param>
@@ -189,7 +190,7 @@ namespace spotify_playlist_generator
             bool modifyPlaylistFile, bool excludeCurrentArtist,
             bool imageAddPhoto, bool imageAddText, 
             bool imageBackup, bool imageRestore,
-            bool play, bool skipNext, bool skipPrevious, bool like, bool unlike,
+            bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
 	        bool commitAnActOfUnspeakableViolence
@@ -200,12 +201,12 @@ namespace spotify_playlist_generator
             {
                 //playlistName = "Top - Female Fronted Black Metal Plus";
                 //modifyPlaylistFile = true;
-                playlistName = "*avgc*";
+                //playlistName = "*avgc*auto*";
                 //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
                 //imageAddPhoto = true;
                 //imageAddText = true;
                 //playlistName = "*metallum*";
-                //playlistName = "test";
+                playlistName = "test";
             }
 
             if (tabCompletionArgumentNames)
@@ -221,7 +222,7 @@ namespace spotify_playlist_generator
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, unlike, lyrics, excludeCurrentArtist
+                skipNext, skipPrevious, like, unlike, what, lyrics, excludeCurrentArtist
                 }.Any(x => x);
             var shortRun = new bool[] {
                 modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
@@ -305,7 +306,7 @@ namespace spotify_playlist_generator
             );
 
             //TODO make reading playlist specs lazy, or does it load fast enough that it doesn't matter?
-            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpec, dontWarn:shortRun);
+            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpec, dontWarn:shortRun || playerCommand);
             var leaveImageAlonePlaylistNames = playlistSpecs
                 .Where(spec => spec.LeaveImageAlone)
                 .Select(p => p.FinalPlaylistName)
@@ -327,6 +328,9 @@ namespace spotify_playlist_generator
 
             if (unlike)
                 spotifyWrapper.LikeCurrent(like: false);
+
+            if (what)
+                spotifyWrapper.PrintCurrent();
 
             if (skipNext)
                 spotifyWrapper.SkipNext();
@@ -375,6 +379,7 @@ namespace spotify_playlist_generator
             GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
             UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
             LikedGenreReport(spotifyWrapper);
+		//ReportPlaylistDetails(spotifyWrapper);
 
             //refresh the users playlist cache before doing more playlist operations
             //as new playlists won't be in it
@@ -598,7 +603,7 @@ namespace spotify_playlist_generator
             var optionsErrors = playlistSpecs.SelectMany(p => p.OptionsErrors).Distinct().OrderBy(x => x).ToArray();
 
             //report on errors
-            if (optionsErrors.Any())
+            if (optionsErrors.Any() && !dontWarn)
                 Console.WriteLine(optionsErrors.Join(Environment.NewLine));
 
             return playlistSpecs;
@@ -606,12 +611,8 @@ namespace spotify_playlist_generator
 
         static void ExcludeCurrentArtist(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
         {
-            var artists = spotifyWrapper.GetCurrentTrack()?.Artists;
-            if (artists == null)
-            {
-                Console.WriteLine("Could not obtain currently playing artist.");
-                return;
-            }
+            var artists = spotifyWrapper.GetCurrentTrack(true)?.Artists;
+            if (artists == null) return;
 
             Console.WriteLine(
                 "Excluding " +
@@ -1289,6 +1290,13 @@ namespace spotify_playlist_generator
                 {
                     Console.WriteLine();
                     Console.WriteLine("Playlist: " + playlistSpec.PlaylistName);
+                    Console.WriteLine("Playlist lines: " + playlistSpec.SpecLines.Count().ToString("#,##0"));
+                    Console.WriteLine("Playlist param lines: " + playlistSpec.SpecLines
+                .Where(line => line.IsValidParameter)
+                        .Count().ToString("#,##0"));
+
+	//	    foreach(var line in playlistSpec.SpecLines)
+	//		    Console.WriteLine(line.ToString());
                 }
 
                 // ------------ get tracks ------------
@@ -1935,8 +1943,8 @@ namespace spotify_playlist_generator
                 var artistNames = tracks.SelectMany(t => t.ArtistNames).ToArray();
                 var genreNames = tracks.SelectMany(t => t.ArtistGenres).ToArray();
 
-                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name + " - top artists;"));
-                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name + " - top genres;"));
+                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name + " - top artists"));
+                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name + " - top genres"));
             }
 
         }

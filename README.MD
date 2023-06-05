@@ -139,6 +139,7 @@ Arguments for the program itself. These are not the primary function of the app 
     --skip-previous                                Skip backward.
     --like                                         Like the current track.
     --unlike                                       Unlike the current track.
+    --what                                         Print details about the current track.
     --lyrics                                       Pass currently playing info to an external lyrics app specified in the config file.
     --tab-completion-argument-names                A space delimited list of these arguments to pass to the bash "complete" function.
     --update-readme                                Update readme.md. Only used in development.

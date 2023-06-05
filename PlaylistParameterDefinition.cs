@@ -1,4 +1,4 @@
-﻿using spotify_playlist_generator.Models;
+using spotify_playlist_generator.Models;
 using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
@@ -186,7 +186,7 @@ namespace spotify_playlist_generator
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
                         {
                             var tracks = existingTracks.Where(t =>
-                                t.ArtistNames.Any(artistName => parameterValues.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)) ||
+                                t.ArtistNames.Any(artistName => parameterValues.Any(pv => artistName.Like(pv))) ||
                                 t.ArtistIds.Any(artistID => parameterValues.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
                                 ).ToList();
 
