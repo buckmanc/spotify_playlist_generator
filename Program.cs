@@ -1753,7 +1753,8 @@ namespace spotify_playlist_generator
                             snapshotID = spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, req).Result.SnapshotId;
 			                playlistTracksCurrent = playlistTracksCurrent.Reorder(req);
 
-                            sortedPlaylistIDs.Add(playlist.Id);
+                            if (!sortedPlaylistIDs.Contains(playlist.Id))
+                                sortedPlaylistIDs.Add(playlist.Id);
                         }
 
                         //no idea what amount is reasonable here
@@ -1796,7 +1797,7 @@ namespace spotify_playlist_generator
             if (!string.IsNullOrWhiteSpace(removeReport))
                 Console.WriteLine(removeReport);
             Console.WriteLine("Created " + createPlaylistCounter.ToString("#,##0").PadLeft(5) + " new playlists.");
-            Console.WriteLine("Sorted  " + sortedPlaylistIDs.Distinct().Count().ToString("#,##0").PadLeft(5) + " existing playlists.");
+            Console.WriteLine("Sorted  " + sortedPlaylistIDs.Count().ToString("#,##0").PadLeft(5) + " existing playlists.");
             Console.WriteLine("Removed " + removedTracksCounter.ToString("#,##0").PadLeft(5) + " existing tracks.");
             Console.WriteLine("Removed " + removedDupesCounter.ToString("#,##0").PadLeft(5) + " existing duplicates.");
             Console.WriteLine("Added   " + addedTracksCounter.ToString("#,##0").PadLeft(5) + " new tracks.");

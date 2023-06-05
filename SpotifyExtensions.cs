@@ -67,10 +67,15 @@ namespace spotify_playlist_generator
                 var currentItem = requests[i];
                 var nextItem = requests[i + 1];
 
+                var proposedNewLength = (currentItem.RangeLength ?? 1) + (nextItem.RangeLength ?? 1);
+
                 if (currentItem.RangeStart + (currentItem.RangeLength ?? 1) == nextItem.RangeStart &&
-                    currentItem.InsertBefore + (currentItem.RangeLength ?? 1) == nextItem.InsertBefore)
+                    currentItem.InsertBefore + (currentItem.RangeLength ?? 1) == nextItem.InsertBefore &&
+                    proposedNewLength <= 100 // only mash if the output of this change would be less than the max of tracks to reorder per request
+
+                    )
                 {
-                    currentItem.RangeLength = (currentItem.RangeLength ?? 1) + (nextItem.RangeLength ?? 1);
+                    currentItem.RangeLength = proposedNewLength;
                     requests.Remove(nextItem);
                     i--;
                 }
