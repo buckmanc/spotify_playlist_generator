@@ -46,7 +46,7 @@ namespace spotify_playlist_generator
                 //TODO create a playlist options parser, define options, and format help for them
 
                 var options = typeof(PlaylistSpec).GetProperties()
-                    .Select(prop => new { 
+                    .Select(prop => new {
                         OptionName = prop.Name,
                         Description = (prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description,
                         OptionType = prop.PropertyType
@@ -124,7 +124,7 @@ namespace spotify_playlist_generator
 
         public static string TabCompletionArgumentNames
         {
-            get 
+            get
             {
                 if (!string.IsNullOrWhiteSpace(_TabCompletionArgumentNames))
                     return _TabCompletionArgumentNames;
@@ -137,7 +137,7 @@ namespace spotify_playlist_generator
                     .Distinct()
                     .Join(" ");
 
-                return _TabCompletionArgumentNames; 
+                return _TabCompletionArgumentNames;
             }
         }
 

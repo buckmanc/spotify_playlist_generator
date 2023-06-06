@@ -120,8 +120,8 @@ namespace spotify_playlist_generator
 
                 var response = await new OAuthClient().RequestToken(
                       new AuthorizationCodeRefreshRequest(
-                          tokensIni["SPOTIFY CLIENT"]["ID"], 
-                          tokensIni["SPOTIFY CLIENT"]["Secret"], 
+                          tokensIni["SPOTIFY CLIENT"]["ID"],
+                          tokensIni["SPOTIFY CLIENT"]["Secret"],
                           tokensIni["SPOTIFY USER"]["RefreshToken"]
                           )
                     );
@@ -139,7 +139,7 @@ namespace spotify_playlist_generator
                 //return nothing for problem state; main sub warns and exits
                 return string.Empty;
             }
-                
+
             Program.Tokens.NasaKey = tokensIni["NASA"]["Key"];
             Program.Tokens.UnsplashAccessKey = tokensIni["UNSPLASH"]["AccessKey"];
             Program.Tokens.UnsplashSecretKey = tokensIni["UNSPLASH"]["SecretKey"];

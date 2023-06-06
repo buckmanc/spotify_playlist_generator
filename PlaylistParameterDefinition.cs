@@ -147,7 +147,7 @@ namespace spotify_playlist_generator
                                 .SelectMany(t => t.ArtistIds)
                                 .Distinct()
                                 .ToArray();
-                            
+
                             var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs);
 
                             return tracks;

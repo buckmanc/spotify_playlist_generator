@@ -127,7 +127,7 @@ namespace spotify_playlist_generator
             if (secondsToWait != null && (!TooManyRequestsConsumesARetry || triesLeft > 0))
             {
                 var destTime = DateTime.Now.Add(secondsToWait.Value);
-                
+
                 Console.WriteLine();
 
                 if (secondsToWait.Value.TotalHours <= 1)

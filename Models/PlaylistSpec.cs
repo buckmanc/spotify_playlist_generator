@@ -90,7 +90,7 @@ namespace spotify_playlist_generator.Models
         public Sort Sort
         {
             get { return _sort; }
-            set 
+            set
             {
                 _sort = value;
                 _sortSet = true;

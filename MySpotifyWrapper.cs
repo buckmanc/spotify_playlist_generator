@@ -226,7 +226,7 @@ namespace spotify_playlist_generator
             get
             {
                 _currentUser ??= this.spotify.UserProfile.Current().Result;
-                return _currentUser; 
+                return _currentUser;
             }
         }
 
@@ -663,7 +663,7 @@ namespace spotify_playlist_generator
                 .Select(a => a.Id)
                 .ToList();
 
-            //if an album in the cache has been retrieved by *this* method 
+            //if an album in the cache has been retrieved by *this* method
             //then we can be assured that the full album is already in the cache
             //if an album tracklist is changed after this though the cache will need to be cleared to get the update
             var cachedAlbumTracks = this.TrackCache.Values
@@ -703,7 +703,7 @@ namespace spotify_playlist_generator
                     if (ex?.ToString()?.Like("*access token expired*") ?? false)
                         this.RefreshSpotifyClient();
 
-                    //create this weird anonymous type as we need to preserve the album/track relationship temporarily 
+                    //create this weird anonymous type as we need to preserve the album/track relationship temporarily
                     var albumsWithTracks = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
                         //.Where(x => ppTracks.PrintProgress())
                         .Albums
@@ -796,7 +796,7 @@ namespace spotify_playlist_generator
 
             var tracks = new List<FullTrackDetails>();
 
-            //if an album in the cache has been retrieved by All Tracks 
+            //if an album in the cache has been retrieved by All Tracks
             //then we can be assured that the full album is already in the cache
             //if an album tracklist is changed after this though the cache will need to be cleared to get the update
             var cacheIDMatches = this.TrackCache.Values.Where(t =>
@@ -840,24 +840,24 @@ namespace spotify_playlist_generator
 
                     var chunkAlbums = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
                         .Albums
-			.ToList();
+                        .ToList();
 
-		    var errorAlbums = chunkAlbums.Where(a => a == null || a.Tracks == null).ToArray();
+                    var errorAlbums = chunkAlbums.Where(a => a == null || a.Tracks == null).ToArray();
 
-		    if (errorAlbums.Any())
-			    Console.WriteLine("Found " +
-					    errorAlbums.Length.ToString("#,##0") +
-					    " albums with phantom tracks: " +
-					    errorAlbums.Select(a => (a?.Id ?? "null") + " " + ( a?.Name ?? "null")).Join(", ")
-					    );
+                    if (errorAlbums.Any())
+                        Console.WriteLine("Found " +
+                            errorAlbums.Length.ToString("#,##0") +
+                            " albums with phantom tracks: " +
+                            errorAlbums.Select(a => (a?.Id ?? "null") + " " + ( a?.Name ?? "null")).Join(", ")
+                        );
 
-		    chunkAlbums.RemoveRange(errorAlbums);
+                    chunkAlbums.RemoveRange(errorAlbums);
 
-		    var chunkIDAlbumTrackIDs = chunkAlbums 
-                            .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
-                            .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
-                            .ToList()
-                            ;
+                    var chunkIDAlbumTrackIDs = chunkAlbums
+                        .SelectMany(album => spotify.Paginate(album.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                        .Select(t => t.Id) // this "track" is SimpleTrack rather than FullTrack; need a list of IDs to convert them to FullTrack
+                        .ToList()
+                        ;
 
                     idAlbumTrackIDs.AddRange(chunkIDAlbumTrackIDs);
                 }, maxAttemptCount:4);
@@ -982,7 +982,7 @@ namespace spotify_playlist_generator
 
             //don't call user playlists if we don't have to
             if (playlistNames.Any())
-                namePlaylists = this.GetFollowedPlaylists().Where(p => playlistIDsOrNames.Any(x => 
+                namePlaylists = this.GetFollowedPlaylists().Where(p => playlistIDsOrNames.Any(x =>
                 p.Name.Like(x) ||
                 p.Name.Like(Program.Settings._StartPlaylistsWith + x)
                 )).ToList();
@@ -1305,10 +1305,10 @@ namespace spotify_playlist_generator
             return false;
         }
 
-	public void PrintCurrent(){
+        public void PrintCurrent(){
                 Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString() ?? "unknown track");
 
-	}
+        }
 
         public FullPlaylist GetCurrentPlaylist()
         {
@@ -1319,8 +1319,8 @@ namespace spotify_playlist_generator
             if (string.IsNullOrWhiteSpace(playbackContextURI))
                 return null;
 
-	        var ID = playbackContextURI.Split(":").Last();
-	        return this.spotify.Playlists.Get(ID).ResultSafe();
+            var ID = playbackContextURI.Split(":").Last();
+            return this.spotify.Playlists.Get(ID).ResultSafe();
         }
 
         public FullTrack GetCurrentTrack(bool warn = false)
@@ -1328,10 +1328,10 @@ namespace spotify_playlist_generator
             var playbackItem = this.GetCurrentlyPlaying()?.Item;
 
             var output = playbackItem as FullTrack;
-	    if (warn && output == null)
+            if (warn && output == null)
                 Console.WriteLine("Could not get current track.");
 
-	    return output;
+            return output;
         }
 
         private CurrentlyPlaying GetCurrentlyPlaying()

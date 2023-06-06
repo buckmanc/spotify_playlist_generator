@@ -109,7 +109,7 @@ namespace spotify_playlist_generator
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="source"></param>
@@ -146,7 +146,7 @@ namespace spotify_playlist_generator
         /// <param name="dictionaryFrom"></param>
         public static void AddRange<TKey, TValue>(this IDictionary<TKey, TValue> dictionaryTo, IDictionary<TKey, TValue> dictionaryFrom)
         {
-            //pulled from https://stackoverflow.com/a/6695211 
+            //pulled from https://stackoverflow.com/a/6695211
             dictionaryFrom.ToList().ForEach(x => dictionaryTo.Add(x.Key, x.Value));
         }
 
@@ -170,7 +170,7 @@ namespace spotify_playlist_generator
 
         public static string RemoveAfterString(this string value, string RemoveAfter)
         {
-            //based on https://stackoverflow.com/a/2660734 
+            //based on https://stackoverflow.com/a/2660734
             if (string.IsNullOrEmpty(value))
                 return value;
 

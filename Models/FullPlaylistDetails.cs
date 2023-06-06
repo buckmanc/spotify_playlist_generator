@@ -35,7 +35,7 @@ namespace spotify_playlist_generator.Models
         }
         public FullPlaylistDetails(SimplePlaylist simplePlaylist, Guid sessionID, List<string> trackIds)
         {
-            Initialize(simplePlaylist, sessionID, trackIds); 
+            Initialize(simplePlaylist, sessionID, trackIds);
         }
 
         private void Initialize(SimplePlaylist simplePlaylist, Guid sessionID, List<string> trackIds)

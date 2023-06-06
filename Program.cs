@@ -188,12 +188,12 @@ namespace spotify_playlist_generator
         /// <returns></returns>
         static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpec,
             bool modifyPlaylistFile, bool excludeCurrentArtist,
-            bool imageAddPhoto, bool imageAddText, 
+            bool imageAddPhoto, bool imageAddText,
             bool imageBackup, bool imageRestore,
             bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
-	        bool commitAnActOfUnspeakableViolence
+            bool commitAnActOfUnspeakableViolence
             )
         {
 
@@ -281,8 +281,8 @@ namespace spotify_playlist_generator
             }
 
             if (playlistName?.Trim()?.ToLower() == "current"
-		        || (excludeCurrentArtist && string.IsNullOrWhiteSpace(playlistName))
-			    )
+                || (excludeCurrentArtist && string.IsNullOrWhiteSpace(playlistName))
+                )
             {
                 var currentPlaylist = spotifyWrapper.GetCurrentPlaylist();
                 if (currentPlaylist == null)
@@ -334,7 +334,7 @@ namespace spotify_playlist_generator
 
             if (skipNext)
                 spotifyWrapper.SkipNext();
-            
+
             if (skipPrevious)
                 spotifyWrapper.SkipPrevious();
 
@@ -379,7 +379,7 @@ namespace spotify_playlist_generator
             GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
             UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
             LikedGenreReport(spotifyWrapper);
-		//ReportPlaylistDetails(spotifyWrapper);
+            ReportPlaylistDetails(spotifyWrapper);
 
             //refresh the users playlist cache before doing more playlist operations
             //as new playlists won't be in it
@@ -616,8 +616,8 @@ namespace spotify_playlist_generator
 
             Console.WriteLine(
                 "Excluding " +
-                artists.Select(a => a.Name).Join(", ") + 
-                " from " + 
+                artists.Select(a => a.Name).Join(", ") +
+                " from " +
                 playlistSpecs.Select(spec => spec.PlaylistName).Join(", ")
                 );
 
@@ -654,7 +654,7 @@ namespace spotify_playlist_generator
 
             var artistName = currentTrack.Artists.Select(a => a.Name).FirstOrDefault() ?? String.Empty;
             var trackName = currentTrack.Name ?? String.Empty;
-	    var foundLyrics = false;
+            var foundLyrics = false;
 
             foreach (var command in commands)
             {
@@ -697,14 +697,15 @@ namespace spotify_playlist_generator
                     {
                         Console.WriteLine();
                         Console.WriteLine(commandOutput.ToString().Trim());
-			foundLyrics = true;
+                        foundLyrics = true;
                         break;
                     }
                 }
             }
-	    if (!foundLyrics)
-		    Console.WriteLine("Could not find lyrics.");
-        }
+
+            if (!foundLyrics)
+                Console.WriteLine("Could not find lyrics.");
+            }
 
         static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, bool modifyArg)
         {
@@ -1018,7 +1019,7 @@ namespace spotify_playlist_generator
                         brush: Brushes.Solid(Color.White),
                         pen: Pens.Solid(Color.Black, 2f)
                         )
-                    );                    
+                    );
 
                     var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
                     jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
@@ -1207,20 +1208,20 @@ namespace spotify_playlist_generator
 
         static void CommitAnActOfUnspeakableViolence(MySpotifyWrapper spotifyWrapper)
         {
-	        var rnd = new Random();
+            var rnd = new Random();
 
-	        switch (rnd.Next(1, 7))
-	        {
-		        case 1:
-			        Console.WriteLine("Gee, I'd really rather not.");
-			        break;
-		        case 2:
-			        Console.WriteLine("How dare you ask such a thing of me.");
-			        break;
-		        case 3:
-			        Console.WriteLine("I'm just an innocent little pwaywist genowatow, uwu.");
-			        break;
-		        case 4:
+            switch (rnd.Next(1, 7))
+            {
+                case 1:
+                    Console.WriteLine("Gee, I'd really rather not.");
+                    break;
+                case 2:
+                    Console.WriteLine("How dare you ask such a thing of me.");
+                    break;
+                case 3:
+                    Console.WriteLine("I'm just an innocent little pwaywist genowatow, uwu.");
+                    break;
+                case 4:
                     Console.WriteLine("Launching missiles in...");
                     var i = 5;
                     while (i >= 0)
@@ -1238,8 +1239,8 @@ namespace spotify_playlist_generator
                     else
                         Console.WriteLine("All the nation's capitols now lie in ruin.");
 
-			        break;
-		        case 5:
+                    break;
+                case 5:
 
                     Console.WriteLine("Preparing to delete playlists...");
                     var userPlaylists = spotifyWrapper.GetUsersPlaylists();
@@ -1267,13 +1268,13 @@ namespace spotify_playlist_generator
                     Console.WriteLine("Just kidding.");
 
                     break;
-		        case 6:
-			        Console.WriteLine("I'm busy right now.");
-			        break;
-		        default:
-			        Console.WriteLine("I had a late night last night. Maybe next time.");
-			        break;
-	        }
+                case 6:
+                    Console.WriteLine("I'm busy right now.");
+                    break;
+                default:
+                    Console.WriteLine("I had a late night last night. Maybe next time.");
+                    break;
+            }
         }
 
         static void GetPlaylistBreakdowns(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
@@ -1292,11 +1293,11 @@ namespace spotify_playlist_generator
                     Console.WriteLine("Playlist: " + playlistSpec.PlaylistName);
                     Console.WriteLine("Playlist lines: " + playlistSpec.SpecLines.Count().ToString("#,##0"));
                     Console.WriteLine("Playlist param lines: " + playlistSpec.SpecLines
-                .Where(line => line.IsValidParameter)
+                        .Where(line => line.IsValidParameter)
                         .Count().ToString("#,##0"));
 
-	//	    foreach(var line in playlistSpec.SpecLines)
-	//		    Console.WriteLine(line.ToString());
+                    //foreach(var line in playlistSpec.SpecLines)
+                    //Console.WriteLine(line.ToString());
                 }
 
                 // ------------ get tracks ------------
@@ -1427,9 +1428,9 @@ namespace spotify_playlist_generator
                     playlistTracks = playlistTracks
                         .GroupBy(x => x.AlbumId, t => t)
                         .SelectMany(g => g
-					        .Distinct()
-					        .OrderByDescending(t => t.Popularity)
-					        .ThenBy(t => t.TrackId) // one last sort to make this deterministic
+                            .Distinct()
+                            .OrderByDescending(t => t.Popularity)
+                            .ThenBy(t => t.TrackId) // one last sort to make this deterministic
                             .Take(playlistSpec.LimitPerAlbum)
                         )
                         // handle duplicate albums that are really the same
@@ -1599,7 +1600,7 @@ namespace spotify_playlist_generator
                     var newPlaylist = spotifyWrapper.spotify.Playlists.Create(spotifyWrapper.CurrentUser.Id, playlistRequest).Result;
 
                     playlist = newPlaylist;
-                    
+
                     createPlaylistCounter += 1;
                     newPlaylists.Add(playlist);
                 }
@@ -1693,7 +1694,7 @@ namespace spotify_playlist_generator
                     addedTracksCounter += addTrackURIs.Count;
                 }
 
-                
+
                 if ((playlistSpec.UpdateSort || Program.Settings._UpdateSort) && !newPlaylists.Contains(playlist))
                 {
                     List<PlaylistReorderItemsRequest> reorderRequests = null;
@@ -1704,7 +1705,7 @@ namespace spotify_playlist_generator
                         playlistTracksCurrent = playlist.GetTracks(spotifyWrapper).Where(t => t != null).ToList();
                     }
 
-		            var snapshotID = playlist.SnapshotId;
+                    var snapshotID = playlist.SnapshotId;
                     var reorderCount = 0;
                     do
                     {
@@ -1714,7 +1715,7 @@ namespace spotify_playlist_generator
                         {
                             // on 2023-04-02 this occurred repeatedly when Spotify simply failed to add or remove tracks
                             Console.WriteLine("Skipping sort. Cloud and local playlist tracks no longer match!");
-			                Console.WriteLine("playlistTracksCurrent: " + playlistTracksCurrent.Count().ToString("#,##0") + " playlistSpec: " + playlistSpec.Tracks.Count().ToString("#,##0"));
+                            Console.WriteLine("playlistTracksCurrent: " + playlistTracksCurrent.Count().ToString("#,##0") + " playlistSpec: " + playlistSpec.Tracks.Count().ToString("#,##0"));
                             break;
                         }
 
@@ -1749,9 +1750,9 @@ namespace spotify_playlist_generator
 
                         if (reorderRequests.Any())
                         {
-				            var req = reorderRequests.First();
+                            var req = reorderRequests.First();
                             snapshotID = spotifyWrapper.spotify.Playlists.ReorderItems(playlist.Id, req).Result.SnapshotId;
-			                playlistTracksCurrent = playlistTracksCurrent.Reorder(req);
+                            playlistTracksCurrent = playlistTracksCurrent.Reorder(req);
 
                             if (!sortedPlaylistIDs.Contains(playlist.Id))
                                 sortedPlaylistIDs.Add(playlist.Id);
@@ -1789,7 +1790,7 @@ namespace spotify_playlist_generator
                 var dir = System.IO.Path.GetDirectoryName(path);
                 if (!System.IO.Directory.Exists(dir))
                     System.IO.Directory.CreateDirectory(dir);
-                
+
                 System.IO.File.WriteAllText(path, sbReport.ToString());
             }
 
@@ -1933,6 +1934,10 @@ namespace spotify_playlist_generator
 
         static void ReportPlaylistDetails(MySpotifyWrapper spotifyWrapper)
         {
+            Console.WriteLine();
+            Console.WriteLine("---playlist details report---");
+            Console.WriteLine("started at " + DateTime.Now.ToString());
+
             var dir = System.IO.Path.Join(Settings._ReportsFolderPath, "Playlist Details");
 
             var playlists = spotifyWrapper.GetUsersPlaylists(refreshCache: true);
@@ -1944,8 +1949,8 @@ namespace spotify_playlist_generator
                 var artistNames = tracks.SelectMany(t => t.ArtistNames).ToArray();
                 var genreNames = tracks.SelectMany(t => t.ArtistGenres).ToArray();
 
-                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name + " - top artists"));
-                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name + " - top genres"));
+                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name.Replace(".", String.Empty) + " - top artists"));
+                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name.Replace(".", String.Empty) + " - top genres"));
             }
 
         }

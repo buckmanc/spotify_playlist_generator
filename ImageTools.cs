@@ -108,7 +108,7 @@ namespace spotify_playlist_generator
             var apodResonse = Retry.Do(retryIntervalMilliseconds: 5000, maxAttemptCount: 3,
                 action:() =>
             {
-                return apodClient.FetchApodAsync(10).Result; 
+                return apodClient.FetchApodAsync(10).Result;
             });
 
             if (apodResonse.StatusCode != ApodStatusCode.OK)
@@ -146,18 +146,19 @@ namespace spotify_playlist_generator
                 photo = client.Search.PhotosAsync(search, new Unsplash.Api.SearchPhotosParams(page: 1, perPage: 100))
                     .Result.Results.ToList().Random();
             else
-		try
-		{
-                photo = client.Photos.GetRandomPhotosAsync(new Unsplash.Api.RandomPhotoFilterOptions(count: 1)).Result.FirstOrDefault();
-		}
-	    catch(Exception ex){
-		Console.WriteLine("Error getting random Unsplash image: " + ex.ToString());
-	    }
+                try
+                {
+                    photo = client.Photos.GetRandomPhotosAsync(new Unsplash.Api.RandomPhotoFilterOptions(count: 1)).Result.FirstOrDefault();
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine("Error getting random Unsplash image: " + ex.ToString());
+                }
+
             if (photo == null)
                 return null;
 
             return new ImageSource(photo.Urls.Full);
-
         }
     }
 }
