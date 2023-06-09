@@ -46,8 +46,10 @@ namespace spotify_playlist_generator
         }
     }
 
-    //copied from the API library for slightly more control
-    //https://github.com/JohnnyCrazy/SpotifyAPI-NET/blob/master/SpotifyAPI.Web/RetryHandlers/SimpleRetryHandler.cs
+    /// <summary>
+    /// copied from the API library for slightly more control
+    /// https://github.com/JohnnyCrazy/SpotifyAPI-NET/blob/master/SpotifyAPI.Web/RetryHandlers/SimpleRetryHandler.cs
+    /// </summary>
     public class CustomRetryHandler : IRetryHandler
     {
         private readonly Func<TimeSpan, Task> _sleep;
@@ -79,6 +81,10 @@ namespace spotify_playlist_generator
         /// </summary>
         /// <returns></returns>
         public CustomRetryHandler() : this(Task.Delay) { }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sleep"></param>
         public CustomRetryHandler(Func<TimeSpan, Task> sleep)
         {
             _sleep = sleep;
@@ -109,6 +115,14 @@ namespace spotify_playlist_generator
             throw new APIException("429 received, but unable to parse Retry-After Header. This should not happen!");
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="response"></param>
+        /// <param name="retry"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public Task<IResponse> HandleRetry(IRequest request, IResponse response, IRetryHandler.RetryFunc retry, CancellationToken cancellationToken)
         {
             //Ensure.ArgumentNotNull(response, nameof(response));
@@ -156,6 +170,9 @@ namespace spotify_playlist_generator
         }
     }
 
+    /// <summary>
+    /// A class for reporting progress to the console.
+    /// </summary>
     public class ProgressPrinter
     {
         private System.Diagnostics.Stopwatch _sw;
@@ -163,6 +180,11 @@ namespace spotify_playlist_generator
         private int _total = 0;
         private Action<string, string> _Update;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="Total"></param>
+        /// <param name="Update"></param>
         public ProgressPrinter(int Total, Action<string, string> Update)
         {
             _total = Total;
@@ -170,6 +192,11 @@ namespace spotify_playlist_generator
             this.Start();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="Total"></param>
+        /// <param name="Update"></param>
         public ProgressPrinter(int Total, Action<string> Update)
         {
             _total = Total;
@@ -183,6 +210,10 @@ namespace spotify_playlist_generator
             _Update("0%", "");
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public bool PrintProgress()
         {
             _progress += 1;
@@ -201,10 +232,17 @@ namespace spotify_playlist_generator
     }
 
     // https://stackoverflow.com/a/1563234
+    /// <summary>
+    /// A class to facilitate multiple attempts on API calls
+    /// </summary>
     public static class Retry
     {
-
-        //report on nothing, return nothing
+        /// <summary>
+        /// report on nothing, return nothing
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
         public static void Do(
             Action action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -217,7 +255,12 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-        //report on exceptions, return nothing
+        /// <summary>
+        /// report on exceptions, return nothing
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
         public static void Do(
             Action<Exception> action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -230,7 +273,12 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-        //report on attempts, return nothing
+        /// <summary>
+        /// report on attempts, return nothing
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
         public static void Do(
             Action<int> action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -243,7 +291,12 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-        //report on attempts and exceptions, return nothing
+        /// <summary>
+        /// report on attempts and exceptions, return nothing
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
         public static void Do(
             Action<int, Exception> action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -256,8 +309,14 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-
-        //report on nothing, return T
+        /// <summary>
+        /// report on nothing, return T
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
+        /// <returns></returns>
         public static T Do<T>(
             Func<T> action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -269,7 +328,14 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-        //report on exceptions, return T
+        /// <summary>
+        /// report on exceptions, return T
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
+        /// <returns></returns>
         public static T Do<T>(
             Func<Exception, T> action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -281,7 +347,14 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-        //report on attempts, return T
+        /// <summary>
+        /// report on attempts, return T
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
+        /// <returns></returns>
         public static T Do<T>(
             Func<int, T> action,
             int retryIntervalMilliseconds = 30 * 1000,
@@ -293,7 +366,15 @@ namespace spotify_playlist_generator
             }, retryIntervalMilliseconds, maxAttemptCount);
         }
 
-        //report on attempts and exceptions, return T
+        /// <summary>
+        /// report on attempts and exceptions, return T
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="action"></param>
+        /// <param name="retryIntervalMilliseconds"></param>
+        /// <param name="maxAttemptCount"></param>
+        /// <returns></returns>
+        /// <exception cref="AggregateException"></exception>
         public static T Do<T>(
             Func<int, Exception, T> action,
             int retryIntervalMilliseconds = 30 * 1000,

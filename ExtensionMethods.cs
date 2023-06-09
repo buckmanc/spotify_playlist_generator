@@ -17,6 +17,7 @@ namespace spotify_playlist_generator
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="values"></param>
+        /// <param name="Take"></param>
         /// <returns></returns>
         public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> values, int Take = -1)
         {
@@ -61,7 +62,6 @@ namespace spotify_playlist_generator
         /// Returns a string of the contained elements joined.
         /// </summary>
         /// <param name="value"></param>
-        /// <param name="separator"></param>
         /// <returns></returns>
         /// emulates an old VB function, which was very convenient
         public static string Join(this IEnumerable<string> value)
@@ -78,6 +78,7 @@ namespace spotify_playlist_generator
         /// </summary>
         /// <param name="value"></param>
         /// <param name="trimString"></param>
+        /// <param name="comparisonType"></param>
         /// <returns></returns>
         public static string TrimStart(this string value, string trimString = " ", StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
         {
@@ -126,7 +127,7 @@ namespace spotify_playlist_generator
         }
 
         /// <summary>
-        /// Removes the elements in the collection from the List<T>.
+        /// Removes the elements in the collection from the List&lt;T&gt;.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="values"></param>
@@ -346,7 +347,7 @@ namespace spotify_playlist_generator
             ).Join();
         }
 
-        public static TSource? Random<TSource>(this IList<TSource> source)
+        public static TSource Random<TSource>(this IList<TSource> source)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));

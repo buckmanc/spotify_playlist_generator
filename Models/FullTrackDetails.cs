@@ -43,6 +43,7 @@ namespace spotify_playlist_generator.Models
         /// <param name="fullArtists">Artists tied to this track. Can include extra artists without issue.</param>
         /// <param name="topTrack"></param>
         /// <param name="allTracksTrack"></param>
+        /// <param name="sessionID"></param>
         public FullTrackDetails(FullTrack fullTrack, IEnumerable<FullArtist> fullArtists, Guid sessionID
             , bool topTrack = false, bool allTracksTrack = false)
         {
