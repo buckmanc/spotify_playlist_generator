@@ -51,7 +51,7 @@ namespace spotify_playlist_generator
 
         public static string PrettyString(this FullTrack track)
         {
-            return track.Artists.Select(a => a.Name).Join(", ") + " - " + track.Name;
+            return track.Artists.Select(a => a.Name).Join(", ") + " - " + track.Name + " (" + track.Album.ReleaseDate.Substring(0, 4) + ")";
         }
 
         public static IList<PlaylistReorderItemsRequest> Mash(this IEnumerable<PlaylistReorderItemsRequest> value)

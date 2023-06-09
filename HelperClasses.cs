@@ -91,11 +91,12 @@ namespace spotify_playlist_generator
             RetryAfter = TimeSpan.FromMilliseconds(50);
             RetryTimes = 10;
             TooManyRequestsConsumesARetry = false;
-            RetryErrorCodes = new[] {
-        HttpStatusCode.InternalServerError,
-        HttpStatusCode.BadGateway,
-        HttpStatusCode.ServiceUnavailable
-      };
+            RetryErrorCodes = new[]
+            {
+                HttpStatusCode.InternalServerError,
+                HttpStatusCode.BadGateway,
+                HttpStatusCode.ServiceUnavailable
+            };
         }
 
         private static TimeSpan? ParseTooManyRetries(IResponse response)

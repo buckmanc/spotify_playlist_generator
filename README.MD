@@ -129,7 +129,9 @@ Arguments for the program itself. These are not the primary function of the app 
     --playlist-name <playlist-name>                The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.
     --playlist-spec <playlist-spec>                A playlist specification string for use when creating a new playlist from the command line.
     --modify-playlist-file                         Exchange artist names for artist IDs. Saves time when running but looks worse.
-    --exclude-current-artist                       Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.
+    --exclude-current-artist                       Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
+    --exclude-current-album                        Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
+    --exclude-current-track                        Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
     --image-add-photo                              Assign a new image to the playlist.
     --image-add-text                               Add the playlist name to the playlist image.
     --image-backup                                 Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.
@@ -140,6 +142,7 @@ Arguments for the program itself. These are not the primary function of the app 
     --like                                         Like the current track.
     --unlike                                       Unlike the current track.
     --what                                         Print details about the current track.
+    --reports                                      Run only the reports.
     --lyrics                                       Pass currently playing info to an external lyrics app specified in the config file.
     --tab-completion-argument-names                A space delimited list of these arguments to pass to the bash "complete" function.
     --update-readme                                Update readme.md. Only used in development.

@@ -170,7 +170,9 @@ namespace spotify_playlist_generator
         /// <param name="playlistName">The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.</param>
         /// <param name="playlistSpec">A playlist specification string for use when creating a new playlist from the command line.</param>
         /// <param name="modifyPlaylistFile">Exchange artist names for artist IDs. Saves time when running but looks worse.</param>
-        /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for use trimming duplicate artists out of playlists.</param>
+        /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+        /// <param name="excludeCurrentAlbum">Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+        /// <param name="excludeCurrentTrack">Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
         /// <param name="imageAddPhoto">Assign a new image to the playlist.</param>
         /// <param name="imageAddText">Add the playlist name to the playlist image.</param>
         /// <param name="imageBackup">Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.</param>
@@ -181,16 +183,19 @@ namespace spotify_playlist_generator
         /// <param name="like">Like the current track.</param>
         /// <param name="unlike">Unlike the current track.</param>
         /// <param name="what">Print details about the current track.</param>
+        /// <param name="reports">Run only the reports.</param>
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
         /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
         /// <param name="updateReadme">Update readme.md. Only used in development.</param>
         /// <param name="commitAnActOfUnspeakableViolence">I wouldn't really do it... would I?</param>
         /// <returns></returns>
         static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpec,
-            bool modifyPlaylistFile, bool excludeCurrentArtist,
+            bool modifyPlaylistFile,
+            bool excludeCurrentArtist, bool excludeCurrentAlbum, bool excludeCurrentTrack,
             bool imageAddPhoto, bool imageAddText,
             bool imageBackup, bool imageRestore,
             bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what,
+            bool reports,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
             bool commitAnActOfUnspeakableViolence
@@ -220,12 +225,14 @@ namespace spotify_playlist_generator
                 return;
             }
 
+            var excludeCurrent = new bool[] {excludeCurrentArtist, excludeCurrentAlbum, excludeCurrentTrack}.Any(x => x);
+
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, unlike, what, lyrics, excludeCurrentArtist
+                skipNext, skipPrevious, like, unlike, what, lyrics, excludeCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrentArtist, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
@@ -281,7 +288,7 @@ namespace spotify_playlist_generator
             }
 
             if (playlistName?.Trim()?.ToLower() == "current"
-                || (excludeCurrentArtist && string.IsNullOrWhiteSpace(playlistName))
+                || (excludeCurrent && string.IsNullOrWhiteSpace(playlistName))
                 )
             {
                 var currentPlaylist = spotifyWrapper.GetCurrentPlaylist();
@@ -318,7 +325,13 @@ namespace spotify_playlist_generator
                 spotifyWrapper.Play(playlistName);
 
             if (excludeCurrentArtist)
-                ExcludeCurrentArtist(spotifyWrapper, playlistSpecs);
+                ExcludeCurrent(spotifyWrapper, playlistSpecs, "artist");
+
+            if (excludeCurrentAlbum)
+                ExcludeCurrent(spotifyWrapper, playlistSpecs, "album");
+
+            if (excludeCurrentTrack)
+                ExcludeCurrent(spotifyWrapper, playlistSpecs, "track");
 
             if (lyrics)
                 Lyrics(spotifyWrapper);
@@ -363,6 +376,11 @@ namespace spotify_playlist_generator
                 ImageAddText(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
             }
 
+            if (reports)
+            {
+                RunReports(spotifyWrapper);
+            }
+
             if (commitAnActOfUnspeakableViolence)
             {
                 CommitAnActOfUnspeakableViolence(spotifyWrapper);
@@ -378,8 +396,8 @@ namespace spotify_playlist_generator
             //do work!
             GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
             UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
-            LikedGenreReport(spotifyWrapper);
-            ReportPlaylistDetails(spotifyWrapper);
+
+            RunReports(spotifyWrapper);
 
             //refresh the users playlist cache before doing more playlist operations
             //as new playlists won't be in it
@@ -550,9 +568,9 @@ namespace spotify_playlist_generator
                 //System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Melodic Metal Stuff.txt"), exampleMetalPlaylist);
                 System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - " + playlist.Name + ".txt"), playlistLikes);
                 //System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Top 10 Fav Artists.txt"), exampleArtistLikesPlaylist);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - " + topGenre), genrePlaylist);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Bossa Nova"), bossaNova);
-                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Bossa Nova Plus"), bossaNovaPlus);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - " + topGenre + ".txt"), genrePlaylist);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Bossa Nova.txt"), bossaNova);
+                System.IO.File.WriteAllText(System.IO.Path.Join(directoryPath, "Liked - Bossa Nova Plus.txt"), bossaNovaPlus);
             }
 
 
@@ -589,7 +607,8 @@ namespace spotify_playlist_generator
                 playlistSpecs = playlistSpecs
                     .Where(p =>
                         p.PlaylistName.Like(playlistName) ||
-                        p.FinalPlaylistName.Like(playlistName)
+                        p.FinalPlaylistName.Like(playlistName) ||
+                        p.PlaylistName + ".txt" == playlistName // handle accidental shell globbing getting passed in
                         )
                     .ToList();
 
@@ -608,26 +627,46 @@ namespace spotify_playlist_generator
 
             return playlistSpecs;
         }
-
-        static void ExcludeCurrentArtist(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs)
+        // TODO make excludeType an enum
+        static void ExcludeCurrent(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, string excludeType)
         {
-            var artists = spotifyWrapper.GetCurrentTrack(true)?.Artists;
-            if (artists == null) return;
+            var currentTrack = spotifyWrapper.GetCurrentTrack(true);
+            if (currentTrack == null) return;
+
+            string consoleDeets = null;
+            string specLine = null;
+
+            if (excludeType.Like("artist"))
+            {
+                // 90% of the time there will be one artist
+                consoleDeets = currentTrack.Artists.Select(a => a.Name).Join(", ");
+
+                specLine = currentTrack.Artists.Select(a => "-Artist:" + a.Id + " " + Program.Settings._CommentString + "  " + a.Name).Join(Environment.NewLine);
+            }
+            else if (excludeType.Like("album"))
+            {
+                consoleDeets = currentTrack.Album.Name + " (" + currentTrack.Album.ReleaseDate.Substring(0, 4) + ")";
+                specLine = "-Album:" + currentTrack.Album.Id + " " + Program.Settings._CommentString + " " + consoleDeets;
+            }
+            else if (excludeType.Like("track"))
+            {
+                consoleDeets = currentTrack.PrettyString();
+                specLine = "-Track:" + currentTrack.Id + " " + Program.Settings._CommentString + " " + consoleDeets;
+            }
 
             Console.WriteLine(
-                "Excluding " +
-                artists.Select(a => a.Name).Join(", ") +
-                " from " +
-                playlistSpecs.Select(spec => spec.PlaylistName).Join(", ")
-                );
+            "Excluding " +
+            consoleDeets +
+            " from " +
+            playlistSpecs.Select(spec => spec.PlaylistName).Join(", ")
+            );
 
-            // 90% of the time there will be one playlist and one artist
+            // 90% of the time there will be one playlist
             foreach(var playlistSpec in playlistSpecs)
-            foreach(var artist in artists)
             {
-                    var line = "-Artist:" + artist.Id + " " + Program.Settings._CommentString + "  " + artist.Name;
-                    System.IO.File.AppendAllText(playlistSpec.Path, Environment.NewLine + line);
+                    System.IO.File.AppendAllText(playlistSpec.Path, Environment.NewLine + specLine);
             }
+
         }
 
         static void Lyrics(MySpotifyWrapper spotifyWrapper)
@@ -1349,11 +1388,7 @@ namespace spotify_playlist_generator
 
                 //complicated logic for determining duplicates
                 var dupes = playlistTracks
-                    .GroupBy(track =>
-                        track.Name.AlphanumericOnly().RemoveAccents().ToLower() +
-                        " $$$ " +
-                        track.ArtistNames.Join(", ").AlphanumericOnly().RemoveAccents().ToLower()
-                        ) //same track name, same artist, very standardized
+                    .GroupBy(track => track.ComparisonString) //same track name, same artist, very standardized
                     .Where(group =>
                         group.Count() > 1 && // only dupes
                         group.Select(track => track.AlbumId).Distinct().Count() > 1 // not from the same album
@@ -1381,7 +1416,41 @@ namespace spotify_playlist_generator
 
                 if (playlistSpec.NoLikes)
                 {
-                    playlistTracks.Remove(t => spotifyWrapper.LikedTracks.Contains(t));
+                    if (Debugger.IsAttached)
+                    {
+                        var likedTracksTest = spotifyWrapper.LikedTracks
+                            .Where(t => t.Name.ToLower() == "trrst")
+                            .ToList();
+                        var likedStrings = likedTracksTest
+                            .Select(t => t.TrackId + " " + t.ComparisonString)
+                            .ToList();
+                        var specTracksTest = playlistTracks
+                            .Where(t => t.Name.ToLower() == "trrst")
+                            .ToList();
+                        var specStrings = specTracksTest
+                            .Select(t => t.TrackId + " " + t.ComparisonString)
+                            .ToList();
+
+                        Console.WriteLine("liked track:");
+                        Console.WriteLine(likedStrings.Join(Environment.NewLine));
+                        Console.WriteLine("spec track:");
+                        Console.WriteLine(specStrings.Join(Environment.NewLine));
+                        Console.WriteLine("tracks equal: " + (likedTracksTest.FirstOrDefault() == specTracksTest.FirstOrDefault()).ToString());
+                        Console.WriteLine();
+
+                        //liked track:
+                        //4A0YuzcYuEEP8A3oEZTddL trrst $$$ ic3peakzillakami
+                        //2hBwYJBlZ9Q5abmJdJMIV6 trrst $$$ ic3peakzillakami
+                        //spec track:
+                        //0M56diRArdi0vRYmLBeltn trrst $$$ ic3peak
+                        //tracks equal: False
+                    }
+
+                    playlistTracks.Remove(t =>
+                        spotifyWrapper.LikedTracks.Any(lt => 1 == 2
+                            || lt.ComparisonString == t.ComparisonString
+                            || lt.TrackId == t.TrackId
+                        ));
                 }
 
                 // ------------ limit per * ------------
@@ -1892,6 +1961,11 @@ namespace spotify_playlist_generator
 
 
         }
+        static void RunReports(MySpotifyWrapper spotifyWrapper)
+        {
+            LikedGenreReport(spotifyWrapper);
+            ReportPlaylistDetails(spotifyWrapper);
+        }
         static void LikedGenreReport(MySpotifyWrapper spotifyWrapper)
         {
             Console.WriteLine();
@@ -1939,8 +2013,12 @@ namespace spotify_playlist_generator
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
             var dir = System.IO.Path.Join(Settings._ReportsFolderPath, "Playlist Details");
+            var invalidFilenameChars = System.IO.Path.GetInvalidFileNameChars();
 
             var playlists = spotifyWrapper.GetUsersPlaylists(refreshCache: true);
+
+            foreach(var file in System.IO.Directory.GetFiles(dir))
+                System.IO.File.Delete(file);
 
             foreach (var playlist in playlists)
             {
@@ -1949,8 +2027,8 @@ namespace spotify_playlist_generator
                 var artistNames = tracks.SelectMany(t => t.ArtistNames).ToArray();
                 var genreNames = tracks.SelectMany(t => t.ArtistGenres).ToArray();
 
-                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name.Replace(".", String.Empty) + " - top artists"));
-                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name.Replace(".", String.Empty) + " - top genres"));
+                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name.Where(c => !invalidFilenameChars.Contains(c)) + " - top artists"));
+                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name.Where(c => !invalidFilenameChars.Contains(c)) + " - top genres"));
             }
 
         }

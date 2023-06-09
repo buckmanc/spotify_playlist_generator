@@ -36,6 +36,17 @@ namespace spotify_playlist_generator.Models
 
         public bool Source_AllTracks { get; set; }
 
+        public string ComparisonString
+        {
+            get
+            {
+                var output = this.Name.AlphanumericOnly().RemoveAccents().ToLower() +
+                            " $$$ " +
+                            this.ArtistNames.Distinct().OrderBy(a => a).Join(", ").AlphanumericOnly().RemoveAccents().ToLower();
+                return output;
+            }
+        }
+
         /// <summary>
         ///
         /// </summary>
