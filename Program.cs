@@ -1356,7 +1356,13 @@ namespace spotify_playlist_generator
                             ParameterValues = kvp.Value
                         })
                     )
-                    .SelectMany(x => x.Definition.GetTracks(spotifyWrapper, parameterValues: x.ParameterValues, likedTracks: spotifyWrapper.LikedTracks))
+                    .SelectMany(x => x.Definition.GetTracks(
+                        spotifyWrapper,
+                        parameterValues: x.ParameterValues,
+                        likedTracks: spotifyWrapper.LikedTracks,
+                        // TODO having this as a string isn't great
+                        exceptArtists: (x.Definition.ParameterName.Like("*ArtistFromPlaylist") ? playlistSpec.ExceptArtistFromPlaylist_Parsed : null)
+                        ))
                     .Distinct()
                     .ToList();
 

@@ -56,6 +56,16 @@ namespace spotify_playlist_generator.Models
         public bool DeleteIfEmpty { get; set; }
         [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
+        [Description("A comma delimited list of artists to bot actively include when using one of the ArtistFromPlaylist parameters.")]
+        public String ExceptArtistFromPlaylist{ get; set; }
+        public IList<String> ExceptArtistFromPlaylist_Parsed{ 
+            get
+            {
+                if (String.IsNullOrWhiteSpace(this.ExceptArtistFromPlaylist))
+                    return new List<String>();
+                return this.ExceptArtistFromPlaylist.Split(",").Distinct().ToList();
+            }
+        }
         [Description("Actively keep this playlist sorted. Can also be set globally in config.ini")]
         public bool UpdateSort { get; set; }
         [Description("Exclude liked songs from this playlist.")]
@@ -321,21 +331,31 @@ namespace spotify_playlist_generator.Models
                                 .Where(prop => !string.IsNullOrWhiteSpace((prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description))
                                 .ToArray();
 
-            var errorText = new List<string>();
-            foreach (var line in lines)
+            var parsedLines = lines
+                .Where(line => line.StartsWith(Program.Settings._OptionString))
+                .Select(line =>
+                line.Split(":", 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                )
+            .Select(keyValue => new
             {
-                //skip non-option lines
-                if (!line.StartsWith(Program.Settings._OptionString))
-                    continue;
+                OptionName = keyValue.First(),
+                OptionValue = (keyValue.Length > 1 ? keyValue.Last() : null)
+            })
+            .GroupBy(x => x.OptionName)
+            .Select(g => new
+                    {
+                    OptionName = g.Key,
+                    OptionValue = (g.Key != "ExceptArtistFromPlaylist" ? g.FirstOrDefault()?.OptionValue : g.Select(x => x.OptionValue).Join(","))
+                    })
+            .ToList();
 
-                //parse out values
-                var keyValue = line.Split(":", 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var optionName = keyValue.First();
-                var optionValue = (keyValue.Length > 1 ? keyValue.Last() : null);
-                var prop = optionProps.Where(p => p.Name.Like(optionName)).FirstOrDefault();
+            var errorText = new List<string>();
+            foreach (var line in parsedLines)
+            {
+                var prop = optionProps.Where(p => p.Name.Like(line.OptionName)).FirstOrDefault();
                 if (prop == null)
                 {
-                    errorText.Add("Unknown option: " + optionName);
+                    errorText.Add("Unknown option: " + line.OptionName);
                     continue;
                 }
 
@@ -344,32 +364,32 @@ namespace spotify_playlist_generator.Models
                 if (prop.PropertyType == typeof(bool))
                 {
                     //user can either specify the value or just provide the option name for "true"
-                    if (string.IsNullOrWhiteSpace(optionValue))
+                    if (string.IsNullOrWhiteSpace(line.OptionValue))
                         prop.SetValue(this, true);
-                    else if (bool.TryParse(optionValue, out var result))
+                    else if (bool.TryParse(line.OptionValue, out var result))
                         prop.SetValue(this, result);
                     else
                         badValue = true;
                 }
                 else if (prop.PropertyType == typeof(string))
-                    prop.SetValue(this, optionValue);
+                    prop.SetValue(this, line.OptionValue);
                 else if (prop.PropertyType == typeof(int))
                 {
-                    if (int.TryParse(optionValue, out var result))
+                    if (int.TryParse(line.OptionValue, out var result))
                         prop.SetValue(this, result);
                     else
                         badValue = true;
                 }
                 else if (prop.PropertyType.IsEnum)
                 {
-                    if (Enum.TryParse(prop.PropertyType, optionValue.Remove("'"), true, out var result))
+                    if (Enum.TryParse(prop.PropertyType, line.OptionValue.Remove("'"), true, out var result))
                         prop.SetValue(this, result);
                     else
                         badValue = true;
                 }
                 else if (prop.PropertyType == typeof(DateOnly) || prop.PropertyType == typeof(Nullable<DateOnly>))
                 {
-                    if (DateOnly.TryParse(optionValue, out var result))
+                    if (DateOnly.TryParse(line.OptionValue, out var result))
                         prop.SetValue(this, result);
                     else
                         badValue = true;
@@ -377,7 +397,7 @@ namespace spotify_playlist_generator.Models
 
                 //report on bad values
                 if (badValue)
-                    errorText.Add("Invalid option value for " + optionName + ": " + optionValue);
+                    errorText.Add("Invalid option value for " + line.OptionName + ": " + line.OptionValue);
             }
 
             this.OptionsErrors = errorText;

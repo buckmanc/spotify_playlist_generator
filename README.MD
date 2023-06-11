@@ -99,19 +99,20 @@ LikesByGenre is the most broadly useful playlist parameter.
 ## Playlist Options:
 Playlist options are preceded by "@" and affect the playlist as a whole.
 
-    AddArtistIDs      Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file
-    Default           Assume any lines with no parameter are this parameter. Great for pasting lists of artists.
-    DeleteIfEmpty     If the playlist has no tracks, delete it.
-    DontRemoveTracks  If tracks no longer fall within the scope of the playlist leave them anyway.
-    LastXDays         Limit to tracks released in the last X days.
-    LeaveImageAlone   Don't touch the artwork, even if told to.
-    LimitPerAlbum     Limit the amount of tracks per album, prioritizing by popularity.
-    LimitPerArtist    Limit the amount of tracks per artist, prioritizing by popularity.
-    NoLikes           Exclude liked songs from this playlist.
-    ReleasedAfter     Limit to tracks released after this date.
-    ReleasedBefore    Limit to tracks released before this date.
-    Sort              How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are Don't, Liked, Release, Artist.
-    UpdateSort        Actively keep this playlist sorted. Can also be set globally in config.ini
+    AddArtistIDs              Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file
+    Default                   Assume any lines with no parameter are this parameter. Great for pasting lists of artists.
+    DeleteIfEmpty             If the playlist has no tracks, delete it.
+    DontRemoveTracks          If tracks no longer fall within the scope of the playlist leave them anyway.
+    ExceptArtistFromPlaylist  A comma delimited list of artists to bot actively include when using one of the ArtistFromPlaylist parameters.
+    LastXDays                 Limit to tracks released in the last X days.
+    LeaveImageAlone           Don't touch the artwork, even if told to.
+    LimitPerAlbum             Limit the amount of tracks per album, prioritizing by popularity.
+    LimitPerArtist            Limit the amount of tracks per artist, prioritizing by popularity.
+    NoLikes                   Exclude liked songs from this playlist.
+    ReleasedAfter             Limit to tracks released after this date.
+    ReleasedBefore            Limit to tracks released before this date.
+    Sort                      How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are Don't, Liked, Release, Artist.
+    UpdateSort                Actively keep this playlist sorted. Can also be set globally in config.ini
 
 <!-- Auto generated -->
 ## Config File Settings:

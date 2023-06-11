@@ -23,13 +23,13 @@ namespace spotify_playlist_generator
             }
         }
 
-        public List<FullTrackDetails> GetTracks(MySpotifyWrapper spotifyWrapper, IEnumerable<string> parameterValues, IList<FullTrackDetails> likedTracks = null, IList<FullTrackDetails> existingTracks = null)
+        public List<FullTrackDetails> GetTracks(MySpotifyWrapper spotifyWrapper, IEnumerable<string> parameterValues, IList<FullTrackDetails> likedTracks = null, IList<FullTrackDetails> existingTracks = null, IList<string> exceptArtists = null)
         {
-            var output = this.TracksFunc.Invoke(spotifyWrapper, parameterValues, likedTracks, existingTracks);
+            var output = this.TracksFunc.Invoke(spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists);
 
             return output;
         }
-        protected Func<MySpotifyWrapper, IEnumerable<string>, IList<FullTrackDetails>, IList<FullTrackDetails>, List<FullTrackDetails>> TracksFunc { get; set; }
+        protected Func<MySpotifyWrapper, IEnumerable<string>, IList<FullTrackDetails>, IList<FullTrackDetails>, IEnumerable<string>, List<FullTrackDetails>> TracksFunc { get; set; }
 
         private static IList<PlaylistParameterDefinition> _AllDefinitions;
         public static IList<PlaylistParameterDefinition> AllDefinitions
@@ -45,7 +45,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "LikesByArtist",
                         Description = "Liked tracks by this artist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = likedTracks.Where(t =>
                                 t.ArtistNames.Any(artistName => parameterValues.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)) ||
@@ -60,12 +60,10 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "LikesByArtistFromPlaylist",
                         Description = "Liked tracks by all artists in this playlist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var artistIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
-                                .SelectMany(t => t.ArtistIds)
-                                .Distinct()
-                                .ToArray();
+                                .GetArtistIDs(exceptArtists);
 
                             var tracks = spotifyWrapper.LikedTracks.Where(t =>
                                 t.ArtistIds.Any(artistID => artistIDs.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
@@ -79,7 +77,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "LikesFromPlaylist",
                         Description = "All liked tracks in this playlist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
                                 .Where(t => 
@@ -97,7 +95,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "AllByArtist",
                         Description = "All tracks by this artist. Can be intensive. Specifying artist ID instead of artist name can reduce the load somewhat. Using an artist name is very likely to include duplicate artists with the same name.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.GetTracksByArtists(parameterValues.ToArray());
 
@@ -108,12 +106,10 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "AllByArtistFromPlaylist",
                         Description = "All tracks by all artists in this playlist",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var artistIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
-                                .SelectMany(t => t.ArtistIds)
-                                .Distinct()
-                                .ToArray();
+                                .GetArtistIDs(exceptArtists);
 
                             var tracks = spotifyWrapper.GetTracksByArtists(artistIDs);
 
@@ -124,7 +120,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "TopByArtist",
                         Description = "The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.GetTopTracksByArtists(parameterValues);
 
@@ -135,7 +131,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "Album",
                         Description = "All tracks on this album. Accepts album ID or names in the form \"Artist Name - Album Name\". Album ID performs significantly faster.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.GetTracksByAlbum(parameterValues.ToList());
 
@@ -146,12 +142,10 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "TopByArtistFromPlaylist",
                         Description = "The top five tracks on Spotify by every artist in this playlist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var artistIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
-                                .SelectMany(t => t.ArtistIds)
-                                .Distinct()
-                                .ToArray();
+                                .GetArtistIDs(exceptArtists);
 
                             var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs);
 
@@ -162,7 +156,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "LikesByGenre",
                         Description = "All liked tracks with the specified genre. Wildcards are very useful here.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.LikedTracks.Where(t =>
                             t.ArtistGenres.Any(genreName => parameterValues.Any(g => genreName.Like(g)))
@@ -176,7 +170,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "PlaylistTracks",
                         Description = "Tracks in this playlist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var playlistTracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
                                 .ToList();
@@ -188,7 +182,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-Artist",
                         Description = "Exclude all tracks matching this artist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = existingTracks.Where(t =>
                                 t.ArtistNames.Any(artistName => parameterValues.Any(pv => artistName.Like(pv))) ||
@@ -202,7 +196,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-Album",
                         Description = "Exclude all tracks matching this album.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var separators = new string[] { Settings._SeparatorString, ":" };
 
@@ -245,7 +239,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-PlaylistTracks",
                         Description = "Exclude all tracks in this playlist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var playlistTracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
                                 .ToArray();
@@ -266,7 +260,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-PlaylistArtists",
                         Description = "Exclude all artists in this playlist.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var artistIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
                                 .SelectMany(t => t.ArtistIds)
@@ -284,7 +278,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-Genre",
                         Description = "Exclude all tracks matching this genre.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = existingTracks.Where(t =>
                                     t.ArtistGenres.Any(g => parameterValues.Any(eg => g.Like(eg)))
@@ -297,7 +291,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-Track",
                         Description = "Exclude all tracks with a matching name or ID.",
-                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks) =>
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = existingTracks.Where(t =>
                                     parameterValues.Any(x => t.Name.Like(x)) ||

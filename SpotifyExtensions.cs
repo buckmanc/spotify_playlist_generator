@@ -97,5 +97,29 @@ namespace spotify_playlist_generator
 
             return tracks;
         }
+        public static IList<string> GetArtistIDs(this IList<FullTrackDetails> value, IEnumerable<string> ExceptArtists = null)
+        {
+
+            var artistDeets = value
+            //.SelectMany(t => t.ArtistIds)
+            .SelectMany(t => t.ArtistIds.Select(id => new
+            {
+                ArtistID = id,
+                ArtistName = t.ArtistNames[t.ArtistIds.IndexOf(id)]
+            }))
+            .Distinct()
+            .ToArray();
+
+            if (ExceptArtists != null && ExceptArtists.Any())
+            {
+                artistDeets = artistDeets
+                    .Where(a =>
+                    !ExceptArtists.Any(e => a.ArtistName.Like(e))
+                    ).ToArray();
+            }
+
+            var output = artistDeets.Select(a => a.ArtistID).Distinct().ToArray();
+            return output;
+        }
     }
 }
