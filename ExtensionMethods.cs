@@ -41,7 +41,6 @@ namespace spotify_playlist_generator
             {
                 //if the spotify api throws an exception, just eat it
                 //TODO either refine this a bit or supress the compiler warning
-                //if (System.Diagnostics.Debugger.IsAttached)
                 Console.WriteLine("APIException thrown in ToListAsync: " + ex.ToString());
             }
             return returnValues;

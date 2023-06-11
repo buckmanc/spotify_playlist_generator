@@ -350,20 +350,6 @@ namespace spotify_playlist_generator
                     artists.AddRange(artistsChunk);
                 });
 
-            if (Debugger.IsAttached)
-            {
-                var testNames = artists.Select(a => a.Name).ToArray();
-                var testIDs = artists.Select(a => a.Id).Distinct().ToArray();
-                var dummy = testNames;
-
-                //one artist that appears in #Full Discog - Acoustic VGC but isn't in the source playlist
-                //need to figure out where this is coming from
-                if (testNames.Contains("ROZEN"))
-                {
-                    Debugger.Break();
-                }
-            }
-
             artists = artists.Distinct().ToList();
 
             var toCache = artistNames.Select(x => new

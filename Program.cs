@@ -202,18 +202,6 @@ namespace spotify_playlist_generator
             )
         {
 
-            if (Debugger.IsAttached)
-            {
-                //playlistName = "Top - Female Fronted Black Metal Plus";
-                //modifyPlaylistFile = true;
-                //playlistName = "*avgc*auto*";
-                //playlistSpec = "AllByArtist:Froglord" + Environment.NewLine + "@UpdateSort";
-                //imageAddPhoto = true;
-                //imageAddText = true;
-                //playlistName = "*metallum*";
-                playlistName = "test";
-            }
-
             if (tabCompletionArgumentNames)
             {
                 Console.Write(Help.TabCompletionArgumentNames);
