@@ -633,7 +633,7 @@ namespace spotify_playlist_generator
             }
             else if (excludeType.Like("album"))
             {
-                consoleDeets = currentTrack.Album.Name + " (" + currentTrack.Album.ReleaseDate.Substring(0, 4) + ")";
+                consoleDeets = currentTrack.Artists.Select(a => a.Name).Join(", ") + " - " + currentTrack.Album.Name + " (" + currentTrack.Album.ReleaseDate.Substring(0, 4) + ")";
                 specLine = "-Album:" + currentTrack.Album.Id + " " + Program.Settings._CommentString + " " + consoleDeets;
             }
             else if (excludeType.Like("track"))

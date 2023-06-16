@@ -81,6 +81,7 @@ namespace spotify_playlist_generator.Models
         public DateOnly? ReleasedBefore { get; set; }
         [Description("Limit to tracks released after this date.")]
         public DateOnly? ReleasedAfter { get; set; }
+        private DateOnly startOfTime = DateOnly.Parse("1900-01-01");
         [Description("Limit to tracks released in the last X days.")]
         public int LastXDays { get; set; }
         public DateOnly? ReleasedAfterCalc
@@ -91,7 +92,7 @@ namespace spotify_playlist_generator.Models
 
                 var lastXDaysDate = DateOnly.FromDateTime(DateTime.Today.AddDays(this.LastXDays * -1));
 
-                return (lastXDaysDate > this.ReleasedAfter ? lastXDaysDate : this.ReleasedAfter);
+                return (lastXDaysDate > this.ReleasedAfter ? startOfTime : this.ReleasedAfter);
             }
         }
         private bool _sortSet;
