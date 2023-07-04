@@ -386,7 +386,8 @@ namespace spotify_playlist_generator
             GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
             UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
 
-            RunReports(spotifyWrapper);
+            if (string.IsNullOrWhiteSpace(playlistName))
+                RunReports(spotifyWrapper);
 
             //refresh the users playlist cache before doing more playlist operations
             //as new playlists won't be in it
@@ -630,17 +631,17 @@ namespace spotify_playlist_generator
                 // 90% of the time there will be one artist
                 consoleDeets = currentTrack.Artists.Select(a => a.Name).Join(", ");
 
-                specLine = currentTrack.Artists.Select(a => "-Artist:" + a.Id + " " + Program.Settings._CommentString + "  " + a.Name).Join(Environment.NewLine);
+                specLine = currentTrack.Artists.Select(a => "-Artist:" + a.Id + "\t" + Program.Settings._CommentString + "\t" + a.Name).Join(Environment.NewLine);
             }
             else if (excludeType.Like("album"))
             {
                 consoleDeets = currentTrack.Artists.Select(a => a.Name).Join(", ") + " - " + currentTrack.Album.Name + " (" + currentTrack.Album.ReleaseDate.Substring(0, 4) + ")";
-                specLine = "-Album:" + currentTrack.Album.Id + " " + Program.Settings._CommentString + " " + consoleDeets;
+                specLine = "-Album:" + currentTrack.Album.Id + "\t" + Program.Settings._CommentString + "\t" + consoleDeets;
             }
             else if (excludeType.Like("track"))
             {
                 consoleDeets = currentTrack.PrettyString();
-                specLine = "-Track:" + currentTrack.Id + " " + Program.Settings._CommentString + " " + consoleDeets;
+                specLine = "-Track:" + currentTrack.Id + "\t" + Program.Settings._CommentString + "\t" + consoleDeets;
             }
 
             Console.WriteLine(
@@ -653,7 +654,7 @@ namespace spotify_playlist_generator
             // 90% of the time there will be one playlist
             foreach(var playlistSpec in playlistSpecs)
             {
-                    System.IO.File.AppendAllText(playlistSpec.Path, Environment.NewLine + specLine);
+                System.IO.File.AppendAllText(playlistSpec.Path, Environment.NewLine + specLine);
             }
 
         }
@@ -749,7 +750,7 @@ namespace spotify_playlist_generator
             {
                 var findFailureWarning = "Could not find item. Remove this comment to try again";
                 var linesUpdated = 0;
-                var idCharLength = 22;
+                var idCharLength = 7 + 22;
 
                 //go one line at a time for simplicity and intra-run progress writing
                 foreach (var line in playlistSpec.SpecLines)
@@ -777,7 +778,7 @@ namespace spotify_playlist_generator
                                 var newLine = string.Empty;
 
                                 //append artist ID and name as a comment
-                                newLine += artist.Id + " " + Program.Settings._CommentString + "  " + artist.Name;
+                                newLine += artist.Id + "\t" + Program.Settings._CommentString + "\t" + artist.Name;
 
                                 //additional deets for help differentiating multiple matching artists
                                 if (matchingArtists.Count() > 1)
@@ -800,7 +801,7 @@ namespace spotify_playlist_generator
                                 var newLine = string.Empty;
 
                                 //put the value back with a warning in the comment
-                                newLine += line.ParameterValue.PadRight(idCharLength) + " " + Program.Settings._CommentString + "  " + findFailureWarning;
+                                newLine += line.ParameterValue.PadRight(idCharLength) + "\t" + Program.Settings._CommentString + "\t" + findFailureWarning;
 
                                 newLines.Add(newLine);
                             }
@@ -819,7 +820,7 @@ namespace spotify_playlist_generator
                             var newAlbumLines = spotifyWrapper.GetTracksByAlbum(new List<string> { line.ParameterValue })
                                 .GroupBy(t => t.AlbumId)
                                 .Select(g =>
-                                    g.Key + " " + Program.Settings._CommentString + " " +
+                                    g.Key + "\t" + Program.Settings._CommentString + "\t" +
                                     (g.SelectMany(t => t.ArtistNames
                                         //only artist names that appear on every track on the album
                                         .Where(a => g.All(tx => tx.ArtistNames.Contains(a)))
@@ -829,7 +830,7 @@ namespace spotify_playlist_generator
                                 )
                                 .ToList();
                             if (!newAlbumLines.Any())
-                                newAlbumLines.Add(line.ParameterValue.PadRight(idCharLength) + " " + Program.Settings._CommentString + "  " + findFailureWarning);
+                                newAlbumLines.Add(line.ParameterValue.PadRight(idCharLength) + "\t" + Program.Settings._CommentString + "\t" + findFailureWarning);
 
                             newLines.AddRange(newAlbumLines);
                         }
@@ -862,7 +863,7 @@ namespace spotify_playlist_generator
 
                         if (line.SubjectType != ObjectType.None)
                         {
-                            newLines.Add(line.ParameterValue + " " + Program.Settings._CommentString + " " +
+                            newLines.Add(line.ParameterValue + "\t" + Program.Settings._CommentString + "\t" +
                                 name ?? findFailureWarning
                                 );
                         }
@@ -1701,7 +1702,8 @@ namespace spotify_playlist_generator
                     //the API only accepts 100 tracks at a time
                     //however, removing more than one chunk will alter the position of subsequent items
                     //therefore only do 100 at a time
-                    //snapshot ID considerations assure that positions remain relevant event after removing some tracks
+                    //snapshot ID considerations assure that positions remain relevant even after removing some tracks
+                    // TODO review dupe removal to make sure it's working correctly with more than one chunk
                     var removeRequests = dupePositionsToRemove
                         .ChunkBy(100)
                         .Select(items => new PlaylistRemoveItemsRequest { Positions = items, SnapshotId = playlist.SnapshotId })
@@ -1744,15 +1746,9 @@ namespace spotify_playlist_generator
                         .Select(uris => new PlaylistAddItemsRequest(uris))
                         .ToList();
 
-                    var chunkCount = 0;
                     foreach (var addRequest in addRequests)
                     {
-                        //as of 2023-03-30 spotify started losing track of the order of PlaylistAddItemsRequests unless an explicit position or delay is provided
-                        //the problem only manifested with more than one chunk / PlaylistAddItemsRequest
-                        addRequest.Position = chunkCount * 100;
                         spotifyWrapper.spotify.Playlists.AddItems(playlist.Id, addRequest).Wait();
-
-                        chunkCount += 1;
                     }
 
                     addedTracksCounter += addTrackURIs.Count;

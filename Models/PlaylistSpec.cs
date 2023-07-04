@@ -56,7 +56,7 @@ namespace spotify_playlist_generator.Models
         public bool DeleteIfEmpty { get; set; }
         [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
-        [Description("A comma delimited list of artists to bot actively include when using one of the ArtistFromPlaylist parameters.")]
+        [Description("A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.")]
         public String ExceptArtistFromPlaylist{ get; set; }
         public IList<String> ExceptArtistFromPlaylist_Parsed{ 
             get
@@ -92,7 +92,9 @@ namespace spotify_playlist_generator.Models
 
                 var lastXDaysDate = DateOnly.FromDateTime(DateTime.Today.AddDays(this.LastXDays * -1));
 
-                return (lastXDaysDate > this.ReleasedAfter ? startOfTime : this.ReleasedAfter);
+                var output = (new DateOnly[] { lastXDaysDate, (this.ReleasedAfter ?? startOfTime) }).Max();
+
+                return output;
             }
         }
         private bool _sortSet;

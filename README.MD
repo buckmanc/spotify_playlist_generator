@@ -103,7 +103,7 @@ Playlist options are preceded by "@" and affect the playlist as a whole.
     Default                   Assume any lines with no parameter are this parameter. Great for pasting lists of artists.
     DeleteIfEmpty             If the playlist has no tracks, delete it.
     DontRemoveTracks          If tracks no longer fall within the scope of the playlist leave them anyway.
-    ExceptArtistFromPlaylist  A comma delimited list of artists to bot actively include when using one of the ArtistFromPlaylist parameters.
+    ExceptArtistFromPlaylist  A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.
     LastXDays                 Limit to tracks released in the last X days.
     LeaveImageAlone           Don't touch the artwork, even if told to.
     LimitPerAlbum             Limit the amount of tracks per album, prioritizing by popularity.

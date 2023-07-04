@@ -1172,11 +1172,16 @@ namespace spotify_playlist_generator
         }
         private bool DeviceCheck()
         {
-            if (!this.spotify.Player.GetAvailableDevices().Result.Devices.Any())
+            var activeDevices = this.spotify.Player.GetAvailableDevices().Result.Devices.Where(d => d.IsActive);
+            if (!activeDevices.Any())
             {
                 Console.WriteLine("No device available found to play on.");
                 return false;
             }
+
+            if (Program.Settings._VerboseDebug)
+                Console.WriteLine("Found active device: " + activeDevices.First().Name);
+
             return true;
         }
 
