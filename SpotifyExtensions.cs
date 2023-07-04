@@ -2,9 +2,11 @@ using spotify_playlist_generator.Models;
 using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace spotify_playlist_generator
@@ -49,8 +51,54 @@ namespace spotify_playlist_generator
             });
         }
 
-        public static string PrettyString(this FullTrack track)
+        public static string PrettyString(this FullTrack track, bool verbose = false)
         {
+            if (verbose)
+            {
+                // parsing out track clauses to save width at the terminal
+                // the "from" clause is the popular format for soundtrack and video game music covers
+                var trackName = track.Name;
+                var trackClauseDeets = new Dictionary<string,string>();
+                var trackClauseMatches = new List<Match>();
+                trackClauseMatches.AddRange(Regex.Matches(track.Name, @" [\[\(](?<key>From|For|Featuring|Feat)\.? ""?(?<value>[^\[\(\]\)]+?)""?[\]\)]", RegexOptions.IgnoreCase));
+                trackClauseMatches.AddRange(Regex.Matches(track.Name, @" [\[\(-] ?(?<value>[^\[\(\]\)]+?)(?<key>Remix|Mix|Edit|Version|Cut|Dub|Cover) ?[\]\)]?", RegexOptions.IgnoreCase));
+
+                foreach (Match match in trackClauseMatches)
+                {
+                    var addKeyName = new string[] {"remix", "mix", "edit"};
+                    var key = match.Groups["key"].Value.ToTitleCase();
+                    var value = match.Groups["value"].Value.Trim();
+
+                    trackClauseDeets.Add(key, value + (addKeyName.Any(x => key.Like(x)) ? " " + key : string.Empty));
+                    trackName = trackName.Replace(match.Value, string.Empty);
+                }
+
+                var fromClause = trackClauseDeets.Where(kvp => kvp.Key.Like("from")).Select(kvp => kvp.Value).FirstOrDefault();
+
+                var output = new Dictionary<string,string>();
+                output.Add(track.Artists.Count() > 1 ? "Artists" : "Artist", track.Artists.Select(a => a.Name).Join(", "));
+                output.Add("Track", trackName);
+                output.AddRange(trackClauseDeets);
+                // album deets if this isn't a single
+                if (!(track.Name.AlphanumericOnly().ToLower() == track.Album.Name.AlphanumericOnly().ToLower() && track.Album.TotalTracks == 1))
+                {
+                    var albumName = track.Album.Name;
+                    if (!string.IsNullOrWhiteSpace(fromClause))
+                    {
+                        var boundingCharClass = @"[:\s" + Program.dashes.Join(string.Empty) + @"]{0,3}";
+                        var regexString = boundingCharClass + Regex.Escape(fromClause) + boundingCharClass;
+                        var reggy = new Regex(regexString, RegexOptions.IgnoreCase);
+                        // output.Add("test", regexString);
+                        albumName = reggy.Replace(albumName, "...");
+                    }
+                    output.Add("Album", albumName);
+                    output.Add("Num", track.TrackNumber.ToString() + "/" + track.Album.TotalTracks.ToString());
+                }
+                output.Add("Year", track.Album.ReleaseDate.Substring(0, 4));
+
+                return Environment.NewLine + output.PrettyPrint();
+            }
+
             return track.Artists.Select(a => a.Name).Join(", ") + " - " + track.Name + " (" + track.Album.ReleaseDate.Substring(0, 4) + ")";
         }
 

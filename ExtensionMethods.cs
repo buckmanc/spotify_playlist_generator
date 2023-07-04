@@ -475,5 +475,24 @@ namespace spotify_playlist_generator
         {
             return values.Any(x => s.StartsWith(x));
         }
+        public static string ToTitleCase(this string s)
+        {
+            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(s);
+        }
+        public static string PrettyPrint(this Dictionary<string,string> value, string delimiter = ":")
+        {
+           if (value == null || !value.Any())
+               return string.Empty;
+
+           var padLen = value.Max(kvp => kvp.Key.Length + 2);
+           var sb = new StringBuilder();
+           foreach (var kvp in value)
+           {
+               // sb.AppendLine(kvp.Key.PadRight(padLen) + " " + delimiter + " " + kvp.Value);
+               sb.AppendLine((kvp.Key + delimiter + " ").PadRight(padLen) + kvp.Value);
+           }
+
+           return sb.ToString().TrimEnd(Environment.NewLine.First()).TrimEnd(Environment.NewLine.Last());
+        }
     }
 }

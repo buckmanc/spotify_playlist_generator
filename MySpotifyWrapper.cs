@@ -1292,8 +1292,8 @@ namespace spotify_playlist_generator
             return false;
         }
 
-        public void PrintCurrent(){
-                Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString() ?? "unknown track");
+        public void PrintCurrent(bool verbose = false){
+                Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString(verbose) ?? "unknown track");
 
         }
 

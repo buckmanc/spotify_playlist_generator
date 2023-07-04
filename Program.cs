@@ -183,6 +183,7 @@ namespace spotify_playlist_generator
         /// <param name="like">Like the current track.</param>
         /// <param name="unlike">Unlike the current track.</param>
         /// <param name="what">Print details about the current track.</param>
+        /// <param name="whatElse">Print more details about the current track.</param>
         /// <param name="reports">Run only the reports.</param>
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
         /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
@@ -194,7 +195,7 @@ namespace spotify_playlist_generator
             bool excludeCurrentArtist, bool excludeCurrentAlbum, bool excludeCurrentTrack,
             bool imageAddPhoto, bool imageAddText,
             bool imageBackup, bool imageRestore,
-            bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what,
+            bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what, bool whatElse,
             bool reports,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
@@ -217,7 +218,7 @@ namespace spotify_playlist_generator
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, unlike, what, lyrics, excludeCurrent
+                skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
                 modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
@@ -330,8 +331,8 @@ namespace spotify_playlist_generator
             if (unlike)
                 spotifyWrapper.LikeCurrent(like: false);
 
-            if (what)
-                spotifyWrapper.PrintCurrent();
+            if (what || whatElse)
+                spotifyWrapper.PrintCurrent(whatElse);
 
             if (skipNext)
                 spotifyWrapper.SkipNext();
