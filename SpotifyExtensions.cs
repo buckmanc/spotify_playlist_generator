@@ -76,7 +76,7 @@ namespace spotify_playlist_generator
                 else
                     output.Add("Date", release.ToString("yyyy"));
 
-                
+
 
 
                 return Environment.NewLine + output.PrettyPrint();

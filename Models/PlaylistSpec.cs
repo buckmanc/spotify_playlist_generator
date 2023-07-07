@@ -58,7 +58,7 @@ namespace spotify_playlist_generator.Models
         public bool DontRemoveTracks { get; set; }
         [Description("A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.")]
         public String ExceptArtistFromPlaylist{ get; set; }
-        public IList<String> ExceptArtistFromPlaylist_Parsed{ 
+        public IList<String> ExceptArtistFromPlaylist_Parsed{
             get
             {
                 if (String.IsNullOrWhiteSpace(this.ExceptArtistFromPlaylist))

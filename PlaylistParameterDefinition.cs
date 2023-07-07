@@ -80,7 +80,7 @@ namespace spotify_playlist_generator
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
-                                .Where(t => 
+                                .Where(t =>
                                     spotifyWrapper.LikedTracks.Any(lt => 1 == 2
                                         || lt.ComparisonString == t.ComparisonString
                                         || lt.TrackId == t.TrackId
@@ -245,7 +245,7 @@ namespace spotify_playlist_generator
                                 .ToArray();
 
                             var tracks = existingTracks
-                                .Where(t => 
+                                .Where(t =>
                                     playlistTracks.Any(pt => 1 == 2
                                         || pt.ComparisonString == t.ComparisonString
                                         || pt.TrackId == t.TrackId

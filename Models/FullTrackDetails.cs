@@ -37,7 +37,7 @@ namespace spotify_playlist_generator.Models
         public bool Source_AllTracks { get; set; }
 
         private TrackNameParser _ParsedTrackName;
-        public TrackNameParser ParsedTrackName 
+        public TrackNameParser ParsedTrackName
         {
             get
             {

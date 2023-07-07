@@ -82,7 +82,7 @@ namespace spotify_playlist_generator
         /// <returns></returns>
         public CustomRetryHandler() : this(Task.Delay) { }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="sleep"></param>
         public CustomRetryHandler(Func<TimeSpan, Task> sleep)
@@ -117,7 +117,7 @@ namespace spotify_playlist_generator
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="request"></param>
         /// <param name="response"></param>
@@ -182,7 +182,7 @@ namespace spotify_playlist_generator
         private Action<string, string> _Update;
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="Total"></param>
         /// <param name="Update"></param>
@@ -194,7 +194,7 @@ namespace spotify_playlist_generator
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="Total"></param>
         /// <param name="Update"></param>
@@ -212,7 +212,7 @@ namespace spotify_playlist_generator
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <returns></returns>
         public bool PrintProgress()
