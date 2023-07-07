@@ -301,6 +301,19 @@ namespace spotify_playlist_generator
                             return tracks;
                         }
                     },
+                    new PlaylistParameterDefinition()
+                    {
+                        ParameterName = "-From",
+                        Description = "Exclude all tracks with a matching \"from\" clause in the track name. This is primarily useful for soundtrack and video game covers.",
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
+                        {
+                            var tracks = existingTracks.Where(t =>
+                                    parameterValues.Any(x => t.ParsedTrackName.FromClause.Like(x))
+                                ).ToList();
+
+                            return tracks;
+                        }
+                    },
 
 
                 };

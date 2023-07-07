@@ -203,6 +203,9 @@ namespace spotify_playlist_generator
             )
         {
 
+            if (Debugger.IsAttached)
+                whatElse = true;
+
             if (tabCompletionArgumentNames)
             {
                 Console.Write(Help.TabCompletionArgumentNames);
@@ -221,7 +224,7 @@ namespace spotify_playlist_generator
                 skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, reports, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
@@ -1954,10 +1957,11 @@ namespace spotify_playlist_generator
         }
         static void RunReports(MySpotifyWrapper spotifyWrapper)
         {
-            LikedGenreReport(spotifyWrapper);
+            ReportLikedGenre(spotifyWrapper);
             ReportPlaylistDetails(spotifyWrapper);
+            // ReportClauseTest(spotifyWrapper);
         }
-        static void LikedGenreReport(MySpotifyWrapper spotifyWrapper)
+        static void ReportLikedGenre(MySpotifyWrapper spotifyWrapper)
         {
             Console.WriteLine();
             Console.WriteLine("---liked genre report---");
@@ -2049,7 +2053,7 @@ namespace spotify_playlist_generator
             //format report
             var reportLines = records
                 .Where(x => x != null)
-                .GroupBy(x => x)
+                .GroupBy(x => x, StringComparer.InvariantCultureIgnoreCase)
                 .Select(g => new
                 {
                     GroupString = g.Key,
@@ -2065,6 +2069,40 @@ namespace spotify_playlist_generator
 
             //write report
             System.IO.File.WriteAllLines(path, reportLines);
+        }
+        static void ReportClauseTest(MySpotifyWrapper spotifyWrapper)
+        {
+            Console.WriteLine();
+            Console.WriteLine("---clause test report---");
+            Console.WriteLine("started at " + DateTime.Now.ToString());
+
+            var path = System.IO.Path.Join(Settings._ReportsFolderPath, "Clause Test");
+
+            //var tracks = spotifyWrapper.LikedTracks;
+            var tracks = spotifyWrapper.GetTracksByPlaylist(new string[] { "*pvgc*auto*" });
+
+            var records = tracks.Select(t => new
+            {
+                t.ArtistNames,
+                t.AlbumName,
+                TrackName = t.Name,
+                t.ParsedTrackName.TrackShortName,
+                t.ParsedTrackName.AlbumShortName,
+                t.ParsedTrackName.FromClause,
+                t.ParsedTrackName.ForClause,
+                t.ParsedTrackName.FeaturingClause,
+                t.ParsedTrackName.FeatClause,
+                t.ParsedTrackName.RemixClause,
+                t.ParsedTrackName.CutClause,
+                t.ParsedTrackName.EditClause,
+                t.ParsedTrackName.DubClause,
+                t.ParsedTrackName.CoverClause,
+                t.ParsedTrackName.InstrumentalClause,
+                t.ParsedTrackName.AcousticClause
+
+            }).ToArray();
+
+            records.ToCSV(path);
         }
     }
 }

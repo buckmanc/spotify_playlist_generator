@@ -90,6 +90,7 @@ LikesByGenre is the most broadly useful playlist parameter.
     TopByArtistFromPlaylist    The top five tracks on Spotify by every artist in this playlist.
     -Album                     Exclude all tracks matching this album.
     -Artist                    Exclude all tracks matching this artist.
+    -From                      Exclude all tracks with a matching "from" clause in the track name. This is primarily useful for soundtrack and video game covers.
     -Genre                     Exclude all tracks matching this genre.
     -PlaylistArtists           Exclude all artists in this playlist.
     -PlaylistTracks            Exclude all tracks in this playlist.
@@ -214,6 +215,7 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 <!-- Auto generated -->
 # Credits
 - [APOD.Net](https://github.com/MarcusOtter/APOD.Net) - 1.0.1
+- CsvHelper - 30.0.1
 - [figgle](https://github.com/drewnoakes/figgle) - 0.5.1
 - [ini-parser](https://github.com/rickyah/ini-parser) - 2.5.2
 - [MediaTypeMap](https://github.com/samuelneff/MimeTypeMap) - 2.1.0

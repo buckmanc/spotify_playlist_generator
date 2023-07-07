@@ -36,6 +36,17 @@ namespace spotify_playlist_generator.Models
 
         public bool Source_AllTracks { get; set; }
 
+        private TrackNameParser _ParsedTrackName;
+        public TrackNameParser ParsedTrackName 
+        {
+            get
+            {
+                _ParsedTrackName ??= new TrackNameParser(this.Name, this.AlbumName);
+
+                return _ParsedTrackName;
+            }
+        }
+
         public string ComparisonString
         {
             get
@@ -101,10 +112,7 @@ namespace spotify_playlist_generator.Models
             ArtistNames = fullArtists.Select(a => a.Name).ToList();
             Name = fullTrack.Name;
             Popularity = fullTrack.Popularity;
-            var year = fullTrack.Album.ReleaseDate.Substring(0, 4);
-            var month = fullTrack.Album.ReleaseDate.SoftSubstring(5, 2).NullIfEmpty() ?? "01";
-            var day = fullTrack.Album.ReleaseDate.SoftSubstring(8, 2).NullIfEmpty() ?? "01";
-            ReleaseDate = new DateOnly(int.Parse(year), int.Parse(month), int.Parse(day));
+            ReleaseDate = fullTrack.Album.ReleaseDate.DateFromStringWithMissingParts();
             TrackId = fullTrack.Id;
             TrackNumber = fullTrack.TrackNumber;
             TrackUri = fullTrack.Uri;

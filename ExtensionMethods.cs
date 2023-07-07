@@ -1,8 +1,10 @@
-﻿using System;
+﻿using CsvHelper;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -469,6 +471,8 @@ namespace spotify_playlist_generator
         {
             if (s.Length < startIndex) return null;
 
+            if (s.Length < startIndex + length) length = s.Length - startIndex;
+
             return s.Substring(startIndex, length);
         }
         public static bool StartsWith(this string s, IEnumerable<string> values)
@@ -481,18 +485,64 @@ namespace spotify_playlist_generator
         }
         public static string PrettyPrint(this Dictionary<string,string> value, string delimiter = ":")
         {
-           if (value == null || !value.Any())
-               return string.Empty;
+            if (value == null || !value.Any())
+                return string.Empty;
 
-           var padLen = value.Max(kvp => kvp.Key.Length + 2);
-           var sb = new StringBuilder();
-           foreach (var kvp in value)
-           {
-               // sb.AppendLine(kvp.Key.PadRight(padLen) + " " + delimiter + " " + kvp.Value);
-               sb.AppendLine((kvp.Key + delimiter + " ").PadRight(padLen) + kvp.Value);
-           }
+            //limit the key length
+            var kvps = value.Select(kvp => new
+            {
+                //Key = kvp.Key.Clipsis(7),
+                Key = kvp.Key.SoftSubstring(0, 7),
+                kvp.Value
+            }).ToArray();
 
-           return sb.ToString().TrimEnd(Environment.NewLine.First()).TrimEnd(Environment.NewLine.Last());
+            var padLen = kvps.Max(kvp => kvp.Key.Length + 2);
+            var sb = new StringBuilder();
+            foreach (var kvp in kvps)
+            {
+                // sb.AppendLine(kvp.Key.PadRight(padLen) + " " + delimiter + " " + kvp.Value);
+                sb.AppendLine((kvp.Key + delimiter + " ").PadRight(padLen) + kvp.Value);
+            }
+
+            return sb.ToString().TrimEnd(Environment.NewLine.First()).TrimEnd(Environment.NewLine.Last());
+        }
+        public static DateOnly DateFromStringWithMissingParts(this string s)
+        {
+
+            var year = s.SoftSubstring(0, 4).NullIfEmpty() ?? "1900";
+            var month = s.SoftSubstring(5, 2).NullIfEmpty() ?? "01";
+            var day = s.SoftSubstring(8, 2).NullIfEmpty() ?? "01";
+            var output = new DateOnly(int.Parse(year), int.Parse(month), int.Parse(day));
+
+            return output;
+        }
+
+        public static void ToCSV<T>(this IEnumerable<T> records, string path)
+        {
+            //gronk checks
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!System.IO.Directory.Exists(dir))
+                System.IO.Directory.CreateDirectory(dir);
+
+            var ext = System.IO.Path.GetExtension(path);
+            if (ext.ToLower() != ".csv")
+                path = System.IO.Path.ChangeExtension(path, ".csv");
+
+            using (var writer = new StreamWriter(path))
+            using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+            {
+                csv.WriteRecords(records);
+            }
+        }
+
+        public static string Clipsis(this string value, int maxLength)
+        {
+            var ellipsis = "..";
+            var output = value;
+            if (value.Length > maxLength && value.Length > ellipsis.Length)
+                output = value.Substring(0, maxLength - ellipsis.Length) + ellipsis;
+
+            return output;
         }
     }
 }
