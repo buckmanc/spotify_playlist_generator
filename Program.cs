@@ -741,6 +741,8 @@ namespace spotify_playlist_generator
 
         static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, bool modifyArg)
         {
+            // TODO mod this so it doesn't ruin the sorting on your vgc exclusions
+            // OR add that "shared file" option
             Console.WriteLine();
             Console.WriteLine("---making updates to playlist spec files---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
@@ -749,7 +751,10 @@ namespace spotify_playlist_generator
             //this will save multiple API hits involved in searching for artists by name and paging over the results
             //TODO nest your progress printers
             //var pp1 = new ProgressPrinter(playlistSpecs.Length, (perc, time) => ConsoleWriteAndClearLine("\rAdding artist IDs to playlist files: " + perc + ", " + time + " remaining"));
-            foreach (var playlistSpec in playlistSpecs.Where(p => modifyArg || p.AddArtistIDs))
+            var specs =  playlistSpecs.Where(p => 
+                    (modifyArg || p.AddArtistIDs)
+                    && !p.DontModify).ToArray();
+            foreach (var playlistSpec in specs)
             {
                 var findFailureWarning = "Could not find item. Remove this comment to try again";
                 var linesUpdated = 0;
@@ -758,7 +763,7 @@ namespace spotify_playlist_generator
                 //go one line at a time for simplicity and intra-run progress writing
                 foreach (var line in playlistSpec.SpecLines)
                 {
-                    if (!line.IsValidParameter || line.SubjectType == ObjectType.Genre)
+                    if (!line.IsValidParameter || line.SubjectType == ObjectType.Genre || line.ParameterValue.Contains("*"))
                         continue;
 
                     var newLines = new List<string>();
@@ -1328,8 +1333,12 @@ namespace spotify_playlist_generator
                         .Where(line => line.IsValidParameter)
                         .Count().ToString("#,##0"));
 
-                    //foreach(var line in playlistSpec.SpecLines)
-                    //Console.WriteLine(line.ToString());
+                    // foreach(var line in playlistSpec.SpecLines)
+                    // {
+                    //     // Console.WriteLine(line.ToString());
+                    //     Console.WriteLine("parameter name: " +line.ParameterName);
+                    //     Console.WriteLine("parameter value: " +line.ParameterValue);
+                    // }
                 }
 
                 // ------------ get tracks ------------
@@ -1451,6 +1460,11 @@ namespace spotify_playlist_generator
                             || lt.TrackId == t.TrackId
                         ));
                 }
+
+                // ------------ no explicit------------
+                
+                if (playlistSpec.NoExplicit)
+                    playlistTracks.Remove(t => t.Explicit);
 
                 // ------------ limit per * ------------
 

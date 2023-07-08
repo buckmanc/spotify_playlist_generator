@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static spotify_playlist_generator.Program;
 
@@ -56,6 +57,8 @@ namespace spotify_playlist_generator.Models
         public bool DeleteIfEmpty { get; set; }
         [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
+        [Description("Don't modify the playlist spec file, even if told to.")]
+        public bool DontModify { get; set; }
         [Description("A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.")]
         public String ExceptArtistFromPlaylist{ get; set; }
         public IList<String> ExceptArtistFromPlaylist_Parsed{
@@ -68,6 +71,8 @@ namespace spotify_playlist_generator.Models
         }
         [Description("Actively keep this playlist sorted. Can also be set globally in config.ini")]
         public bool UpdateSort { get; set; }
+        [Description("Exclude tracks marked explicit.")]
+        public bool NoExplicit { get; set; }
         [Description("Exclude liked songs from this playlist.")]
         public bool NoLikes { get; set; }
         [Description("Limit the amount of tracks per artist, prioritizing by popularity.")]
@@ -190,6 +195,8 @@ namespace spotify_playlist_generator.Models
             this.Path = path;
             this.PlaylistName = playlistName;
 
+            var spotifyUrlIdRegex = new Regex(@"\S*?spotify\..+?/\w+?/([a-zA-Z0-9]{22})\S*", RegexOptions.IgnoreCase);
+
             var playlistOptions = fileLines
                 .Select(line => line.Split(Program.Settings._CommentString, 2).First())
                 .Where(line => line.StartsWith(Program.Settings._OptionString))
@@ -207,7 +214,10 @@ namespace spotify_playlist_generator.Models
                 .Select(line => new
                 {
                     line.RawLine,
-                    SanitizedLine = line.SanitizedStart.First().Trim(),
+                    SanitizedLine = line.SanitizedStart.First().Trim()
+                        .Replace("http://", string.Empty, StringComparison.InvariantCultureIgnoreCase)    
+                        .Replace("https://", string.Empty, StringComparison.InvariantCultureIgnoreCase)    
+                        ,
                     Comment = (line.SanitizedStart.Length > 1 ? line.SanitizedStart.Last() : string.Empty)
                 })
                 .Select(line => new
@@ -230,7 +240,7 @@ namespace spotify_playlist_generator.Models
                     RawLine = line.RawLine,
                     SanitizedLine = line.SanitizedLine,
                     Comment = line.Comment,
-                    ParameterValue = line.ParameterValue,
+                    ParameterValue = spotifyUrlIdRegex.Replace(line.ParameterValue, @"$1"),
                     ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : Default ?? string.Empty).Trim()
                 })
                 //remove duplicate parameter lines but leave everything else alone
@@ -241,8 +251,6 @@ namespace spotify_playlist_generator.Models
                  )
                 .Select(g => g.First())
                 .ToArray();
-
-
 
             //randomly name the playlist if the user forgot to
             if (string.IsNullOrWhiteSpace(this.Path) && string.IsNullOrWhiteSpace(this.PlaylistName))

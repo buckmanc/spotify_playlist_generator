@@ -23,7 +23,7 @@ namespace spotify_playlist_generator.Models
             var reggies = new List<Regex>();
             var clauseStartPattern = @" (\[|\(|- )";
             var clauseEndPattern = @"(\]|\)|$)";
-            reggies.Add(new Regex(clauseStartPattern + @"(?<key> ?From|For|Featuring|Feat):?\.? [“""]?(?<value>[^\[\(\]\)]+?)( ost| soundtrack)?[”""]?" + clauseEndPattern, RegexOptions.IgnoreCase));
+            reggies.Add(new Regex(clauseStartPattern + @"(?<key> ?From|For|Featuring|Feat|With):?\.? [“""]?(?<value>[^\[\(\]\)]+?)( ost| soundtrack)?[”""]?" + clauseEndPattern, RegexOptions.IgnoreCase));
             reggies.Add(new Regex(clauseStartPattern + @"(?<value>[^\[\(\]\)\-]+?) (?<key>Remix|Mix|Edit|Version|Ver|Cut|Dub|Cover|Edition)\.?(s|es)? ?" + clauseEndPattern, RegexOptions.IgnoreCase));
             reggies.Add(new Regex(clauseStartPattern + @"(piano |guitar )?(?<key>instrumental|acoustic|live|album|bonus|remake|cover|single|piano|guitar)( guitar| piano)?( solo)?( arrangement)?( track)?" + clauseEndPattern, RegexOptions.IgnoreCase));
             var trackClauseMatches = new List<Match>();

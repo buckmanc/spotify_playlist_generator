@@ -297,15 +297,15 @@ namespace spotify_playlist_generator
         /// <returns><c>true</c> if the string matches the given pattern; otherwise <c>false</c>.</returns>
         public static bool Like(this string str, string pattern)
         {
+            if (string.IsNullOrWhiteSpace(str) || string.IsNullOrWhiteSpace(pattern))
+                return false;
+
             // intensive normalization
             // this is specifically to handle
             // 1) complex album names with inconsistent spacing, ellipses, or punctuation
             // 2) words with accent marks that are difficult to type
             str = str.Standardize();
             pattern = pattern.Standardize();
-
-            if (Debugger.IsAttached && string.IsNullOrEmpty(pattern))
-                throw new ArgumentNullException(nameof(pattern), "Damn son, what have we here?");
 
             var output = new Regex(
                 "^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$",
