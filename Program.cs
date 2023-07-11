@@ -36,6 +36,7 @@ namespace spotify_playlist_generator
             public static bool _VerboseDebug;
             public static string _StartPlaylistsWith;
             public static bool _UpdateSort;
+            public static string _DefaultFont = "*pressstart*";
 
             public static string _LyricCommand1;
             public static string _LyricCommand2;
@@ -58,7 +59,20 @@ namespace spotify_playlist_generator
             }
             public static string _TokensIniPath
             {
-                get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "tokens.ini"); }
+                get 
+                {
+                    var assemblyTokensPath = System.IO.Path.Join(AssemblyDirectory, "tokens.ini");
+                    
+                    // prefer the local tokens path if it exists
+                    if (System.IO.File.Exists(assemblyTokensPath))
+                    {
+                        if (Settings._VerboseDebug)
+                            Console.WriteLine("using local tokens file");
+                        return assemblyTokensPath;
+                    }
+
+                    return System.IO.Path.Join(Settings._PlaylistFolderPath, "tokens.ini"); 
+                }
             }
 
         }
@@ -68,6 +82,15 @@ namespace spotify_playlist_generator
             public static string NasaKey;
             public static string UnsplashAccessKey;
             public static string UnsplashSecretKey;
+        }
+
+        enum TextAlignment
+        {
+            BottomLeft,
+            BottomRight,
+            TopLeft,
+            TopRight,
+            Center,
         }
 
         private const int MaxPlaylistSize = 11000; //max playlist size as of 2021-07-15; the api throws an error once you pass this
@@ -174,9 +197,13 @@ namespace spotify_playlist_generator
         /// <param name="excludeCurrentAlbum">Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
         /// <param name="excludeCurrentTrack">Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
         /// <param name="imageAddPhoto">Assign a new image to the playlist.</param>
-        /// <param name="imageAddText">Add the playlist name to the playlist image.</param>
+        /// <param name="imageAddText">Add text to the playlist image. The playlist name is used if no --image-text is provided.</param>
+        /// <param name="imageText">Custom text to use for --image-add-text.</param>
+        /// <param name="imageFont">Font to use for --image-add-text. Can use wildcards.</param>
         /// <param name="imageBackup">Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.</param>
         /// <param name="imageRestore">Restore a previously backed up image.</param>
+        /// <param name="imageTextAlignment">Pick one of the corners or center. Defaults to bottom left.</param>
+        /// <param name="imageRotateDegrees">Rotate the image. You should really stick to 90 degree increments.</param>
         /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.</param>
         /// <param name="skipNext">Skip forward.</param>
         /// <param name="skipPrevious">Skip backward.</param>
@@ -194,7 +221,8 @@ namespace spotify_playlist_generator
             bool modifyPlaylistFile,
             bool excludeCurrentArtist, bool excludeCurrentAlbum, bool excludeCurrentTrack,
             bool imageAddPhoto, bool imageAddText,
-            bool imageBackup, bool imageRestore,
+            string imageText, string imageFont,
+            bool imageBackup, bool imageRestore, TextAlignment imageTextAlignment, int imageRotateDegrees, string imageClone,
             bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what, bool whatElse,
             bool reports,
             bool lyrics,
@@ -202,9 +230,6 @@ namespace spotify_playlist_generator
             bool commitAnActOfUnspeakableViolence
             )
         {
-
-            if (Debugger.IsAttached)
-                whatElse = true;
 
             if (tabCompletionArgumentNames)
             {
@@ -224,7 +249,7 @@ namespace spotify_playlist_generator
                 skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, lyrics, reports, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, imageRotateDegrees != 0, !string.IsNullOrWhiteSpace(imageClone), lyrics, reports, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
@@ -344,39 +369,31 @@ namespace spotify_playlist_generator
                 spotifyWrapper.SkipPrevious();
 
             if (modifyPlaylistFile)
-            {
                 ModifyPlaylistSpecFiles(spotifyWrapper, playlistSpecs, modifyPlaylistFile);
-            }
 
             if (imageRestore)
-            {
                 RestorePlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
-            }
 
             if (imageBackup)
-            {
                 BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, OverwriteBackup: true);
-            }
 
             if (imageAddPhoto)
-            {
                 ImageAddPhoto(spotifyWrapper, playlistName, playlistSpecs, leaveImageAlonePlaylistNames);
-            }
+            else if (!string.IsNullOrWhiteSpace(imageClone))
+                ImageClone(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, imageClone);
 
             if (imageAddText)
-            {
-                ImageAddText(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
-            }
+                ImageAddText(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames,
+                        imageText, imageFont, imageTextAlignment);
+
+            if (imageRotateDegrees != 0)
+                ImageRotate(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, imageRotateDegrees);
 
             if (reports)
-            {
                 RunReports(spotifyWrapper);
-            }
 
             if (commitAnActOfUnspeakableViolence)
-            {
                 CommitAnActOfUnspeakableViolence(spotifyWrapper);
-            }
 
             //if any of those fancy commands besides the main functionality have been processed, stop here
             if (shortRun || playerCommand)
@@ -405,7 +422,8 @@ namespace spotify_playlist_generator
             foreach (var playlist in newPlaylists)
             {
                 ImageAddPhoto(spotifyWrapper, playlist.Name, playlistSpecs, leaveImageAlonePlaylistNames);
-                ImageAddText(spotifyWrapper, playlist.Name, leaveImageAlonePlaylistNames);
+                ImageAddText(spotifyWrapper, playlist.Name, leaveImageAlonePlaylistNames,
+                        imageText, imageFont, imageTextAlignment);
             }
 
             if (play)
@@ -991,7 +1009,8 @@ namespace spotify_playlist_generator
             }
         }
 
-        static void ImageAddText(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames)
+        static void ImageAddText(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames
+            , string imageText, string imageFont, TextAlignment imageTextAlignment)
         {
 
             var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
@@ -999,58 +1018,131 @@ namespace spotify_playlist_generator
 
             foreach (var playlist in playlists)
             {
-                var textForArt = playlist.Name.Replace(" - ", Environment.NewLine);
+                var textForArt = imageText ?? playlist.Name
+                    .TrimStart(Settings._StartPlaylistsWith ?? string.Empty);
+
+                textForArt = textForArt
+                    .Replace(" - ", Environment.NewLine)
+                    .Trim(Environment.NewLine)
+                    .Trim()
+                    ;
 
                 using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
                 {
-                    //a rough target size, works out to be the max
-                    var fontSize = img.Height / 7;
-                    var textWrappingLength = -1;
-
+                    var fontPointToPixelRatio = (1.0 / 3) + 1;
                     var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
+
+                    // enbiggen the border if the text is going to be huge
+                    if (textForArt.Length <= 4 && imageTextAlignment == TextAlignment.Center)
+                        edgeDistance = edgeDistance * 2;
                     var targetTextWidth = (img.Width - (edgeDistance * 2));
 
+                    var fontSize = 0;
+
+                    if (imageTextAlignment == TextAlignment.Center)
+                    {
+                        // center is the only size it makes sense to make huge
+                        // in normal case it will reduce itself to a reasonable amount
+                        // but for symbols it'll be perfect
+                        fontSize = (int)Math.Round((img.Height - edgeDistance) * fontPointToPixelRatio);
+                    }
+                    else
+                    {
+                        //a rough target size, works out to be the max
+                        fontSize = img.Height / 5;
+                    }
+                    var textWrappingLength = -1;
+
                     // TODO package the font with the app
-                    // TODO tier some fallback font choices
                     // TODO try glow instead of outline
                     var fontFamily = SystemFonts.Families
-                        .Where(f => f.Name.Like("*pressstart*"))
-                        //.Where(f => f.Name.Like("*montserrat*"))
+                        .Where(f => f.Name.Like(imageFont ?? Settings._DefaultFont))
                         .ToList()
                         .Random();
 
                     if (fontFamily == default)
                         fontFamily = SystemFonts.Families.ToList().Random();
 
-
-
                     var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
 
-                    var txtSizeInitial = TextMeasurer.Measure(text: textForArt, new TextOptions(font));
+                    var txtSizeInitial = TextMeasurer.MeasureBounds(text: textForArt, new TextOptions(font));
 
                     if (txtSizeInitial.Width > targetTextWidth)
                     {
-                        // TODO would be nice to factor in height too, but *probably* won't be an issue
+                        // width / scaling factor calc is for wrapping considerations
+                        // height / font point ratio calc is for determining if the font is too small
+                        // if text is wrapped prior to this the font height won't be relevant for this anymore
                         var scalingFactor = targetTextWidth / txtSizeInitial.Width;
+                        var heightRatio = (txtSizeInitial.Height * scalingFactor) / img.Height;
 
-                        //minimum scale
-                        if (scalingFactor < 0.75)
+                        var minimumFontHeightRatio = 0.11;
+
+                        if (heightRatio < minimumFontHeightRatio)
                         {
-                            scalingFactor = 0.75F;
+                            // TODO would be very cool to allow giant blocks of text to fill the art
+                            // need to research how to do that calc
+                            var newScalingFactor = (minimumFontHeightRatio * img.Height) / txtSizeInitial.Height;
+                            scalingFactor = (float)newScalingFactor;
                             textWrappingLength = targetTextWidth;
                         }
 
-                        font = fontFamily.CreateFont(fontSize * scalingFactor, FontStyle.Regular);
+                        font = fontFamily.CreateFont((float)fontSize * scalingFactor, FontStyle.Regular);
                     }
-                    var txtSizeFinal = TextMeasurer.Measure(text: textForArt, new TextOptions(font) { WrappingLength = textWrappingLength});
+                    var txtSizeFinal = TextMeasurer.MeasureBounds(text: textForArt, new TextOptions(font) { WrappingLength = textWrappingLength});
+
+                    SixLabors.Fonts.HorizontalAlignment mutateHorizontalAlignment;
+                    SixLabors.Fonts.VerticalAlignment mutateVerticalAlignment;
+                    PointF origin;
+
+                    // missing a few options like top center
+                    switch (imageTextAlignment)
+                    {
+                        case TextAlignment.BottomLeft:
+                        default:
+                            mutateHorizontalAlignment = HorizontalAlignment.Left;
+                            mutateVerticalAlignment = VerticalAlignment.Bottom;
+                            origin = new PointF(edgeDistance, img.Height - edgeDistance);
+                            break;
+                        case TextAlignment.BottomRight:
+                            mutateHorizontalAlignment = HorizontalAlignment.Right;
+                            mutateVerticalAlignment = VerticalAlignment.Bottom;
+                            origin = new PointF(img.Width - edgeDistance, img.Height - edgeDistance);
+                            break;
+                        case TextAlignment.TopRight:
+                            mutateHorizontalAlignment = HorizontalAlignment.Right;
+                            mutateVerticalAlignment = VerticalAlignment.Top;
+                            origin = new PointF(img.Width - edgeDistance, edgeDistance);
+                            break;
+                        case TextAlignment.TopLeft:
+                            mutateHorizontalAlignment = HorizontalAlignment.Left;
+                            mutateVerticalAlignment = VerticalAlignment.Top;
+                            origin = new PointF(edgeDistance, edgeDistance);
+                            break;
+                        case TextAlignment.Center:
+                            mutateHorizontalAlignment = HorizontalAlignment.Center;
+                            mutateVerticalAlignment = VerticalAlignment.Center;
+                            origin = new PointF(img.Width / 2, img.Height / 2);
+                            break;
+
+                    }
+
+                    // Console.WriteLine("img.Width: " + img.Width.ToString("#,##0.00"));
+                    // Console.WriteLine("img.Height: " + img.Height.ToString("#,##0.00"));
+                    // Console.WriteLine("txtSizeFinal.Width: " + txtSizeFinal.Width.ToString("#,##0.00"));
+                    // Console.WriteLine("txtSizeFinal.Height: " + txtSizeFinal.Height.ToString("#,##0.00"));
+                    // Console.WriteLine("origin: " + origin.ToString());
+
 
                     // intermittent bug occurs here when picking a random font
                     // there's likely a font that's incompatible somehow
                     img.Mutate(x => x.DrawText(
                         textOptions: new TextOptions(font)
                         {
-                            Origin = new PointF(edgeDistance, img.Height - txtSizeFinal.Height - edgeDistance),
-                            WrappingLength = textWrappingLength
+                            Origin = origin,
+                            WrappingLength = textWrappingLength,
+                            HorizontalAlignment = mutateHorizontalAlignment, 
+                            VerticalAlignment = mutateVerticalAlignment, 
+                            
                         },
                         text: textForArt,
                         brush: Brushes.Solid(Color.White),
@@ -1073,14 +1165,60 @@ namespace spotify_playlist_generator
 
                 var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
 
-                if (!success)
-                    Console.WriteLine("An error occurred uploading playlist image.");
-
-
                 //}
 
                 pp.PrintProgress();
             }
+        }
+
+
+        static void ImageRotate(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames
+            , int imageRotateDegrees)
+        {
+
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
+            var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rRotating images: " + perc + ", " + time + " remaining"));
+
+            foreach (var playlist in playlists)
+            {
+                using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
+                {
+                    img.Mutate(x => x.Rotate((float)imageRotateDegrees));
+
+                    var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
+                    jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
+
+                    img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
+                }
+
+                var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
+
+                pp.PrintProgress();
+            }
+        }
+        static void ImageClone(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames, string imageClone)
+        {
+            var sourcePlaylist = BackupAndPrepPlaylistImage(spotifyWrapper, imageClone, leaveImageAlonePlaylistNames).FirstOrDefault();
+
+            if (sourcePlaylist == null)
+            {
+                Console.WriteLine("Could not find " + imageClone);
+                return;
+            }
+
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
+
+            Console.WriteLine("Cloning image from " + sourcePlaylist.Name);
+
+            var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rRotating images: " + perc + ", " + time + " remaining"));
+
+            foreach (var playlist in playlists)
+            {
+                var success = spotifyWrapper.UploadPlaylistImage(playlist, sourcePlaylist.GetWorkingImagePath());
+
+                pp.PrintProgress();
+            }
+
         }
 
         static void ImageAddPhoto(MySpotifyWrapper spotifyWrapper, string playlistName, IList<PlaylistSpec> playlistSpecs, IEnumerable<string> leaveImageAlonePlaylistNames)
@@ -1236,8 +1374,6 @@ namespace spotify_playlist_generator
                 //update description if image update was successful
                 if (success)
                     spotifyWrapper.spotify.Playlists.ChangeDetails(playlist.Id, req);
-                else if (!success)
-                    Console.WriteLine("An error occurred uploading playlist image.");
 
                 pp.PrintProgress();
             }

@@ -1014,16 +1014,16 @@ namespace spotify_playlist_generator
 
             _GetFollowedPlaylistsRunning = true;
 
-            _followedPlaylists = this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync().Result
-                .Select(p => Retry.Do(() =>
-                {
-                    //errors encountered here:
-                    //timeout
-                    //not found
-                    return spotify.Playlists.Get(p.Id).Result;
-                })) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
-                .ToConcurrentBag()
-                ;
+             _followedPlaylists = this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync().Result
+                 .Select(p => Retry.Do(() =>
+                 {
+                     //errors encountered here:
+                     //timeout
+                     //not found
+                     return spotify.Playlists.Get(p.Id).Result;
+                 })) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
+                 .ToConcurrentBag()
+                 ;
 
             _GetFollowedPlaylistsRunning = false;
 
@@ -1126,6 +1126,9 @@ namespace spotify_playlist_generator
 
             }
             while (!success && attempts <= maxAttempts);
+
+            if (!success)
+                Console.WriteLine("An error occurred uploading playlist image.");
 
             return success;
         }

@@ -95,6 +95,41 @@ namespace spotify_playlist_generator
         }
 
         /// <summary>
+        /// Removes the specified string from the beginning of a string.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="trimString"></param>
+        /// <param name="comparisonType"></param>
+        /// <returns></returns>
+        public static string TrimEnd(this string value, string trimString = " ", StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(trimString)) return value;
+
+            while (value.EndsWith(trimString, comparisonType))
+            {
+                value = value.Substring(trimString.Length);
+            }
+
+            return value;
+
+        }
+
+        /// <summary>
+        /// Removes the specified string from the beginning of a string.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="trimString"></param>
+        /// <param name="comparisonType"></param>
+        /// <returns></returns>
+        public static string Trim(this string value, string trimString = " ", StringComparison comparisonType = StringComparison.InvariantCultureIgnoreCase)
+        {
+            value = value.TrimStart(trimString, comparisonType);
+            value = value.TrimEnd(trimString, comparisonType);
+
+            return value;
+        }
+        
+        /// <summary>
         /// Count how often one string occurs in another.
         /// </summary>
         /// <param name="value"></param>
@@ -352,6 +387,8 @@ namespace spotify_playlist_generator
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
+            else if (!source.Any())
+                return default(TSource);
 
             var rnd = new Random();
             if (!source.TryGetNonEnumeratedCount(out var elementCount))
