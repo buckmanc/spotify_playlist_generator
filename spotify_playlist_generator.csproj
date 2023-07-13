@@ -12,6 +12,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="APOD.Net" Version="1.0.1" />
+    <PackageReference Include="colorthief.imagesharp" Version="1.0.0" />
+    <PackageReference Include="colorthief.imagesharp.shared" Version="1.0.0" />
     <PackageReference Include="CsvHelper" Version="30.0.1" />
     <PackageReference Include="figgle" Version="0.5.1" />
     <PackageReference Include="ini-parser" Version="2.5.2" />

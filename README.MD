@@ -139,12 +139,13 @@ Arguments for the program itself. These are not the primary function of the app 
     --image-add-photo                                                        Assign a new image to the playlist.
     --image-add-text                                                         Add text to the playlist image. The playlist name is used if no --image-text is provided.
     --image-text <image-text>                                                Custom text to use for --image-add-text.
-    --image-font <image-font>                                                Cont to use for --image-add-text. Can use wildcards.
+    --image-font <image-font>                                                Font to use for --image-add-text. Can use wildcards.
     --image-backup                                                           Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.
     --image-restore                                                          Restore a previously backed up image.
-    --image-text-alignment <BottomLeft|BottomRight|Center|TopLeft|TopRight>
-    --image-rotate-degrees <image-rotate-degrees>
-    --image-clone <image-clone>                                              imageClone
+    --image-text-alignment <BottomLeft|BottomRight|Center|TopLeft|TopRight>  Pick one of the corners or center. Defaults to bottom left.
+    --image-rotate-degrees <image-rotate-degrees>                            Rotate the image. You should really stick to 90 degree increments.
+    --image-clone <image-clone>                                              Clone the cover art from another of your playlists.
+    --image-nerd-font-glyph <image-nerd-font-glyph>                          Wildcard search for a Nerd Font glyph. Returns the symbol when used alone or used as the text with --image-add-text. You still have to specify an installed Nerd Font with --image-font.
     --play                                                                   Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.
     --skip-next                                                              Skip forward.
     --skip-previous                                                          Skip backward.
@@ -222,7 +223,9 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 <!-- Auto generated -->
 # Credits
 - [APOD.Net](https://github.com/MarcusOtter/APOD.Net) - 1.0.1
-- CsvHelper - 30.0.1
+- [colorthief.imagesharp](https://github.com/Corona-Studio/ColorThief.ImageSharp) - 1.0.0
+- [colorthief.imagesharp.shared](https://github.com/Corona-Studio/ColorThief.ImageSharp) - 1.0.0
+- [CsvHelper](https://github.com/JoshClose/CsvHelper) - 30.0.1
 - [figgle](https://github.com/drewnoakes/figgle) - 0.5.1
 - [ini-parser](https://github.com/rickyah/ini-parser) - 2.5.2
 - [MediaTypeMap](https://github.com/samuelneff/MimeTypeMap) - 2.1.0

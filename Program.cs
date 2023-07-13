@@ -3,6 +3,7 @@ using IniParser;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing.Processing;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using spotify_playlist_generator.Models;
 using SpotifyAPI.Web;
@@ -56,6 +57,10 @@ namespace spotify_playlist_generator
             public static string _ReportsFolderPath
             {
                 get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports"); }
+            }
+            public static string _CacheFolderPath
+            {
+                get { return System.IO.Path.Join(Program.AssemblyDirectory, "caches"); }
             }
             public static string _TokensIniPath
             {
@@ -204,6 +209,8 @@ namespace spotify_playlist_generator
         /// <param name="imageRestore">Restore a previously backed up image.</param>
         /// <param name="imageTextAlignment">Pick one of the corners or center. Defaults to bottom left.</param>
         /// <param name="imageRotateDegrees">Rotate the image. You should really stick to 90 degree increments.</param>
+        /// <param name="imageClone">Clone the cover art from another of your playlists.</param>
+        /// <param name="imageNerdFontGlyph">Wildcard search for a Nerd Font glyph. Returns the symbol when used alone or used as the text with --image-add-text. You still have to specify an installed Nerd Font with --image-font. </param>
         /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.</param>
         /// <param name="skipNext">Skip forward.</param>
         /// <param name="skipPrevious">Skip backward.</param>
@@ -222,7 +229,7 @@ namespace spotify_playlist_generator
             bool excludeCurrentArtist, bool excludeCurrentAlbum, bool excludeCurrentTrack,
             bool imageAddPhoto, bool imageAddText,
             string imageText, string imageFont,
-            bool imageBackup, bool imageRestore, TextAlignment imageTextAlignment, int imageRotateDegrees, string imageClone,
+            bool imageBackup, bool imageRestore, TextAlignment imageTextAlignment, int imageRotateDegrees, string imageClone, string imageNerdFontGlyph,
             bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what, bool whatElse,
             bool reports,
             bool lyrics,
@@ -230,7 +237,6 @@ namespace spotify_playlist_generator
             bool commitAnActOfUnspeakableViolence
             )
         {
-
             if (tabCompletionArgumentNames)
             {
                 Console.Write(Help.TabCompletionArgumentNames);
@@ -249,7 +255,7 @@ namespace spotify_playlist_generator
                 skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, imageRotateDegrees != 0, !string.IsNullOrWhiteSpace(imageClone), lyrics, reports, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, imageRotateDegrees != 0, !string.IsNullOrWhiteSpace(imageClone), !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
@@ -297,8 +303,7 @@ namespace spotify_playlist_generator
 
             if (!playerCommand)
             {
-                Console.Write("Hello there, ");
-                Console.WriteLine(spotifyWrapper.CurrentUser.DisplayName);
+                Console.WriteLine("Hello there, "  +spotifyWrapper.CurrentUser.DisplayName);
                 Console.WriteLine();
                 Console.WriteLine("----------------------");
                 Console.WriteLine();
@@ -381,6 +386,20 @@ namespace spotify_playlist_generator
                 ImageAddPhoto(spotifyWrapper, playlistName, playlistSpecs, leaveImageAlonePlaylistNames);
             else if (!string.IsNullOrWhiteSpace(imageClone))
                 ImageClone(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, imageClone);
+
+            if (!string.IsNullOrWhiteSpace(imageNerdFontGlyph))
+            {
+                var glyph = NerdFontGlyph(imageNerdFontGlyph);
+                if (string.IsNullOrWhiteSpace(glyph))
+                {
+                    Console.WriteLine("Could not find matching Nerd Font glyph.");
+                    return;
+                }
+                else if (imageAddText)
+                    imageText = glyph;
+                else
+                    Console.WriteLine(glyph);
+            }
 
             if (imageAddText)
                 ImageAddText(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames,
@@ -1029,6 +1048,23 @@ namespace spotify_playlist_generator
 
                 using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
                 {
+                    // TODO find a way to avoid loading the image twice
+                    var thief = new ColorThief.ImageSharp.ColorThief();
+                    var colorPalette = thief.GetPalette(SixLabors.ImageSharp.Image.Load<Rgba32>(playlist.GetWorkingImagePath()), 20);
+
+                    SixLabors.ImageSharp.Color darkColor;
+                    SixLabors.ImageSharp.Color lightColor = Color.White;
+
+                    if (colorPalette.Any(x => x.IsDark))
+                        darkColor = Color.Parse(colorPalette.First(x => x.IsDark).Color.ToHexString());
+                    else
+                        darkColor = Color.Black;
+
+                    if (colorPalette.Any(x => !x.IsDark))
+                        lightColor = Color.Parse(colorPalette.First(x => !x.IsDark).Color.ToHexString());
+                    else
+                        lightColor = Color.White;
+
                     var fontPointToPixelRatio = (1.0 / 3) + 1;
                     var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
 
@@ -1075,7 +1111,7 @@ namespace spotify_playlist_generator
                         var scalingFactor = targetTextWidth / txtSizeInitial.Width;
                         var heightRatio = (txtSizeInitial.Height * scalingFactor) / img.Height;
 
-                        var minimumFontHeightRatio = 0.11;
+                        var minimumFontHeightRatio = 0.15;
 
                         if (heightRatio < minimumFontHeightRatio)
                         {
@@ -1131,7 +1167,12 @@ namespace spotify_playlist_generator
                     // Console.WriteLine("txtSizeFinal.Width: " + txtSizeFinal.Width.ToString("#,##0.00"));
                     // Console.WriteLine("txtSizeFinal.Height: " + txtSizeFinal.Height.ToString("#,##0.00"));
                     // Console.WriteLine("origin: " + origin.ToString());
+                    // Console.WriteLine("final font size: " + font.Size.ToString());
 
+                    // TODO review this ratio and see if it needs updated
+                    var penSize = (float)Math.Floor(font.Size / 100.00);
+                    if (penSize == 0f)
+                        penSize = 1f;
 
                     // intermittent bug occurs here when picking a random font
                     // there's likely a font that's incompatible somehow
@@ -1145,8 +1186,8 @@ namespace spotify_playlist_generator
                             
                         },
                         text: textForArt,
-                        brush: Brushes.Solid(Color.White),
-                        pen: Pens.Solid(Color.Black, 2f)
+                        brush: Brushes.Solid(lightColor),
+                        pen: Pens.Solid(darkColor, penSize)
                         )
                     );
 
@@ -1206,7 +1247,7 @@ namespace spotify_playlist_generator
                 return;
             }
 
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
+            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames).Where(p => p != sourcePlaylist).ToList();
 
             Console.WriteLine("Cloning image from " + sourcePlaylist.Name);
 
@@ -1318,6 +1359,8 @@ namespace spotify_playlist_generator
                     imageSource = ImageTools.GetNasaApodImage();
                 }
 
+                // TODO error check for failure to decode image here
+                // SixLabors.ImageSharp.UnknownImageFormatException
                 //scale and crop image to fit
                 using (var img = SixLabors.ImageSharp.Image.Load(imageSource.TempFilePath))
                 {
@@ -1377,6 +1420,36 @@ namespace spotify_playlist_generator
 
                 pp.PrintProgress();
             }
+        }
+        static string NerdFontGlyph(string search)
+        {
+            var url = "https://nerdfonts.com/assets/css/webfont.css";
+            var filePath = System.IO.Path.Join(Program.Settings._CacheFolderPath, "nerdfont.css");
+
+            // if not exists or modified more than a week ago
+            ImageTools.DownloadFile(url, filePath);
+
+            var css = System.IO.File.ReadAllText(filePath);
+            var reggy = new Regex(@"\.(?<key>[a-z\-_]+):\w+{content:""\\(?<value>[a-f0-9]+)""}", RegexOptions.IgnoreCase);
+            var nfBreakdown = reggy.Matches(css)
+                .Where(m => m.Success)
+                .ToDictionary(m => m.Groups["key"].Value, m => m.Groups["value"].Value);
+
+            // Console.WriteLine(nfBreakdown.Count().ToString("#,##0") + " nerd font glyphs found");
+
+            var hexString = nfBreakdown
+                .Where(kvp => kvp.Key.Like(search))
+                .Select(kvp => kvp.Value)
+                .FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(hexString))
+                return null;
+
+            var intValue = Int32.Parse(hexString, System.Globalization.NumberStyles.AllowHexSpecifier);
+            var outputChar = char.ConvertFromUtf32(intValue);
+
+            return outputChar.ToString();
+
         }
 
         static void CommitAnActOfUnspeakableViolence(MySpotifyWrapper spotifyWrapper)
@@ -2060,6 +2133,9 @@ namespace spotify_playlist_generator
             //packages are added and removed with the project, but links have to be manually added here
             var packageLinks = new Dictionary<string, string>();
             packageLinks.Add("APOD.Net", "https://github.com/MarcusOtter/APOD.Net");
+            packageLinks.Add("colorthief.imagesharp", "https://github.com/Corona-Studio/ColorThief.ImageSharp");
+            packageLinks.Add("colorthief.imagesharp.shared", "https://github.com/Corona-Studio/ColorThief.ImageSharp");
+            packageLinks.Add("CsvHelper", "https://github.com/JoshClose/CsvHelper");
             packageLinks.Add("figgle", "https://github.com/drewnoakes/figgle");
             packageLinks.Add("ini-parser", "https://github.com/rickyah/ini-parser");
             packageLinks.Add("MediaTypeMap", "https://github.com/samuelneff/MimeTypeMap");
