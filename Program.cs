@@ -846,7 +846,7 @@ namespace spotify_playlist_generator
                                 var newLine = string.Empty;
 
                                 //put the value back with a warning in the comment
-                                newLine += line.ParameterValue.PadRight(idCharLength) + "\t" + Program.Settings._CommentString + "\t" + findFailureWarning;
+                                newLine += line.ParameterValue+ " " + Program.Settings._CommentString + " " + findFailureWarning;
 
                                 newLines.Add(newLine);
                             }
@@ -874,8 +874,9 @@ namespace spotify_playlist_generator
                                     g.First().AlbumName
                                 )
                                 .ToList();
+
                             if (!newAlbumLines.Any())
-                                newAlbumLines.Add(line.ParameterValue.PadRight(idCharLength) + "\t" + Program.Settings._CommentString + "\t" + findFailureWarning);
+                                newAlbumLines.Add(line.ParameterValue + " " + Program.Settings._CommentString + " " + findFailureWarning);
 
                             newLines.AddRange(newAlbumLines);
                         }
@@ -914,22 +915,35 @@ namespace spotify_playlist_generator
                         }
                     }
 
-                    //mark exclusions
-                    if (line.IsExclusionParameter)
-                        newLines = newLines.Select(newLine => "-" + newLine).ToList();
+                    // no need to mark exclusions; that's part of the parameter name
 
                     //prepend parameter name if not default
                     if (!playlistSpec.Default.Like(line.ParameterName))
-                        newLines = newLines.Select(newLine => line.ParameterName + Program.Settings._SeparatorString + newLine).ToList();
+                        newLines = newLines.Select(newLine => line.ParameterName + ":" + newLine).ToList();
 
                     //slap any existing comment on the end, adding the comment character if necessary
                     if (!string.IsNullOrWhiteSpace(line.Comment))
                         newLines = newLines.Select(newLine =>
-                        (newLine.Contains(Program.Settings._CommentString) ? String.Empty : Program.Settings._CommentString) +
-                        newLine + new string('\t', 3) + line.Comment
+                            newLine.Trim() + 
+                            (newLine.Contains(Program.Settings._CommentString) ? String.Empty : "  ") +
+                            Program.Settings._CommentString + " " + line.Comment.Trim()
                         ).ToList();
 
                     newLines = newLines.Distinct().ToList();
+
+                    // split and rejoin comments here to get the spacing right
+                    newLines = newLines.Select(newLine => new
+                    {
+                        SplitLine = newLine.Split(Program.Settings._CommentString, 2),
+                        PadLen = playlistSpec.Default.Like(line.ParameterName) ? 7 : idCharLength
+                    })
+                            .Select(x => new
+                            {
+                                Main = x.SplitLine.First().Trim().PadRight(x.PadLen),
+                                Comment = (x.SplitLine.Length > 1 ? "\t" + Program.Settings._CommentString + "\t" + x.SplitLine.Last().Trim() : string.Empty)
+                            })
+                            .Select(x => (x.Main + x.Comment).Trim())
+                            .ToList();
 
                     if (newLines.Any())
                     {

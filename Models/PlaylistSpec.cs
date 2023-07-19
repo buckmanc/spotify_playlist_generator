@@ -185,11 +185,11 @@ namespace spotify_playlist_generator.Models
         private void Initialize(string path, string playlistName, string[] fileLines)
         {
 
-            var i = 0;
+            var ix = 0;
             var nextInt = () =>
             {
-                i++;
-                return i;
+                ix++;
+                return ix;
             };
 
             this.Path = path;
@@ -205,7 +205,7 @@ namespace spotify_playlist_generator.Models
 
             this.ParseOptions(playlistOptions);
 
-            this.SpecLines = fileLines
+            var specLinesTemp = fileLines
                 .Select(line => new
                 {
                     RawLine = line,
@@ -244,13 +244,37 @@ namespace spotify_playlist_generator.Models
                     ParameterName = (line.ParameterStart.Length > 1 ? line.ParameterStart.First() : Default ?? string.Empty).Trim()
                 })
                 //remove duplicate parameter lines but leave everything else alone
-                .GroupBy(line =>
-                    (line.IsValidParameter
-                        ? line.ParameterName.Trim().ToLower() + "zzz" + line.ParameterValue.Trim().ToLower()
-                        : "zzz" + nextInt().ToString())
-                 )
-                .Select(g => g.First())
-                .ToArray();
+                // .GroupBy(line =>
+                //     (line.IsValidParameter
+                //         ? line.ParameterName.Trim().ToLower() + "zzz" + line.ParameterValue.Trim().ToLower()
+                //         : "zzz" + nextInt().ToString())
+                //  )
+                // .Select(g => g.First())
+                .ToList();
+
+            // remove logical dupes while preserving original sort
+            // otherwise sorting goes wacko when modifying playlist files
+            for (int i = 0; i < specLinesTemp.Count; i ++)
+            {
+                var thisLine = specLinesTemp[i];
+                var priorLine = i <= 0 ? null : specLinesTemp[i-1];
+                if (thisLine.IsValidParameter
+                        && specLinesTemp.Take(i).Any(l => l.IsValidParameter
+                        && l.ParameterName.Trim().ToLower() == thisLine.ParameterName.Trim().ToLower()
+                        && l.ParameterValue.Trim().ToLower() == thisLine.ParameterValue.Trim().ToLower()
+                        ))
+                {
+                    specLinesTemp.RemoveAt(i);
+                    i--;
+                }
+                else if (string.IsNullOrWhiteSpace(thisLine.RawLine) && string.IsNullOrWhiteSpace(priorLine?.RawLine))
+                {
+                    specLinesTemp.RemoveAt(i);
+                    i--;
+                }
+            }
+
+            this.SpecLines = specLinesTemp.ToArray();
 
             //randomly name the playlist if the user forgot to
             if (string.IsNullOrWhiteSpace(this.Path) && string.IsNullOrWhiteSpace(this.PlaylistName))
