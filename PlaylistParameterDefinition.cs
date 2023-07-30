@@ -48,7 +48,7 @@ namespace spotify_playlist_generator
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = likedTracks.Where(t =>
-                                t.ArtistNames.Any(artistName => parameterValues.Contains(artistName, StringComparer.InvariantCultureIgnoreCase)) ||
+                                t.ArtistNames.Any(artistName => parameterValues.Any(pv => artistName.Like(pv))) ||
                                 t.ArtistIds.Any(artistID => parameterValues.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
                                 )
                                 .ToList();

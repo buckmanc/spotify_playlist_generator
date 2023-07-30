@@ -383,6 +383,7 @@ namespace spotify_playlist_generator
             ).Join();
         }
 
+        private static Random _random;
         public static TSource Random<TSource>(this IList<TSource> source)
         {
             if (source == null)
@@ -390,11 +391,11 @@ namespace spotify_playlist_generator
             else if (!source.Any())
                 return default(TSource);
 
-            var rnd = new Random();
+            _random ??= new Random();
             if (!source.TryGetNonEnumeratedCount(out var elementCount))
                 elementCount = source.Count();
 
-            var index = rnd.Next(0, elementCount - 1);
+            var index = _random.Next(0, elementCount - 1);
 
             return source[index];
         }
@@ -580,6 +581,40 @@ namespace spotify_playlist_generator
                 output = value.Substring(0, maxLength - ellipsis.Length) + ellipsis;
 
             return output;
+        }
+        public static DateTime ToDateTime(this DateOnly value)
+        {
+            return value.ToDateTime(new TimeOnly(0));
+        }
+
+        // https://stackoverflow.com/a/13290596
+        public static double NextDouble(
+            this Random random,
+            double minValue,
+            double maxValue)
+        {
+            return random.NextDouble() * (maxValue - minValue) + minValue;
+        }
+
+        // https://stackoverflow.com/a/5729869
+        public static IEnumerable<string> RemoveSubsequentDupeLines(this IEnumerable<string> value, bool blankLinesOnly = false)
+        {
+            List<string> results = new List<string>();
+            foreach (var line in value)
+            {
+                //if (results.Count == 0 || results.Last() != line)
+                //    results.Add(line);
+
+                if (results.Count == 0)
+                    results.Add(line);
+                else if (blankLinesOnly && !string.IsNullOrWhiteSpace(line))
+                    results.Add(line);
+                else if (results.Last() != line && !(string.IsNullOrWhiteSpace(results.Last()) && string.IsNullOrWhiteSpace(line)))
+                    results.Add(line);
+
+            }
+
+            return results;
         }
     }
 }

@@ -81,14 +81,25 @@ namespace spotify_playlist_generator.Models
         public int LimitPerAlbum { get; set; }
         [Description("Don't touch the artwork, even if told to.")]
         public bool LeaveImageAlone { get; set; }
-
+        [Description("Don't run again after the playlist has been created. This can be reset by removing the @ID from the file.")]
+        public bool OnlyCreatePlaylist { get; set; }
+        [Description("The date of last run. Only updated when OnlyRunIfModified is set.")]
+        public DateTime? LastRun { get; set; }
+        [Description("Don't run again unless the file has been modified.")]
+        public bool OnlyRunIfModified { get; set; }
         [Description("Limit to tracks released before this date.")]
         public DateOnly? ReleasedBefore { get; set; }
         [Description("Limit to tracks released after this date.")]
         public DateOnly? ReleasedAfter { get; set; }
+        [Description("Limit to tracks liked before this date/time.")]
+        public DateTime? LikedBefore { get; set; }
+        [Description("Limit to tracks liked after this date/time.")]
+        public DateTime? LikedAfter { get; set; }
         private DateOnly startOfTime = DateOnly.Parse("1900-01-01");
         [Description("Limit to tracks released in the last X days.")]
         public int LastXDays { get; set; }
+        [Description("The Spotify ID of this playlist after creation. Generally an output.")]
+        public string ID { get; set; }
         public DateOnly? ReleasedAfterCalc
         {
             get
@@ -100,6 +111,36 @@ namespace spotify_playlist_generator.Models
                 var output = (new DateOnly[] { lastXDaysDate, (this.ReleasedAfter ?? startOfTime) }).Max();
 
                 return output;
+            }
+        }
+        private DateTime? _LastModified;
+        public DateTime LastModified
+        {
+            get
+            {
+                // lazy load
+                try
+                {
+                    // path being null here is rare
+                    this._LastModified ??= System.IO.File.GetLastWriteTime(this.Path);
+                }
+                catch (Exception)
+                {
+                    this._LastModified = this.startOfTime.ToDateTime();
+                }
+
+                return this._LastModified.Value;
+            }
+        }
+        public bool DontRun
+        {
+            get
+            {
+                // saving room for more qualifications
+                return 1 == 2
+                    || (!string.IsNullOrWhiteSpace(this.ID) && this.OnlyCreatePlaylist)
+                    || (this.OnlyRunIfModified && (this.LastRun ?? startOfTime.ToDateTime()) > this.LastModified)
+                    ;
             }
         }
         private bool _sortSet;
@@ -425,6 +466,13 @@ namespace spotify_playlist_generator.Models
                 else if (prop.PropertyType == typeof(DateOnly) || prop.PropertyType == typeof(Nullable<DateOnly>))
                 {
                     if (DateOnly.TryParse(line.OptionValue, out var result))
+                        prop.SetValue(this, result);
+                    else
+                        badValue = true;
+                }
+                else if (prop.PropertyType == typeof(DateTime) || prop.PropertyType == typeof(Nullable<DateTime>))
+                {
+                    if (DateTime.TryParse(line.OptionValue, out var result))
                         prop.SetValue(this, result);
                     else
                         badValue = true;

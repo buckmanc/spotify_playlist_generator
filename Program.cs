@@ -54,6 +54,10 @@ namespace spotify_playlist_generator
             {
                 get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Images", "Working"); }
             }
+            public static string _ImageTestFolderPath
+            {
+                get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Images", "Test"); }
+            }
             public static string _ReportsFolderPath
             {
                 get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports"); }
@@ -98,6 +102,7 @@ namespace spotify_playlist_generator
             Center,
         }
 
+        public static DateTime RunStart;
         private const int MaxPlaylistSize = 11000; //max playlist size as of 2021-07-15; the api throws an error once you pass this
         public static Regex idRegex = new Regex(@"[a-zA-Z0-9]{22}");
         public static Regex urlRegex = new Regex(@"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)");
@@ -211,6 +216,7 @@ namespace spotify_playlist_generator
         /// <param name="imageRotateDegrees">Rotate the image. You should really stick to 90 degree increments.</param>
         /// <param name="imageClone">Clone the cover art from another of your playlists.</param>
         /// <param name="imageNerdFontGlyph">Wildcard search for a Nerd Font glyph. Returns the symbol when used alone or used as the text with --image-add-text. You still have to specify an installed Nerd Font with --image-font. </param>
+        /// <param name="testImages">Generate x test images instead of updating live playlists. Stored in the playlist folder.</param>
         /// <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.</param>
         /// <param name="skipNext">Skip forward.</param>
         /// <param name="skipPrevious">Skip backward.</param>
@@ -222,6 +228,7 @@ namespace spotify_playlist_generator
         /// <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
         /// <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
         /// <param name="updateReadme">Update readme.md. Only used in development.</param>
+        /// <param name="verbose">Print more logging messages. Pretty messy. Overrides the settings file.</param>
         /// <param name="commitAnActOfUnspeakableViolence">I wouldn't really do it... would I?</param>
         /// <returns></returns>
         static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpec,
@@ -230,13 +237,28 @@ namespace spotify_playlist_generator
             bool imageAddPhoto, bool imageAddText,
             string imageText, string imageFont,
             bool imageBackup, bool imageRestore, TextAlignment imageTextAlignment, int imageRotateDegrees, string imageClone, string imageNerdFontGlyph,
+            int testImages,
             bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what, bool whatElse,
             bool reports,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
+            bool? verbose,
             bool commitAnActOfUnspeakableViolence
             )
         {
+            Program.RunStart = DateTime.Now;
+
+            if (Debugger.IsAttached)
+            {
+                //imageAddPhoto = true;
+                imageAddText = true;
+                //imageNerdFontGlyph = "random";
+                //imageFont = "*NFM*";
+                //imageTextAlignment = TextAlignment.Center;
+                testImages = 10;
+                verbose = false;
+            }
+
             if (tabCompletionArgumentNames)
             {
                 Console.Write(Help.TabCompletionArgumentNames);
@@ -248,28 +270,32 @@ namespace spotify_playlist_generator
                 return;
             }
 
-            var excludeCurrent = new bool[] {excludeCurrentArtist, excludeCurrentAlbum, excludeCurrentTrack}.Any(x => x);
+            // testImages is excluded from imageCommand so that defaults for it can be set below
+            var excludeCurrent = new bool[] { excludeCurrentArtist, excludeCurrentAlbum, excludeCurrentTrack }.Any(x => x);
+            var imageCommand = new bool[] { imageBackup, imageRestore, imageAddText, imageAddPhoto, imageRotateDegrees != 0, !string.IsNullOrWhiteSpace(imageClone) }.Any(x => x);
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
                 skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrent, imageBackup, imageRestore, imageAddText, imageAddPhoto, imageRotateDegrees != 0, !string.IsNullOrWhiteSpace(imageClone), !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeCurrent, imageCommand, testImages > 0, !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
             {
                 Console.WriteLine();
                 Console.WriteLine("Welcome to ");
-                if (Console.WindowWidth >= Program.TitleText_Large().Split(Environment.NewLine).Max(line => line.Length))
-                    Console.WriteLine(Program.TitleText_Large());
-                else if (Console.WindowWidth >= Program.TitleText_Medium().Split(Environment.NewLine).Max(line => line.Length))
-                    Console.WriteLine(Program.TitleText_Medium());
-                else
-                    Console.WriteLine(Environment.NewLine + Program.TitleText_Small() + Environment.NewLine);
+                Console.WriteLine(Program.TitleText_Large()
+                    .Split(Environment.NewLine)
+                    .Select(line => line.SoftSubstring(0, Console.WindowWidth))
+                    //.RemoveSubsequentDupeLines(blankLinesOnly: true)
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .Join(Environment.NewLine)
+                    );
+                Console.WriteLine();
                 Console.WriteLine("Please don't expect too much, but also be impressed.");
-                Console.WriteLine("Starting at " + DateTime.Now.ToShortDateTimeString());
+                Console.WriteLine("Starting at " + Program.RunStart.ToShortDateTimeString());
                 Console.WriteLine();
             }
             var sw = Stopwatch.StartNew();
@@ -283,6 +309,9 @@ namespace spotify_playlist_generator
 
 
             GetConfig();
+
+            if (verbose.HasValue)
+                Program.Settings._VerboseDebug = verbose.Value;
 
             //make output a little more concise for player commands
             //i mean it's pretty brief already, right?
@@ -303,7 +332,7 @@ namespace spotify_playlist_generator
 
             if (!playerCommand)
             {
-                Console.WriteLine("Hello there, "  +spotifyWrapper.CurrentUser.DisplayName);
+                Console.WriteLine("Hello there, " + spotifyWrapper.CurrentUser.DisplayName);
                 Console.WriteLine();
                 Console.WriteLine("----------------------");
                 Console.WriteLine();
@@ -323,19 +352,7 @@ namespace spotify_playlist_generator
                 playlistName = currentPlaylist.Name;
             }
 
-            List<FullPlaylist> newPlaylists;
-
-            //start pulling the users playlists on a different thread if we'll need it later
-            //hopefully speeds things up
-            if (!shortRun && !playerCommand)
-                System.Threading.Tasks.Task.Factory.StartNew(() =>
-                {
-                    spotifyWrapper.GetUsersPlaylists();
-                }
-            );
-
-            //TODO make reading playlist specs lazy, or does it load fast enough that it doesn't matter?
-            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpec, dontWarn:shortRun || playerCommand);
+            var playlistSpecs = ReadPlaylistSpecs(spotifyWrapper, listPlaylists, playlistName, playlistSpec, dontWarn: shortRun || playerCommand);
             var leaveImageAlonePlaylistNames = playlistSpecs
                 .Where(spec => spec.LeaveImageAlone)
                 .Select(p => p.FinalPlaylistName)
@@ -373,40 +390,11 @@ namespace spotify_playlist_generator
             if (skipPrevious)
                 spotifyWrapper.SkipPrevious();
 
+            // ------------ other commands ------------
+
             if (modifyPlaylistFile)
                 ModifyPlaylistSpecFiles(spotifyWrapper, playlistSpecs, modifyPlaylistFile);
-
-            if (imageRestore)
-                RestorePlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
-
-            if (imageBackup)
-                BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, OverwriteBackup: true);
-
-            if (imageAddPhoto)
-                ImageAddPhoto(spotifyWrapper, playlistName, playlistSpecs, leaveImageAlonePlaylistNames);
-            else if (!string.IsNullOrWhiteSpace(imageClone))
-                ImageClone(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, imageClone);
-
-            if (!string.IsNullOrWhiteSpace(imageNerdFontGlyph))
-            {
-                var glyph = NerdFontGlyph(imageNerdFontGlyph);
-                if (string.IsNullOrWhiteSpace(glyph))
-                {
-                    Console.WriteLine("Could not find matching Nerd Font glyph.");
-                    return;
-                }
-                else if (imageAddText)
-                    imageText = glyph;
-                else
-                    Console.WriteLine(glyph);
-            }
-
-            if (imageAddText)
-                ImageAddText(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames,
-                        imageText, imageFont, imageTextAlignment);
-
-            if (imageRotateDegrees != 0)
-                ImageRotate(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, imageRotateDegrees);
+            // ------------ other commands ------------
 
             if (reports)
                 RunReports(spotifyWrapper);
@@ -414,49 +402,86 @@ namespace spotify_playlist_generator
             if (commitAnActOfUnspeakableViolence)
                 CommitAnActOfUnspeakableViolence(spotifyWrapper);
 
-            //if any of those fancy commands besides the main functionality have been processed, stop here
-            if (shortRun || playerCommand)
+            List<FullPlaylist> newPlaylists = null;
+            // if any of those fancy commands besides the main functionality have been processed
+            // then skip the main functionality
+            if (!shortRun && !playerCommand)
             {
-                Console.WriteLine();
-                Environment.Exit(0);
-            }
 
-            //do work!
-            GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
-            UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
+                //do work!
+                GetPlaylistBreakdowns(spotifyWrapper, playlistSpecs);
+                UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
 
-            if (string.IsNullOrWhiteSpace(playlistName))
-                RunReports(spotifyWrapper);
+                if (string.IsNullOrWhiteSpace(playlistName))
+                    RunReports(spotifyWrapper);
 
-            //refresh the users playlist cache before doing more playlist operations
-            //as new playlists won't be in it
-            if (newPlaylists.Any())
-            {
-                Console.WriteLine();
-                Console.WriteLine("---adding images to new playlists---");
-                spotifyWrapper.GetUsersPlaylists(true);
-            }
-
-            //add default images to all new playlists
-            foreach (var playlist in newPlaylists)
-            {
-                ImageAddPhoto(spotifyWrapper, playlist.Name, playlistSpecs, leaveImageAlonePlaylistNames);
-                ImageAddText(spotifyWrapper, playlist.Name, leaveImageAlonePlaylistNames,
-                        imageText, imageFont, imageTextAlignment);
-            }
-
-            if (play)
-            {
+                //refresh the users playlist cache before doing more playlist operations
+                //as new playlists won't be in it
                 if (newPlaylists.Any())
-                    spotifyWrapper.Play(newPlaylists.First().Name);
-                else if (playlistSpecs.Any())
-                    spotifyWrapper.Play(playlistSpecs.First().PlaylistName);
+                    spotifyWrapper.GetUsersPlaylists(true);
             }
 
-            Console.WriteLine();
-            Console.WriteLine("All done, get jammin'!");
+            // ------------ image commands ------------
 
-            Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString() + ", completed at " + DateTime.Now.ToShortDateTimeString());
+            // create default artwork for new playlists
+            if (!imageCommand &&
+                (1 == 2
+                || (newPlaylists?.Any() ?? false)
+                || testImages > 0
+                ))
+            {
+                imageCommand = true;
+                imageAddPhoto = true;
+                imageAddText = true;
+            }
+
+            if (imageCommand)
+            {
+                // loop is a hacky way of handling scenarios
+                var imagePlaylistNames = new List<string>();
+                // #1 playlist name was provided
+                if (!string.IsNullOrWhiteSpace(playlistName))
+                    imagePlaylistNames.Add(playlistName);
+                // #2 default image creation when playlist name was not provided
+                else if (newPlaylists?.Any() ?? false)
+                    imagePlaylistNames.AddRange(newPlaylists.Select(p => p.Name).Distinct());
+                // #3 test image gen or unknowns
+                else
+                    imagePlaylistNames.Add(null);
+
+                foreach (var imagePlaylistName in imagePlaylistNames)
+                    ImageTools.HandleImageStuff(
+                         spotifyWrapper: spotifyWrapper, playlistName: imagePlaylistName, leaveImageAlonePlaylistNames: leaveImageAlonePlaylistNames,
+                        imageAddPhoto: imageAddPhoto,
+                        imageAddText: imageAddText, imageText: imageText, imageFont: imageFont, imageTextAlignment: (ImageTools.TextAlignment)Enum.Parse(typeof(ImageTools.TextAlignment), imageTextAlignment.ToString()),
+                        imageRotateDegrees: imageRotateDegrees, imageClone: imageClone,
+                        imageNerdFontGlyph: imageNerdFontGlyph,
+                        testImages: testImages
+                        );
+            }
+
+            if (imageRestore)
+                ImageTools.RestorePlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
+
+            if (imageBackup)
+                ImageTools.BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames, OverwriteBackup: true);
+
+
+            if (!shortRun && !playerCommand)
+            {
+                if (play)
+                {
+                    if (newPlaylists.Any())
+                        spotifyWrapper.Play(newPlaylists.First().Name);
+                    else if (playlistSpecs.Any())
+                        spotifyWrapper.Play(playlistSpecs.First().PlaylistName);
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("All done, get jammin'!");
+
+                Console.WriteLine("Run took " + sw.Elapsed.ToHumanTimeString() + ", completed at " + DateTime.Now.ToShortDateTimeString());
+            }
         }
 
         static void GetConfig()
@@ -616,22 +641,7 @@ namespace spotify_playlist_generator
             //read in playlist breakdowns
             var playlistSpecs = files.Select(path => new PlaylistSpec(path)).ToList();
 
-            //print a nice little report if asked for it
-            if (listPlaylists)
-            {
-                var reportText = "Playlists found in " + Program.Settings._PlaylistFolderPath + ":" + Environment.NewLine + Environment.NewLine;
-
-                var maxNameLength = playlistSpecs.Max(p => p.PlaylistName.Length);
-
-                reportText += playlistSpecs
-                    .Select(p => p.PlaylistName + new string(' ', maxNameLength - p.PlaylistName.Length + 4) + p.SpecLines.Count().ToString("#,##0") + " lines")
-                    .OrderBy(x => x)
-                    .Join(Environment.NewLine);
-
-                Console.WriteLine(reportText);
-                Environment.Exit(0);
-            }
-            else if (!string.IsNullOrWhiteSpace(playlistName))
+            if (!string.IsNullOrWhiteSpace(playlistName))
             {
                 //match with basic globbing syntax
                 playlistSpecs = playlistSpecs
@@ -647,6 +657,22 @@ namespace spotify_playlist_generator
                     Console.WriteLine("No playlist spec found matching --playlist-name " + playlistName);
                     Environment.Exit(-1);
                 }
+            }
+
+            //print a nice little report if asked for it
+            if (listPlaylists)
+            {
+                var reportText = "Playlists found in " + Program.Settings._PlaylistFolderPath + ":" + Environment.NewLine + Environment.NewLine;
+
+                var maxNameLength = playlistSpecs.Max(p => p.PlaylistName.Length);
+
+                reportText += playlistSpecs
+                    .Select(p => p.PlaylistName + new string(' ', maxNameLength - p.PlaylistName.Length + 4) + p.SpecLines.Count().ToString("#,##0") + " lines")
+                    .OrderBy(x => x)
+                    .Join(Environment.NewLine);
+
+                Console.WriteLine(reportText);
+                Environment.Exit(0);
             }
 
             var optionsErrors = playlistSpecs.SelectMany(p => p.OptionsErrors).Distinct().OrderBy(x => x).ToArray();
@@ -967,505 +993,6 @@ namespace spotify_playlist_generator
             Console.WriteLine();
         }
 
-        static List<FullPlaylist> BackupAndPrepPlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames, bool OverwriteBackup = false)
-        {
-            //technically this method violates the rule of single concern
-            //but this is a personal project with limited time, so here we go
-
-            if (string.IsNullOrWhiteSpace(playlistName))
-            {
-                Console.WriteLine("--playlist-name is required for playlist image operations");
-                return null;
-            }
-
-            var playlists = spotifyWrapper.GetUsersPlaylists(playlistName, Settings._StartPlaylistsWith);
-            playlists.Remove(p => leaveImageAlonePlaylistNames?.Contains(p.Name) ?? false);
-
-            if (!playlists.Any())
-            {
-                Console.WriteLine("No playlists named \"" + playlistName + "\" found.");
-                return playlists;
-            }
-
-            var playlistsWithImages = playlists.Where(p => p.Images.Any()).ToList();
-
-            if (!playlistsWithImages.Any())
-            {
-                Console.WriteLine("No cover art to back up.");
-                return playlistsWithImages;
-            }
-
-            foreach (var playlist in playlistsWithImages)
-            {
-                //don't download the image if a working copy already exists
-                //these are cleared at the beginning of the session and the playlists are NOT refreshed as we go
-                //so this will be the most up-to-date copy
-                if (!System.IO.File.Exists(playlist.GetWorkingImagePath()))
-                    spotifyWrapper.DownloadPlaylistImage(playlist, playlist.GetWorkingImagePath());
-
-                if (!System.IO.File.Exists(playlist.GetBackupImagePath()) || OverwriteBackup)
-                {
-                    if (!System.IO.Directory.Exists(Settings._ImageBackupFolderPath))
-                        System.IO.Directory.CreateDirectory(Settings._ImageBackupFolderPath);
-
-                    System.IO.File.Copy(playlist.GetWorkingImagePath(), playlist.GetBackupImagePath());
-                }
-            }
-
-            return playlistsWithImages;
-        }
-
-        static void RestorePlaylistImage(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames)
-        {
-
-            if (!System.IO.Directory.Exists(Settings._ImageBackupFolderPath))
-            {
-                Console.WriteLine("No backup image found for " + playlistName + ".");
-                return;
-            }
-
-            var playlists = spotifyWrapper.GetUsersPlaylists(playlistName, Settings._StartPlaylistsWith);
-            playlists.Remove(p => leaveImageAlonePlaylistNames.Contains(p.Name));
-            var playlistsWithBackups = playlists.Where(p => System.IO.File.Exists(p.GetBackupImagePath())).ToArray();
-
-            if (!playlistsWithBackups.Any())
-            {
-                Console.WriteLine("No backup image found for " + playlistName + ".");
-                return;
-            }
-
-            //restore and burn
-            foreach (var playlist in playlists)
-            {
-                spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetBackupImagePath());
-                System.IO.File.Delete(playlist.GetBackupImagePath());
-            }
-        }
-
-        static void ImageAddText(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames
-            , string imageText, string imageFont, TextAlignment imageTextAlignment)
-        {
-
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
-            var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rAdding text to images: " + perc + ", " + time + " remaining"));
-
-            foreach (var playlist in playlists)
-            {
-                var textForArt = imageText ?? playlist.Name
-                    .TrimStart(Settings._StartPlaylistsWith ?? string.Empty);
-
-                textForArt = textForArt
-                    .Replace(" - ", Environment.NewLine)
-                    .Trim(Environment.NewLine)
-                    .Trim()
-                    ;
-
-                using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
-                {
-                    // TODO find a way to avoid loading the image twice
-                    var thief = new ColorThief.ImageSharp.ColorThief();
-                    var colorPalette = thief.GetPalette(SixLabors.ImageSharp.Image.Load<Rgba32>(playlist.GetWorkingImagePath()), 20);
-
-                    SixLabors.ImageSharp.Color darkColor;
-                    SixLabors.ImageSharp.Color lightColor = Color.White;
-
-                    if (colorPalette.Any(x => x.IsDark))
-                        darkColor = Color.Parse(colorPalette.First(x => x.IsDark).Color.ToHexString());
-                    else
-                        darkColor = Color.Black;
-
-                    if (colorPalette.Any(x => !x.IsDark))
-                        lightColor = Color.Parse(colorPalette.First(x => !x.IsDark).Color.ToHexString());
-                    else
-                        lightColor = Color.White;
-
-                    var fontPointToPixelRatio = (1.0 / 3) + 1;
-                    var edgeDistance = (int)Math.Round(img.Height * 0.033333, 0);
-
-                    // enbiggen the border if the text is going to be huge
-                    if (textForArt.Length <= 4 && imageTextAlignment == TextAlignment.Center)
-                        edgeDistance = edgeDistance * 2;
-                    var targetTextWidth = (img.Width - (edgeDistance * 2));
-
-                    var fontSize = 0;
-
-                    if (imageTextAlignment == TextAlignment.Center)
-                    {
-                        // center is the only size it makes sense to make huge
-                        // in normal case it will reduce itself to a reasonable amount
-                        // but for symbols it'll be perfect
-                        fontSize = (int)Math.Round((img.Height - edgeDistance) * fontPointToPixelRatio);
-                    }
-                    else
-                    {
-                        //a rough target size, works out to be the max
-                        fontSize = img.Height / 5;
-                    }
-                    var textWrappingLength = -1;
-
-                    // TODO package the font with the app
-                    // TODO try glow instead of outline
-                    var fontFamily = SystemFonts.Families
-                        .Where(f => f.Name.Like(imageFont ?? Settings._DefaultFont))
-                        .ToList()
-                        .Random();
-
-                    if (fontFamily == default)
-                        fontFamily = SystemFonts.Families.ToList().Random();
-
-                    var font = fontFamily.CreateFont((float)fontSize, FontStyle.Regular);
-
-                    var txtSizeInitial = TextMeasurer.MeasureBounds(text: textForArt, new TextOptions(font));
-
-                    if (txtSizeInitial.Width > targetTextWidth)
-                    {
-                        // width / scaling factor calc is for wrapping considerations
-                        // height / font point ratio calc is for determining if the font is too small
-                        // if text is wrapped prior to this the font height won't be relevant for this anymore
-                        var scalingFactor = targetTextWidth / txtSizeInitial.Width;
-                        var heightRatio = (txtSizeInitial.Height * scalingFactor) / img.Height;
-
-                        var minimumFontHeightRatio = 0.15;
-
-                        if (heightRatio < minimumFontHeightRatio)
-                        {
-                            // TODO would be very cool to allow giant blocks of text to fill the art
-                            // need to research how to do that calc
-                            var newScalingFactor = (minimumFontHeightRatio * img.Height) / txtSizeInitial.Height;
-                            scalingFactor = (float)newScalingFactor;
-                            textWrappingLength = targetTextWidth;
-                        }
-
-                        font = fontFamily.CreateFont((float)fontSize * scalingFactor, FontStyle.Regular);
-                    }
-                    var txtSizeFinal = TextMeasurer.MeasureBounds(text: textForArt, new TextOptions(font) { WrappingLength = textWrappingLength});
-
-                    SixLabors.Fonts.HorizontalAlignment mutateHorizontalAlignment;
-                    SixLabors.Fonts.VerticalAlignment mutateVerticalAlignment;
-                    PointF origin;
-
-                    // missing a few options like top center
-                    switch (imageTextAlignment)
-                    {
-                        case TextAlignment.BottomLeft:
-                        default:
-                            mutateHorizontalAlignment = HorizontalAlignment.Left;
-                            mutateVerticalAlignment = VerticalAlignment.Bottom;
-                            origin = new PointF(edgeDistance, img.Height - edgeDistance);
-                            break;
-                        case TextAlignment.BottomRight:
-                            mutateHorizontalAlignment = HorizontalAlignment.Right;
-                            mutateVerticalAlignment = VerticalAlignment.Bottom;
-                            origin = new PointF(img.Width - edgeDistance, img.Height - edgeDistance);
-                            break;
-                        case TextAlignment.TopRight:
-                            mutateHorizontalAlignment = HorizontalAlignment.Right;
-                            mutateVerticalAlignment = VerticalAlignment.Top;
-                            origin = new PointF(img.Width - edgeDistance, edgeDistance);
-                            break;
-                        case TextAlignment.TopLeft:
-                            mutateHorizontalAlignment = HorizontalAlignment.Left;
-                            mutateVerticalAlignment = VerticalAlignment.Top;
-                            origin = new PointF(edgeDistance, edgeDistance);
-                            break;
-                        case TextAlignment.Center:
-                            mutateHorizontalAlignment = HorizontalAlignment.Center;
-                            mutateVerticalAlignment = VerticalAlignment.Center;
-                            origin = new PointF(img.Width / 2, img.Height / 2);
-                            break;
-
-                    }
-
-                    // Console.WriteLine("img.Width: " + img.Width.ToString("#,##0.00"));
-                    // Console.WriteLine("img.Height: " + img.Height.ToString("#,##0.00"));
-                    // Console.WriteLine("txtSizeFinal.Width: " + txtSizeFinal.Width.ToString("#,##0.00"));
-                    // Console.WriteLine("txtSizeFinal.Height: " + txtSizeFinal.Height.ToString("#,##0.00"));
-                    // Console.WriteLine("origin: " + origin.ToString());
-                    // Console.WriteLine("final font size: " + font.Size.ToString());
-
-                    // TODO review this ratio and see if it needs updated
-                    var penSize = (float)Math.Floor(font.Size / 100.00);
-                    if (penSize == 0f)
-                        penSize = 1f;
-
-                    // intermittent bug occurs here when picking a random font
-                    // there's likely a font that's incompatible somehow
-                    img.Mutate(x => x.DrawText(
-                        textOptions: new TextOptions(font)
-                        {
-                            Origin = origin,
-                            WrappingLength = textWrappingLength,
-                            HorizontalAlignment = mutateHorizontalAlignment, 
-                            VerticalAlignment = mutateVerticalAlignment, 
-                            
-                        },
-                        text: textForArt,
-                        brush: Brushes.Solid(lightColor),
-                        pen: Pens.Solid(darkColor, penSize)
-                        )
-                    );
-
-                    var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-                    jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
-
-                    img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
-                }
-
-                //if (System.Diagnostics.Debugger.IsAttached)
-                //{
-                //    Process.Start("explorer.exe", "\"" + playlist.GetWorkingImagePath() + "\"");
-                //}
-                //else
-                //{
-
-                var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
-
-                //}
-
-                pp.PrintProgress();
-            }
-        }
-
-
-        static void ImageRotate(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames
-            , int imageRotateDegrees)
-        {
-
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
-            var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rRotating images: " + perc + ", " + time + " remaining"));
-
-            foreach (var playlist in playlists)
-            {
-                using (var img = SixLabors.ImageSharp.Image.Load(playlist.GetWorkingImagePath()))
-                {
-                    img.Mutate(x => x.Rotate((float)imageRotateDegrees));
-
-                    var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-                    jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
-
-                    img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
-                }
-
-                var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
-
-                pp.PrintProgress();
-            }
-        }
-        static void ImageClone(MySpotifyWrapper spotifyWrapper, string playlistName, IEnumerable<string> leaveImageAlonePlaylistNames, string imageClone)
-        {
-            var sourcePlaylist = BackupAndPrepPlaylistImage(spotifyWrapper, imageClone, leaveImageAlonePlaylistNames).FirstOrDefault();
-
-            if (sourcePlaylist == null)
-            {
-                Console.WriteLine("Could not find " + imageClone);
-                return;
-            }
-
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames).Where(p => p != sourcePlaylist).ToList();
-
-            Console.WriteLine("Cloning image from " + sourcePlaylist.Name);
-
-            var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rRotating images: " + perc + ", " + time + " remaining"));
-
-            foreach (var playlist in playlists)
-            {
-                var success = spotifyWrapper.UploadPlaylistImage(playlist, sourcePlaylist.GetWorkingImagePath());
-
-                pp.PrintProgress();
-            }
-
-        }
-
-        static void ImageAddPhoto(MySpotifyWrapper spotifyWrapper, string playlistName, IList<PlaylistSpec> playlistSpecs, IEnumerable<string> leaveImageAlonePlaylistNames)
-        {
-            var playlists = BackupAndPrepPlaylistImage(spotifyWrapper, playlistName, leaveImageAlonePlaylistNames);
-
-            var pp = new ProgressPrinter(playlists.Count, (perc, time) => ConsoleWriteAndClearLine("\rAdding new photos: " + perc + ", " + time + " remaining"));
-            foreach (var playlist in playlists)
-            {
-                var playlistTracks = spotifyWrapper.GetTracksByPlaylist(new string[] { playlist.Id }).ToArray();
-
-                //you can do image operations on non-managed playlists
-                //so the playlist spec WILL be null sometimes
-                var playlistSpec = playlistSpecs
-                    .Where(spec => spec.FinalPlaylistName.ToLower() == playlist.Name.ToLower())
-                    .FirstOrDefault();
-
-                //could only assign imageSource if it's null
-                //then shrink and compress at a ratio * attempts
-                ImageSource imageSource = null;
-
-                //// spotify artist image
-                //// these seem to produce pretty poor results
-                //if (playlistSpec != null &&
-                //    (playlistSpec.GetPlaylistType == PlaylistType.AllByArtist || playlistSpec.GetPlaylistType == PlaylistType.Top)
-                //    && 1 == 2
-                //    )
-                //{
-                //    //get the top 10 artistIDs from a playlist
-                //    //with what percent of the playlist they cover
-                //    var artistIdDeets = playlistTracks
-                //                        .SelectMany(t => t.ArtistIds)
-                //                        .GroupBy(id => id)
-                //                        .OrderByDescending(g => g.Count())
-                //                        .Select(g => new
-                //                        {
-                //                            ArtistID = g.Key,
-                //                            PercOfPlaylist = g.Count() / (playlistTracks.Count() * 1.00)
-                //                        })
-                //                        .Take(10)
-                //                        .ToArray();
-
-                //    //a little logic to pick out the obvious winners from a playlist
-                //    //don't want art for a single guest musician when the playlist is 90% a different one
-                //    var maxPerc = artistIdDeets.Max(x => x.PercOfPlaylist);
-                //    var topArtistIdDeets = artistIdDeets
-                //        .Where(a => a.PercOfPlaylist >= maxPerc - 0.2)
-                //        .ToArray();
-
-                //    var artistIdPick = topArtistIdDeets.Select(a => a.ArtistID).ToList().Random();
-
-                //    var artist = spotifyWrapper.GetArtists(new string[] { artistIdPick }).FirstOrDefault();
-                //    var imageURL = artist?.Images?.Random()?.Url;
-
-                //    if (!string.IsNullOrWhiteSpace(imageURL))
-                //        imageSource = new ImageSource(imageURL);
-                //}
-                //else
-
-                var analyzer = new SentimentIntensityAnalyzer();
-                var textSampleLines = new List<string>();
-
-                textSampleLines.AddRange(playlistTracks.Select(t => t.Name));
-                textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
-                textSampleLines.AddRange(playlistTracks.Select(t => t.AlbumName));
-                textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
-                textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
-                textSampleLines.AddRange(playlistTracks.SelectMany(t => t.ArtistNames).Distinct());
-
-                var sentiment = analyzer.PolarityScores(textSampleLines.Join(", "));
-
-                var searchTerm = new string[] {
-                    //"concert", "music", "record player", "party", "guitar", "karaoke"
-                    "forest", "mountains", "scenic", "nature", "dark nature", "landscape", "night"
-                }
-                    .Random();
-
-                if (Program.Settings._VerboseDebug)
-                {
-                    //Console.WriteLine("sentiment score for " + playlist.Name + ": " + sentiment.Compound.ToString("0.0000"));
-                    Console.WriteLine("sentiment score for " + playlist.Name + ":" +
-                        " posi: " + sentiment.Positive.ToString("0.0000") +
-                        " neut: " + sentiment.Neutral.ToString("0.0000") +
-                        " nega: " + sentiment.Negative.ToString("0.0000") +
-                        " comp: " + sentiment.Compound.ToString("0.0000")
-                        );
-                }
-
-                //unsplash image for positive sentiment, nasa image for negative sentiment
-                if (sentiment.Compound >= 0)
-                {
-                    imageSource = ImageTools.GetUnsplashImage(searchTerm);
-                }
-                else
-                {
-                    // nasa astronomy picture of the day
-                    imageSource = ImageTools.GetNasaApodImage();
-                }
-
-                // TODO error check for failure to decode image here
-                // SixLabors.ImageSharp.UnknownImageFormatException
-                //scale and crop image to fit
-                using (var img = SixLabors.ImageSharp.Image.Load(imageSource.TempFilePath))
-                {
-                    var targetDim = 640;
-
-                    var minDim = new int[] { img.Width, img.Height }.Min();
-                    // make it a little bigger so we can punch an image out of the middle
-                    var ratio = (targetDim * 1.5) / minDim;
-                    var resizeSize = new Size((int)Math.Round(img.Width * ratio, 0), (int)Math.Round(img.Height * ratio, 0));
-
-                    //if (ratio > 1 || resizeSize.Width == 0 || resizeSize.Height == 0)
-                    //{
-                    //    resizeSize = new Size(minDim, minDim);
-                    //}
-
-                    //Console.WriteLine("targetDim:	" + targetDim.ToString());
-                    //Console.WriteLine("minDim:	" + minDim.ToString());
-                    //Console.WriteLine("ratio:	" + ratio.ToString());
-                    //Console.WriteLine("resizeSize:	" + resizeSize.Width.ToString() + " width, " + resizeSize.Height.ToString() + " height");
-
-                    img.Mutate(
-                        i => i
-                                .Resize(resizeSize)
-                                .Crop(new Rectangle(
-                                    x: (resizeSize.Width - targetDim) / 2,
-                                    y: (resizeSize.Height - targetDim) / 2,
-                                    width: targetDim,
-                                    height: targetDim
-                                    ))
-                                );
-
-                    var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-                    jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
-
-                    img.SaveAsJpeg(playlist.GetWorkingImagePath(), jpgEncoder);
-                }
-
-                //prep description update
-                var req = new PlaylistChangeDetailsRequest();
-                var oldAttribText = new Regex(@"Cover: .*").Match(playlist.Description).Value;
-                var newAttribText = "Cover: " + imageSource.TinyURL;
-                if (!string.IsNullOrWhiteSpace(oldAttribText))
-                {
-                    req.Description = playlist.Description.Replace(oldAttribText, newAttribText, StringComparison.InvariantCultureIgnoreCase);
-                }
-                else
-                {
-                    req.Description = playlist.Description + " " + newAttribText;
-                }
-
-                //attempt to update image
-                var success = spotifyWrapper.UploadPlaylistImage(playlist, playlist.GetWorkingImagePath());
-
-                //update description if image update was successful
-                if (success)
-                    spotifyWrapper.spotify.Playlists.ChangeDetails(playlist.Id, req);
-
-                pp.PrintProgress();
-            }
-        }
-        static string NerdFontGlyph(string search)
-        {
-            var url = "https://nerdfonts.com/assets/css/webfont.css";
-            var filePath = System.IO.Path.Join(Program.Settings._CacheFolderPath, "nerdfont.css");
-
-            // if not exists or modified more than a week ago
-            ImageTools.DownloadFile(url, filePath);
-
-            var css = System.IO.File.ReadAllText(filePath);
-            var reggy = new Regex(@"\.(?<key>[a-z\-_]+):\w+{content:""\\(?<value>[a-f0-9]+)""}", RegexOptions.IgnoreCase);
-            var nfBreakdown = reggy.Matches(css)
-                .Where(m => m.Success)
-                .ToDictionary(m => m.Groups["key"].Value, m => m.Groups["value"].Value);
-
-            // Console.WriteLine(nfBreakdown.Count().ToString("#,##0") + " nerd font glyphs found");
-
-            var hexString = nfBreakdown
-                .Where(kvp => kvp.Key.Like(search))
-                .Select(kvp => kvp.Value)
-                .FirstOrDefault();
-
-            if (string.IsNullOrWhiteSpace(hexString))
-                return null;
-
-            var intValue = Int32.Parse(hexString, System.Globalization.NumberStyles.AllowHexSpecifier);
-            var outputChar = char.ConvertFromUtf32(intValue);
-
-            return outputChar.ToString();
-
-        }
-
         static void CommitAnActOfUnspeakableViolence(MySpotifyWrapper spotifyWrapper)
         {
             var rnd = new Random();
@@ -1543,18 +1070,25 @@ namespace spotify_playlist_generator
             Console.WriteLine("---assembling playlist tracks---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
+            playlistSpecs = playlistSpecs.Where(playlistSpec => !playlistSpec.DontRun).ToList();
+
+            if (playlistSpecs.Count > 1)
+                Console.WriteLine("Found " + playlistSpecs.Count.ToString("#,##0") + " playlists");
+            else if (playlistSpecs.Count == 1)
+                Console.WriteLine("Found " + playlistSpecs.First().PlaylistName);
+
             var pp = new ProgressPrinter(playlistSpecs.Count, (perc, time) => ConsoleWriteAndClearLine("\rAssembling playlists: " + perc + ", " + time + " remaining"));
             foreach (var playlistSpec in playlistSpecs)
             {
                 //further mangle the console output for the sake of debug info
                 if (Program.Settings._VerboseDebug)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine("Playlist: " + playlistSpec.PlaylistName);
-                    Console.WriteLine("Playlist lines: " + playlistSpec.SpecLines.Count().ToString("#,##0"));
-                    Console.WriteLine("Playlist param lines: " + playlistSpec.SpecLines
-                        .Where(line => line.IsValidParameter)
-                        .Count().ToString("#,##0"));
+                    //Console.WriteLine();
+                    //Console.WriteLine("Playlist: " + playlistSpec.PlaylistName);
+                    //Console.WriteLine("Playlist lines: " + playlistSpec.SpecLines.Count().ToString("#,##0"));
+                    //Console.WriteLine("Playlist param lines: " + playlistSpec.SpecLines
+                    //    .Where(line => line.IsValidParameter)
+                    //    .Count().ToString("#,##0"));
 
                     // foreach(var line in playlistSpec.SpecLines)
                     // {
@@ -1647,36 +1181,6 @@ namespace spotify_playlist_generator
 
                 if (playlistSpec.NoLikes)
                 {
-                    if (Debugger.IsAttached)
-                    {
-                        var likedTracksTest = spotifyWrapper.LikedTracks
-                            .Where(t => t.Name.ToLower() == "trrst")
-                            .ToList();
-                        var likedStrings = likedTracksTest
-                            .Select(t => t.TrackId + " " + t.ComparisonString)
-                            .ToList();
-                        var specTracksTest = playlistTracks
-                            .Where(t => t.Name.ToLower() == "trrst")
-                            .ToList();
-                        var specStrings = specTracksTest
-                            .Select(t => t.TrackId + " " + t.ComparisonString)
-                            .ToList();
-
-                        Console.WriteLine("liked track:");
-                        Console.WriteLine(likedStrings.Join(Environment.NewLine));
-                        Console.WriteLine("spec track:");
-                        Console.WriteLine(specStrings.Join(Environment.NewLine));
-                        Console.WriteLine("tracks equal: " + (likedTracksTest.FirstOrDefault() == specTracksTest.FirstOrDefault()).ToString());
-                        Console.WriteLine();
-
-                        //liked track:
-                        //4A0YuzcYuEEP8A3oEZTddL trrst $$$ ic3peakzillakami
-                        //2hBwYJBlZ9Q5abmJdJMIV6 trrst $$$ ic3peakzillakami
-                        //spec track:
-                        //0M56diRArdi0vRYmLBeltn trrst $$$ ic3peak
-                        //tracks equal: False
-                    }
-
                     playlistTracks.Remove(t =>
                         spotifyWrapper.LikedTracks.Any(lt => 1 == 2
                             || lt.ComparisonString == t.ComparisonString
@@ -1724,8 +1228,6 @@ namespace spotify_playlist_generator
                         .ToArray();
 
                     playlistTracks.RemoveRange(tracksToRemove);
-
-
                 }
 
                 if (playlistSpec.LimitPerAlbum > 0)
@@ -1762,9 +1264,31 @@ namespace spotify_playlist_generator
 
                 if (playlistSpec.ReleasedBefore.HasValue)
                 {
+
                     playlistTracks = playlistTracks
                         .Where(t => t.ReleaseDate < playlistSpec.ReleasedBefore.Value)
                         .ToList();
+                }
+
+                if (playlistSpec.LikedAfter.HasValue)
+                {
+                    playlistTracks = playlistTracks
+                        .Where(t => t.LikedAt > playlistSpec.LikedAfter.Value.ToUniversalTime())
+                        .ToList();
+
+                    Console.WriteLine("playlistSpec.LikedAfter: " + playlistSpec.LikedAfter.Value.ToUniversalTime().ToString());
+                    Console.WriteLine("playlistTracks.Min(t => t.LikedAt): " + playlistTracks.Min(t => t.LikedAt).ToString());
+                }
+
+                if (playlistSpec.LikedBefore.HasValue)
+                {
+                    Console.WriteLine("max like utc: " + playlistTracks.Max(t => t.LikedAt).ToString());
+                    playlistTracks = playlistTracks
+                        .Where(t => t.LikedAt < playlistSpec.LikedBefore.Value.ToUniversalTime())
+                        .ToList();
+
+                    Console.WriteLine("playlistSpec.LikedBefore: " + playlistSpec.LikedBefore.Value.ToUniversalTime().ToString());
+                    Console.WriteLine("playlistTracks.Max(t => t.LikedAt): " + playlistTracks.Max(t => t.LikedAt).ToString());
                 }
 
                 // ------------ sort ------------
@@ -1818,15 +1342,31 @@ namespace spotify_playlist_generator
 
             Console.WriteLine();
 
+            var deets = "Assembled track list for " + playlistSpecs.Count.ToString("#,##0") + " playlists";
+            deets += " with an average of ";
+
+            if (playlistSpecs.Any())
+                deets += playlistSpecs.Average(spec => spec.Tracks.Count).ToString("#,##0.00");
+            else
+                deets += "0";
+
+            deets += " tracks per playlist.";
+
             Console.WriteLine();
-            Console.WriteLine("Assembled track list for " + playlistSpecs.Count.ToString("#,##0") + " playlists " +
-                "with an average of " + playlistSpecs.Average(spec => spec.Tracks.Count).ToString("#,##0.00") + " tracks per playlist."
-                );
+            Console.WriteLine(deets);
             Console.WriteLine();
         }
 
         static void UpdatePlaylists(MySpotifyWrapper spotifyWrapper, List<PlaylistSpec> playlistSpecs, out List<FullPlaylist> newPlaylists)
         {
+
+            if (!playlistSpecs.Where(p => !p.DontRun).Any())
+            {
+                newPlaylists = new List<FullPlaylist>();
+                Console.Write("No playlists to update.");
+                return;
+            }
+
             Console.WriteLine();
             Console.WriteLine("---updating spotify---");
 
@@ -1872,18 +1412,22 @@ namespace spotify_playlist_generator
             var sortedPlaylistIDs = new List<string>();
             newPlaylists = new();
 
+            playlistSpecs = playlistSpecs
+                .Where(playlistSpec => 
+                            !playlistSpec.DontRun &&
+                            !(playlistSpec.DeleteIfEmpty && !playlistSpec.Tracks.Any()
+                             ))
+                .OrderByDescending(spec => spec.FinalPlaylistName).ToList()
+                ;
+
             var sbReport = new StringBuilder();
-            var maxPlaylistNameLen = playlistSpecs.Max(spec => spec.FinalPlaylistName.Length);
+            var maxPlaylistNameLen = !playlistSpecs.Any() ? 0 : playlistSpecs.Max(spec => spec.FinalPlaylistName.Length);
 
             //iterating through rather than running in bulk with linq to *hopefully* be a little more memory efficient
             //order by descending playlist name to get alphabetical playlists in the Spotify interface
             var pp = new ProgressPrinter(playlistSpecs.Count, (perc, time) => ConsoleWriteAndClearLine("\rUpdating playlists: " + perc + ", " + time + " remaining"));
-            foreach (var playlistSpec in playlistSpecs.OrderByDescending(spec => spec.FinalPlaylistName).ToList())
+            foreach (var playlistSpec in playlistSpecs)
             {
-                //ignore any "delete if empty" empty playlists
-                if (playlistSpec.DeleteIfEmpty && !playlistSpec.Tracks.Any())
-                    continue;
-
                 //find this playlist by name
                 //99% of the time there will only be one, but it's *possible* for two playlists to share a name
                 //that was confusing as hell to discover
@@ -1908,6 +1452,35 @@ namespace spotify_playlist_generator
 
                     createPlaylistCounter += 1;
                     newPlaylists.Add(playlist);
+                }
+
+                // write the ID if it isn't already logged
+                if ((playlistSpec.ID ?? string.Empty) != (playlist.Id ?? string.Empty))
+                {
+                    var fileLines = System.IO.File.ReadAllLines(playlistSpec.Path).ToList();
+                    fileLines.Insert(0, "@ID:" + playlist.Id);
+                    System.IO.File.WriteAllLines(playlistSpec.Path, fileLines);
+
+                }
+
+                if (playlistSpec.OnlyRunIfModified)
+                {
+                    var fileLines = System.IO.File.ReadAllLines(playlistSpec.Path).ToList();
+                    var modTime = System.IO.File.GetLastWriteTime(playlistSpec.Path);
+                    var lastRunString = "@LastRun:" + Program.RunStart.ToString();
+                    var insertPos = fileLines.First().StartsWith("@ID:") ? 1 : 0;
+
+                    if (playlistSpec.LastRun.HasValue)
+                        fileLines = fileLines.Select(line =>
+                                line.StartsWith("@LastRun:")
+                                ? lastRunString
+                                : line)
+                            .ToList();
+                    else
+                        fileLines.Insert(insertPos, lastRunString);
+
+                    System.IO.File.WriteAllLines(playlistSpec.Path, fileLines);
+                    System.IO.File.SetLastWriteTime(playlistSpec.Path, modTime);
                 }
 
                 //get the items in the playlist currently
