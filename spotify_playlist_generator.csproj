@@ -26,6 +26,9 @@
     <PackageReference Include="Unsplash.Net" Version="1.0.0" />
     <PackageReference Include="vadersharp2" Version="3.3.2.1" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Small Docs\" />
+  </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="echo 'Updating readme.md...'" />
     <Exec Condition="'$(OS)' != 'Windows_NT' " Command="&quot;$(TargetDir)$(ProjectName)&quot; --update-readme || echo &quot;Failed to update readme.md!&quot; &amp;&amp; exit 0" />

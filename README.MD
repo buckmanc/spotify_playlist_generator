@@ -79,6 +79,7 @@ All of these can accept the name of the artist/album/playlist or the Spotify ID.
 LikesByGenre is the most broadly useful playlist parameter.
 
     Album                      All tracks on this album. Accepts album ID or names in the form "Artist Name - Album Name". Album ID performs significantly faster.
+    AlbumsFromPlaylist         All tracks from all albums with any song in this playlist
     AllByArtist                All tracks by this artist. Can be intensive. Specifying artist ID instead of artist name can reduce the load somewhat. Using an artist name is very likely to include duplicate artists with the same name.
     AllByArtistFromPlaylist    All tracks by all artists in this playlist
     LikesByArtist              Liked tracks by this artist.
@@ -92,6 +93,7 @@ LikesByGenre is the most broadly useful playlist parameter.
     -Artist                    Exclude all tracks matching this artist.
     -From                      Exclude all tracks with a matching "from" clause in the track name. This is primarily useful for soundtrack and video game covers.
     -Genre                     Exclude all tracks matching this genre.
+    -PlaylistAlbums            Exclude all albums in this playlist.
     -PlaylistArtists           Exclude all artists in this playlist.
     -PlaylistTracks            Exclude all tracks in this playlist.
     -Track                     Exclude all tracks with a matching name or ID.
@@ -106,12 +108,18 @@ Playlist options are preceded by "@" and affect the playlist as a whole.
     DontModify                Don't modify the playlist spec file, even if told to.
     DontRemoveTracks          If tracks no longer fall within the scope of the playlist leave them anyway.
     ExceptArtistFromPlaylist  A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.
+    ID                        The Spotify ID of this playlist after creation. Generally an output.
+    LastRun                   The date of last run. Only updated when OnlyRunIfModified is set.
     LastXDays                 Limit to tracks released in the last X days.
     LeaveImageAlone           Don't touch the artwork, even if told to.
+    LikedAfter                Limit to tracks liked after this date/time.
+    LikedBefore               Limit to tracks liked before this date/time.
     LimitPerAlbum             Limit the amount of tracks per album, prioritizing by popularity.
     LimitPerArtist            Limit the amount of tracks per artist, prioritizing by popularity.
     NoExplicit                Exclude tracks marked explicit.
     NoLikes                   Exclude liked songs from this playlist.
+    OnlyCreatePlaylist        Don't run again after the playlist has been created. This can be reset by removing the @ID from the file.
+    OnlyRunIfModified         Don't run again unless the file has been modified.
     ReleasedAfter             Limit to tracks released after this date.
     ReleasedBefore            Limit to tracks released before this date.
     Sort                      How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are Don't, Liked, Release, Artist.
@@ -146,6 +154,7 @@ Arguments for the program itself. These are not the primary function of the app 
     --image-rotate-degrees <image-rotate-degrees>                            Rotate the image. You should really stick to 90 degree increments.
     --image-clone <image-clone>                                              Clone the cover art from another of your playlists.
     --image-nerd-font-glyph <image-nerd-font-glyph>                          Wildcard search for a Nerd Font glyph. Returns the symbol when used alone or used as the text with --image-add-text. You still have to specify an installed Nerd Font with --image-font.
+    --test-images <test-images>                                              Generate x test images instead of updating live playlists. Stored in the playlist folder.
     --play                                                                   Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.
     --skip-next                                                              Skip forward.
     --skip-previous                                                          Skip backward.
@@ -157,6 +166,7 @@ Arguments for the program itself. These are not the primary function of the app 
     --lyrics                                                                 Pass currently playing info to an external lyrics app specified in the config file.
     --tab-completion-argument-names                                          A space delimited list of these arguments to pass to the bash "complete" function.
     --update-readme                                                          Update readme.md. Only used in development.
+    --verbose                                                                Print more logging messages. Pretty messy. Overrides the settings file.
     --version                                                                Show version information
     -?, -h, --help                                                           Show help and usage information
 

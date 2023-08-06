@@ -118,6 +118,32 @@ namespace spotify_playlist_generator
                     },
                     new PlaylistParameterDefinition()
                     {
+                        ParameterName = "AlbumsFromPlaylist",
+                        Description = "All tracks from all albums with any song in this playlist",
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
+                        {
+                            var albumIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
+                                .Select(t => t.AlbumId)
+                                .Distinct()
+                                .ToArray();
+
+                            var tracks = spotifyWrapper.GetTracksByAlbum(albumIDs);
+
+                            // a simple but weird way to remove any tracks that *only* have artist IDs told to ignore
+                            if (exceptArtists?.Any() ?? false)
+                            {
+                                var artistIDs = tracks.GetArtistIDs(exceptArtists).ToArray();
+                                tracks = tracks
+                                .Where(t => t.ArtistIds.Any(id => artistIDs.Contains(id)))
+                                .ToList()
+                                ;
+                            }
+
+                            return tracks;
+                        }
+                    },
+                    new PlaylistParameterDefinition()
+                    {
                         ParameterName = "TopByArtist",
                         Description = "The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.",
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
@@ -269,6 +295,24 @@ namespace spotify_playlist_generator
 
                             var tracks = existingTracks.Where(t =>
                                 t.ArtistIds.Any(artistID => artistIDs.Contains(artistID, StringComparer.InvariantCultureIgnoreCase))
+                                ).ToList();
+
+                            return tracks;
+                        }
+                    },
+                    new PlaylistParameterDefinition()
+                    {
+                        ParameterName = "-PlaylistAlbums",
+                        Description = "Exclude all albums in this playlist.",
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
+                        {
+                            var albumsIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
+                                .Select(t => t.AlbumId)
+                                .Distinct()
+                                .ToArray();
+
+                            var tracks = existingTracks.Where(t =>
+                                albumsIDs.Contains(t.AlbumId)
                                 ).ToList();
 
                             return tracks;

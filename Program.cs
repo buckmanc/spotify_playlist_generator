@@ -251,12 +251,14 @@ namespace spotify_playlist_generator
             if (Debugger.IsAttached)
             {
                 //imageAddPhoto = true;
-                imageAddText = true;
+                //imageAddText = true;
                 //imageNerdFontGlyph = "random";
                 //imageFont = "*NFM*";
                 //imageTextAlignment = TextAlignment.Center;
-                testImages = 10;
-                verbose = false;
+                //testImages = 10;
+                //verbose = false;
+                //playlistName = "*master*lofi*";
+                playlistName = "*no gamechops";
             }
 
             if (tabCompletionArgumentNames)
@@ -739,6 +741,9 @@ namespace spotify_playlist_generator
                 return;
             }
 
+            // if there's only one command and no fail text, just pass the output of the command on
+            var passAllOutput = commands.Count() == 1 && !failText.Any();
+
             var currentTrack = spotifyWrapper.GetCurrentTrack();
 
             if (currentTrack == null)
@@ -751,10 +756,22 @@ namespace spotify_playlist_generator
             var trackName = currentTrack.Name ?? String.Empty;
             var foundLyrics = false;
 
+            // escape double quotes in values
+            artistName = artistName.Replace("\"", "\\\"");
+            trackName = trackName.Replace("\"", "\\\"");
+
             foreach (var command in commands)
             {
-                var args = "\"" + artistName + "\" \"" + trackName + "\"";
+                var args = string.Empty;
                 var commandMod = command;
+
+                if (commandMod.Contains("{artistName}") && commandMod.Contains("{trackName}"))
+                {
+                    commandMod = commandMod.Replace("{artistName}", "\"" + artistName + "\"");
+                    commandMod = commandMod.Replace("{trackName}", "\"" + trackName + "\"");
+                }
+                else
+                    args = "\"" + artistName + "\" \"" + trackName + "\"";
 
                 var commandArray = commandMod.Split(" ", 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
                 if (commandArray.Count() > 1)
@@ -763,22 +780,28 @@ namespace spotify_playlist_generator
                     args = commandArray.Last() + " " + args;
                 }
 
-                //if (Settings._VerboseDebug)
-                //{
+                // if (Settings._VerboseDebug)
+                // {
                 //    Console.WriteLine("command: " + commandMod);
                 //    Console.WriteLine("args: " + args);
-                //}
+                // }
 
                 var lyricCommand = new ProcessStartInfo() {
                     FileName = commandMod,
                     Arguments = args,
                     UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardOutput = !passAllOutput,
+                    RedirectStandardError = !passAllOutput,
                     CreateNoWindow = true,
                 };
                 using (var process = Process.Start(lyricCommand))
                 {
+                    if (passAllOutput)
+                    {
+                        process?.WaitForExit();
+                        continue;
+                    }
+
                     var commandOutput = new StringBuilder(string.Empty);
 
                     while (!process.StandardOutput.EndOfStream)
@@ -798,7 +821,7 @@ namespace spotify_playlist_generator
                 }
             }
 
-            if (!foundLyrics)
+            if (!foundLyrics && !passAllOutput)
                 Console.WriteLine("Could not find lyrics.");
             }
 
@@ -1688,6 +1711,7 @@ namespace spotify_playlist_generator
             var readmePath = System.IO.Path.Join(Program.ProjectPath, "README.MD");
             var readmeTemplatePath = System.IO.Path.Join(Program.ProjectPath, "MarkdownTemplates/README.MD");
             var csprojPath = System.IO.Path.Join(Program.ProjectPath, Program.AssemblyName + ".csproj");
+            var smallDocsDirPath = System.IO.Path.Join(Program.ProjectPath, "Small Docs");
 
             if (Program.Settings._VerboseDebug)
             {
@@ -1761,6 +1785,9 @@ namespace spotify_playlist_generator
             if (readmeTemplateText != readmeText)
             {
                 System.IO.File.WriteAllText(readmePath, readmeTemplateText);
+                System.IO.File.WriteAllText(System.IO.Path.Join(smallDocsDirPath, "options.md"), optionsHelp);
+                System.IO.File.WriteAllText(System.IO.Path.Join(smallDocsDirPath, "parameters.md"), paramsHelp);
+                System.IO.File.WriteAllText(System.IO.Path.Join(smallDocsDirPath, "config.md"), configSettings);
                 Console.WriteLine("README.MD updated");
             }
             else
