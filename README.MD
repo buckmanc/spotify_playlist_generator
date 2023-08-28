@@ -102,7 +102,7 @@ LikesByGenre is the most broadly useful playlist parameter.
 ## Playlist Options:
 Playlist options are preceded by "@" and affect the playlist as a whole.
 
-    AddArtistIDs              Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file
+    AddParameterIDs           Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file
     Default                   Assume any lines with no parameter are this parameter. Great for pasting lists of artists.
     DeleteIfEmpty             If the playlist has no tracks, delete it.
     DontModify                Don't modify the playlist spec file, even if told to.
@@ -116,12 +116,14 @@ Playlist options are preceded by "@" and affect the playlist as a whole.
     LikedBefore               Limit to tracks liked before this date/time.
     LimitPerAlbum             Limit the amount of tracks per album, prioritizing by popularity.
     LimitPerArtist            Limit the amount of tracks per artist, prioritizing by popularity.
+    LongerThan                Limit to tracks shorter than X minutes.
     NoExplicit                Exclude tracks marked explicit.
     NoLikes                   Exclude liked songs from this playlist.
     OnlyCreatePlaylist        Don't run again after the playlist has been created. This can be reset by removing the @ID from the file.
     OnlyRunIfModified         Don't run again unless the file has been modified.
     ReleasedAfter             Limit to tracks released after this date.
     ReleasedBefore            Limit to tracks released before this date.
+    ShorterThan               Limit to tracks longer than X minutes.
     Sort                      How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are Don't, Liked, Release, Artist.
     UpdateSort                Actively keep this playlist sorted. Can also be set globally in config.ini
 
@@ -144,6 +146,9 @@ Arguments for the program itself. These are not the primary function of the app 
     --exclude-current-artist                                                 Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
     --exclude-current-album                                                  Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
     --exclude-current-track                                                  Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
+    --add-current-artist                                                     Adds a line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
+    --add-current-album                                                      Adds a line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
+    --add-current-track                                                      Adds a line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
     --image-add-photo                                                        Assign a new image to the playlist.
     --image-add-text                                                         Add text to the playlist image. The playlist name is used if no --image-text is provided.
     --image-text <image-text>                                                Custom text to use for --image-add-text.
@@ -242,6 +247,7 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 - [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 2.1.3
 - [SixLabors.ImageSharp.Drawing](https://github.com/SixLabors/ImageSharp.Drawing) - 1.0.0-beta15
 - [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.0
+- [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.0
 - [System.CommandLine.DragonFruit](https://github.com/dotnet/command-line-api/blob/main/docs/Your-first-app-with-System-CommandLine-DragonFruit.md) - 0.4.0-alpha.22272.1
 - [System.Drawing.Common](https://www.nuget.org/packages/System.Drawing.Common/) - 7.0.0
 - [Unsplash.Net](https://github.com/unsplash-net/unsplash-net) - 1.0.0

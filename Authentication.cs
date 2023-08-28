@@ -9,9 +9,10 @@ namespace spotify_playlist_generator
     partial class Program
     {
 
-        public static async System.Threading.Tasks.Task<string> UpdateTokens()
+        public static async System.Threading.Tasks.Task<AuthorizationCodeTokenResponse> UpdateTokens()
         {
             var iniParser = new FileIniDataParser();
+            AuthorizationCodeTokenResponse response = null;
 
             //create tokens file if it doesn't exist
             if (!System.IO.File.Exists(Settings._TokensIniPath))
@@ -40,8 +41,12 @@ namespace spotify_playlist_generator
                 if (Program.Settings._VerboseDebug)
                     Console.WriteLine("[auth] No Spotify client ID...");
 
-                return string.Empty;
+                return null;
             }
+            
+            // TODO refactor this whole thing
+            Program.Tokens.SpotifyClientID = tokensIni["SPOTIFY CLIENT"]["ID"];
+            Program.Tokens.SpotifyClientSecret = tokensIni["SPOTIFY CLIENT"]["Secret"];
 
             //login for the first time if there's no access token
             if (string.IsNullOrWhiteSpace(tokensIni["SPOTIFY USER"]["AccessToken"]))
@@ -96,7 +101,7 @@ namespace spotify_playlist_generator
                 code = code.Replace("http://localhost:5000/?code=", string.Empty);
 
                 //use the auth code to get access/refresh tokens
-                var response = await new OAuthClient().RequestToken(
+                response = await new OAuthClient().RequestToken(
                       new AuthorizationCodeTokenRequest(
                           tokensIni["SPOTIFY CLIENT"]["ID"],
                           tokensIni["SPOTIFY CLIENT"]["Secret"],
@@ -118,13 +123,13 @@ namespace spotify_playlist_generator
                 if (Program.Settings._VerboseDebug)
                     Console.WriteLine("[auth] Getting a new access token...");
 
-                var response = await new OAuthClient().RequestToken(
+                response = new OAuthClient().RequestToken(
                       new AuthorizationCodeRefreshRequest(
                           tokensIni["SPOTIFY CLIENT"]["ID"],
                           tokensIni["SPOTIFY CLIENT"]["Secret"],
                           tokensIni["SPOTIFY USER"]["RefreshToken"]
                           )
-                    );
+                    ).Result.CloneToTokenResponse();
 
 
                 tokensIni["SPOTIFY USER"]["AccessToken"] = response.AccessToken;
@@ -137,7 +142,7 @@ namespace spotify_playlist_generator
                     Console.WriteLine("[auth] Problem state.");
 
                 //return nothing for problem state; main sub warns and exits
-                return string.Empty;
+                return null;
             }
 
             Program.Tokens.NasaKey = tokensIni["NASA"]["Key"];
@@ -150,7 +155,7 @@ namespace spotify_playlist_generator
             if (Program.Settings._VerboseDebug)
                 Console.WriteLine("[auth] Writing updates and returning access token.");
 
-            return tokensIni["SPOTIFY USER"]["AccessToken"];
+            return response;
         }
 
     }

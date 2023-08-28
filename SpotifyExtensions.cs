@@ -152,5 +152,22 @@ namespace spotify_playlist_generator
             var output = artistDeets.Select(a => a.ArtistID).Distinct().ToArray();
             return output;
         }
+
+        // the source of these two objects is identical, aside from the names
+        // cloning allows for auto refresh
+        public static AuthorizationCodeTokenResponse CloneToTokenResponse(this AuthorizationCodeRefreshResponse value)
+        {
+            var output = new AuthorizationCodeTokenResponse()
+            {
+                AccessToken = value.AccessToken,
+                            TokenType = value.TokenType,
+                            ExpiresIn = value.ExpiresIn,
+                            Scope = value.Scope,
+                            RefreshToken = value.RefreshToken,
+                            CreatedAt = value.CreatedAt
+            };
+
+            return output;
+        }
     }
 }

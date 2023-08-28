@@ -349,6 +349,11 @@ namespace spotify_playlist_generator
 
             return output;
         }
+
+        public static bool ContainsLike(this IEnumerable<string> value, string str)
+        {
+            return value.Any(x => x.Like(str));
+        }
         public static string Indent(this string value, int spaceCount = 4)
         {
             var spaces = new string(' ', spaceCount);
@@ -488,6 +493,8 @@ namespace spotify_playlist_generator
         public static string Standardize(this string value)
         {
             return value
+                .Replace(" ", " ") // replace nbsp with regular space
+                .Replace("​", "")   // replace whatever the hell this is with a space
                 .Trim()
                 .TrimStart("the ")
                 .Replace(" & ", " and ")

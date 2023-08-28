@@ -50,7 +50,7 @@ namespace spotify_playlist_generator.Models
             }
         }
         [Description("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
-        public bool AddArtistIDs { get; set; }
+        public bool AddParameterIDs { get; set; }
         [Description("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
         public string Default { get; set; }
         [Description("If the playlist has no tracks, delete it.")]
@@ -91,6 +91,10 @@ namespace spotify_playlist_generator.Models
         public DateOnly? ReleasedBefore { get; set; }
         [Description("Limit to tracks released after this date.")]
         public DateOnly? ReleasedAfter { get; set; }
+        [Description("Limit to tracks shorter than X minutes.")]
+        public double LongerThan { get; set; }
+        [Description("Limit to tracks longer than X minutes.")]
+        public double ShorterThan { get; set; }
         [Description("Limit to tracks liked before this date/time.")]
         public DateTime? LikedBefore { get; set; }
         [Description("Limit to tracks liked after this date/time.")]
@@ -156,6 +160,7 @@ namespace spotify_playlist_generator.Models
             }
         }
         public IList<string> OptionsErrors { get; private set; }
+        public IList<string> ParameterErrors { get; private set; }
 
         public SpecLine[] SpecLines { get; set; }
         public List<FullTrackDetails> Tracks { get; set; }
@@ -171,12 +176,18 @@ namespace spotify_playlist_generator.Models
                 if (!this.SpecLines.Any())
                     return PlaylistType.None;
 
-                return this.SpecLines
+                var validLineTypes = this.SpecLines
                     .Where(line => line.IsValidParameter)
                     .GroupBy(line => line.LineType)
                     .OrderByDescending(g => g.Count())
                     .Select(g => g.Key)
-                    .First();
+                    .ToArray()
+                    ;
+
+                if (!validLineTypes.Any())
+                    return PlaylistType.None;
+
+                return validLineTypes.First();
             }
         }
         public ObjectType GetSubjectType
@@ -315,6 +326,16 @@ namespace spotify_playlist_generator.Models
                 }
             }
 
+            var paramErrors = specLinesTemp
+                .Where(line => line.IsValidParameter)
+                .Select(line => line.ParameterName)
+                .Distinct()
+                .Where(name => !PlaylistParameterDefinition.ValidNamesAndAliases.ContainsLike(name))
+                .Select(name => "Unknown playlist parameter: " + name)
+                .ToArray();
+
+            this.ParameterErrors = paramErrors;
+
             this.SpecLines = specLinesTemp.ToArray();
 
             //randomly name the playlist if the user forgot to
@@ -452,6 +473,13 @@ namespace spotify_playlist_generator.Models
                 else if (prop.PropertyType == typeof(int))
                 {
                     if (int.TryParse(line.OptionValue, out var result))
+                        prop.SetValue(this, result);
+                    else
+                        badValue = true;
+                }
+                else if (prop.PropertyType == typeof(double))
+                {
+                    if (double.TryParse(line.OptionValue, out var result))
                         prop.SetValue(this, result);
                     else
                         badValue = true;

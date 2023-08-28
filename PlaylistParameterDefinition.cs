@@ -13,6 +13,7 @@ namespace spotify_playlist_generator
     internal class PlaylistParameterDefinition
     {
         public string ParameterName { get; set; }
+        public string[] Aliases { get; set; } = Array.Empty<string>();
         public string Description { get; set; }
         public bool IsExclusion
         {
@@ -367,5 +368,36 @@ namespace spotify_playlist_generator
 
 
         }
+
+        private static string[] _ValidNamesAndAliases;
+
+        public static string[] ValidNamesAndAliases
+        {
+            get 
+            {
+                if (_ValidNamesAndAliases == null)
+                {
+                    var names = PlaylistParameterDefinition
+                        .AllDefinitions
+                        .Select(ppd => ppd.ParameterName)
+                        .ToList();
+                    var aliases = PlaylistParameterDefinition
+                        .AllDefinitions
+                        .SelectMany(ppd => ppd.Aliases)
+                        .ToList();
+
+                    // use this as a chance to check for alias collisions
+                    if (aliases.Count() != aliases
+                        .SelectMany(x => x.Standardize())
+                        .Distinct().Count())
+                        throw new Exception("Playlist parameter alias collision detected!");
+
+                    _ValidNamesAndAliases = names.Union(aliases).Distinct().ToArray();
+                }
+
+                return _ValidNamesAndAliases;
+            }
+        }
+
     }
 }

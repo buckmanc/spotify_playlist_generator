@@ -196,11 +196,11 @@ namespace spotify_playlist_generator
             if (Program.Settings._VerboseDebug)
             {
                 Console.WriteLine("Access Token as of " + DateTime.Now.ToShortDateTimeString() + ": ");
-                Console.WriteLine(accessToken?.Substring(0, 20) ?? String.Empty);
+                Console.WriteLine(accessToken?.AccessToken?.Substring(0, 20) ?? String.Empty);
             }
 
             //exit for token problems
-            if (string.IsNullOrWhiteSpace(accessToken))
+            if (accessToken == null || string.IsNullOrWhiteSpace(accessToken.AccessToken))
             {
                 Console.WriteLine("Problem with the access tokens! Make sure client ID and client secret are in tokens.ini");
                 Environment.Exit(-1);
@@ -213,7 +213,11 @@ namespace spotify_playlist_generator
                   //RetryAfter = TimeSpan.FromSeconds(4),
                   //TooManyRequestsConsumesARetry = true
               })
-              .WithToken(accessToken)
+              // according to documentation this should allow for auto token refresh
+              // program.tokens.spotify* is a temp solution until this can be refactored
+              // TODO refactor auth process
+              .WithAuthenticator(new AuthorizationCodeAuthenticator(Program.Tokens.SpotifyClientID, Program.Tokens.SpotifyClientSecret, accessToken))
+              //.WithToken(accessToken.AccessToken)
               ;
 
             this.spotify = new SpotifyClient(config);

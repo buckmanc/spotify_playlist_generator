@@ -29,6 +29,14 @@ namespace spotify_playlist_generator.Models
         public string TrackId { get; set; }
         public int TrackNumber { get; set; }
         public string TrackUri { get; set; }
+        public int DurationMs { get; set; }
+        public double DurationMinutes 
+        {
+            get
+            {
+                return (this.DurationMs * 1.0) / 1000 / 60;
+            }
+        }
 
         [NonSerialized] //liked is only valid for this session, so don't save it
         public bool Source_Liked;
@@ -112,6 +120,7 @@ namespace spotify_playlist_generator.Models
             ArtistIds = fullArtists.Select(a => a.Id).ToList();
             ArtistNames = fullArtists.Select(a => a.Name).ToList();
             Name = fullTrack.Name;
+            DurationMs = fullTrack.DurationMs;
             Explicit = fullTrack.Explicit;
             Popularity = fullTrack.Popularity;
             ReleaseDate = fullTrack.Album.ReleaseDate.DateFromStringWithMissingParts();

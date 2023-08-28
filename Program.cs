@@ -91,6 +91,8 @@ namespace spotify_playlist_generator
             public static string NasaKey;
             public static string UnsplashAccessKey;
             public static string UnsplashSecretKey;
+            internal static string SpotifyClientID;
+            internal static string SpotifyClientSecret;
         }
 
         enum TextAlignment
@@ -206,6 +208,9 @@ namespace spotify_playlist_generator
         /// <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
         /// <param name="excludeCurrentAlbum">Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
         /// <param name="excludeCurrentTrack">Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+        /// <param name="addCurrentArtist">Adds a line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+        /// <param name="addCurrentAlbum">Adds a line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+        /// <param name="addCurrentTrack">Adds a line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
         /// <param name="imageAddPhoto">Assign a new image to the playlist.</param>
         /// <param name="imageAddText">Add text to the playlist image. The playlist name is used if no --image-text is provided.</param>
         /// <param name="imageText">Custom text to use for --image-add-text.</param>
@@ -234,6 +239,7 @@ namespace spotify_playlist_generator
         static void Main(string playlistFolderPath, bool listPlaylists, string playlistName, string playlistSpec,
             bool modifyPlaylistFile,
             bool excludeCurrentArtist, bool excludeCurrentAlbum, bool excludeCurrentTrack,
+            bool addCurrentArtist, bool addCurrentAlbum, bool addCurrentTrack,
             bool imageAddPhoto, bool imageAddText,
             string imageText, string imageFont,
             bool imageBackup, bool imageRestore, TextAlignment imageTextAlignment, int imageRotateDegrees, string imageClone, string imageNerdFontGlyph,
@@ -257,8 +263,10 @@ namespace spotify_playlist_generator
                 //imageTextAlignment = TextAlignment.Center;
                 //testImages = 10;
                 //verbose = false;
-                //playlistName = "*master*lofi*";
-                playlistName = "*no gamechops";
+                //excludeCurrentTrack = true;
+                //playlistName = "master video game lofi";
+                //playlistName = "*no gamechops";
+                playlistName = "*dungeon*archives";
             }
 
             if (tabCompletionArgumentNames)
@@ -273,15 +281,15 @@ namespace spotify_playlist_generator
             }
 
             // testImages is excluded from imageCommand so that defaults for it can be set below
-            var excludeCurrent = new bool[] { excludeCurrentArtist, excludeCurrentAlbum, excludeCurrentTrack }.Any(x => x);
+            var excludeAddCurrent = new bool[] { excludeCurrentArtist, excludeCurrentAlbum, excludeCurrentTrack, addCurrentArtist, addCurrentAlbum, addCurrentTrack }.Any(x => x);
             var imageCommand = new bool[] { imageBackup, imageRestore, imageAddText, imageAddPhoto, imageRotateDegrees != 0, !string.IsNullOrWhiteSpace(imageClone) }.Any(x => x);
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeCurrent
+                skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeAddCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeCurrent, imageCommand, testImages > 0, !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeAddCurrent, imageCommand, testImages > 0, !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
@@ -341,7 +349,7 @@ namespace spotify_playlist_generator
             }
 
             if (playlistName?.Trim()?.ToLower() == "current"
-                || (excludeCurrent && string.IsNullOrWhiteSpace(playlistName))
+                || (excludeAddCurrent && string.IsNullOrWhiteSpace(playlistName))
                 )
             {
                 var currentPlaylist = spotifyWrapper.GetCurrentPlaylist();
@@ -366,13 +374,22 @@ namespace spotify_playlist_generator
                 spotifyWrapper.Play(playlistName);
 
             if (excludeCurrentArtist)
-                ExcludeCurrent(spotifyWrapper, playlistSpecs, "artist");
+                ExcludeAddCurrent(spotifyWrapper, playlistSpecs, ObjectType.Artist, exclude: true);
 
             if (excludeCurrentAlbum)
-                ExcludeCurrent(spotifyWrapper, playlistSpecs, "album");
+                ExcludeAddCurrent(spotifyWrapper, playlistSpecs, ObjectType.Album, exclude: true);
 
             if (excludeCurrentTrack)
-                ExcludeCurrent(spotifyWrapper, playlistSpecs, "track");
+                ExcludeAddCurrent(spotifyWrapper, playlistSpecs, ObjectType.Track, exclude: true);
+
+            if (addCurrentArtist)
+                ExcludeAddCurrent(spotifyWrapper, playlistSpecs, ObjectType.Artist, exclude: false);
+
+            if (addCurrentAlbum)
+                ExcludeAddCurrent(spotifyWrapper, playlistSpecs, ObjectType.Album, exclude: false);
+
+            if (addCurrentTrack)
+                ExcludeAddCurrent(spotifyWrapper, playlistSpecs, ObjectType.Track, exclude: false);
 
             if (lyrics)
                 Lyrics(spotifyWrapper);
@@ -394,8 +411,10 @@ namespace spotify_playlist_generator
 
             // ------------ other commands ------------
 
-            if (modifyPlaylistFile)
+            // this function determines itself if doing anything is appropriate or not
+            if ((!shortRun && !playerCommand) || modifyPlaylistFile)
                 ModifyPlaylistSpecFiles(spotifyWrapper, playlistSpecs, modifyPlaylistFile);
+
             // ------------ other commands ------------
 
             if (reports)
@@ -678,15 +697,21 @@ namespace spotify_playlist_generator
             }
 
             var optionsErrors = playlistSpecs.SelectMany(p => p.OptionsErrors).Distinct().OrderBy(x => x).ToArray();
+            var parameterErrors = playlistSpecs.SelectMany(p => p.ParameterErrors).Distinct().OrderBy(x => x).ToArray();
+
+            var errorMessages = new List<string>();
+            errorMessages.AddRange(optionsErrors);
+            errorMessages.AddRange(parameterErrors);
 
             //report on errors
-            if (optionsErrors.Any() && !dontWarn)
-                Console.WriteLine(optionsErrors.Join(Environment.NewLine));
+            if (errorMessages.Any() && !dontWarn)
+                Console.WriteLine(errorMessages.Join(Environment.NewLine));
 
             return playlistSpecs;
         }
+
         // TODO make excludeType an enum
-        static void ExcludeCurrent(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, string excludeType)
+        static void ExcludeAddCurrent(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, ObjectType objectType, bool exclude)
         {
             var currentTrack = spotifyWrapper.GetCurrentTrack(true);
             if (currentTrack == null) return;
@@ -694,28 +719,35 @@ namespace spotify_playlist_generator
             string consoleDeets = null;
             string specLine = null;
 
-            if (excludeType.Like("artist"))
+            string dashForExclude = (exclude ? "-" : string.Empty);
+            string diffArtistParamForInclude = (!exclude ? "AllBy" : string.Empty);
+
+            if (objectType == ObjectType.Artist)
             {
                 // 90% of the time there will be one artist
                 consoleDeets = currentTrack.Artists.Select(a => a.Name).Join(", ");
 
-                specLine = currentTrack.Artists.Select(a => "-Artist:" + a.Id + "\t" + Program.Settings._CommentString + "\t" + a.Name).Join(Environment.NewLine);
+                specLine = currentTrack.Artists.Select(a => dashForExclude + diffArtistParamForInclude + "Artist:" + a.Id + "\t" + Program.Settings._CommentString + "\t" + a.Name).Join(Environment.NewLine);
+
+
             }
-            else if (excludeType.Like("album"))
+            else if (objectType == ObjectType.Album)
             {
                 consoleDeets = currentTrack.Artists.Select(a => a.Name).Join(", ") + " - " + currentTrack.Album.Name + " (" + currentTrack.Album.ReleaseDate.Substring(0, 4) + ")";
-                specLine = "-Album:" + currentTrack.Album.Id + "\t" + Program.Settings._CommentString + "\t" + consoleDeets;
+                specLine = dashForExclude + "Album:" + currentTrack.Album.Id + "\t" + Program.Settings._CommentString + "\t" + consoleDeets;
             }
-            else if (excludeType.Like("track"))
+            else if (objectType == ObjectType.Track)
             {
                 consoleDeets = currentTrack.PrettyString();
-                specLine = "-Track:" + currentTrack.Id + "\t" + Program.Settings._CommentString + "\t" + consoleDeets;
+                specLine = dashForExclude + "Track:" + currentTrack.Id + "\t" + Program.Settings._CommentString + "\t" + consoleDeets;
             }
+            else
+                throw new ArgumentException("Unsupported object type.", nameof(objectType));
 
             Console.WriteLine(
-            "Excluding " +
+            (exclude ? "Excluding " : "Adding ") +
             consoleDeets +
-            " from " +
+            (exclude ? " from " : " to ") +
             playlistSpecs.Select(spec => spec.PlaylistName).Join(", ")
             );
 
@@ -827,19 +859,20 @@ namespace spotify_playlist_generator
 
         static void ModifyPlaylistSpecFiles(MySpotifyWrapper spotifyWrapper, IList<PlaylistSpec> playlistSpecs, bool modifyArg)
         {
+            var specs = playlistSpecs.Where(p =>
+                    (modifyArg || p.AddParameterIDs)
+                    && !p.DontModify).ToArray();
+
+            if (!specs.Any()) return;
+
             // TODO mod this so it doesn't ruin the sorting on your vgc exclusions
             // OR add that "shared file" option
             Console.WriteLine();
             Console.WriteLine("---making updates to playlist spec files---");
             Console.WriteLine("started at " + DateTime.Now.ToString());
 
-            //swap artist names for artist IDs
-            //this will save multiple API hits involved in searching for artists by name and paging over the results
-            //TODO nest your progress printers
-            //var pp1 = new ProgressPrinter(playlistSpecs.Length, (perc, time) => ConsoleWriteAndClearLine("\rAdding artist IDs to playlist files: " + perc + ", " + time + " remaining"));
-            var specs =  playlistSpecs.Where(p => 
-                    (modifyArg || p.AddArtistIDs)
-                    && !p.DontModify).ToArray();
+            //swap param names for IDs
+            //this will save multiple API hits involved in searching for names and paging over the results
             foreach (var playlistSpec in specs)
             {
                 var findFailureWarning = "Could not find item. Remove this comment to try again";
@@ -849,7 +882,7 @@ namespace spotify_playlist_generator
                 //go one line at a time for simplicity and intra-run progress writing
                 foreach (var line in playlistSpec.SpecLines)
                 {
-                    if (!line.IsValidParameter || line.SubjectType == ObjectType.Genre || line.ParameterValue.Contains("*"))
+                    if (!line.IsValidParameter || line.SubjectType == ObjectType.Genre || line.ParameterValue.Contains("*") || line.RawLine.Trim().StartsWith(Settings._CommentString))
                         continue;
 
                     var newLines = new List<string>();
@@ -986,13 +1019,13 @@ namespace spotify_playlist_generator
                         SplitLine = newLine.Split(Program.Settings._CommentString, 2),
                         PadLen = playlistSpec.Default.Like(line.ParameterName) ? 7 : idCharLength
                     })
-                            .Select(x => new
-                            {
-                                Main = x.SplitLine.First().Trim().PadRight(x.PadLen),
-                                Comment = (x.SplitLine.Length > 1 ? "\t" + Program.Settings._CommentString + "\t" + x.SplitLine.Last().Trim() : string.Empty)
-                            })
-                            .Select(x => (x.Main + x.Comment).Trim())
-                            .ToList();
+                    .Select(x => new
+                    {
+                        Main = x.SplitLine.First().Trim().PadRight(x.PadLen),
+                        Comment = (x.SplitLine.Length > 1 ? "\t" + Program.Settings._CommentString + "\t" + x.SplitLine.Last().Trim() : string.Empty)
+                    })
+                    .Select(x => (x.Main + x.Comment).Trim())
+                    .ToList();
 
                     if (newLines.Any())
                     {
@@ -1128,7 +1161,7 @@ namespace spotify_playlist_generator
                     .SelectMany(kvp =>
                         PlaylistParameterDefinition.AllDefinitions
                         .Where(d =>
-                            d.ParameterName.Like(kvp.Key) &&
+                            (d.ParameterName.Like(kvp.Key) || d.Aliases.ContainsLike(kvp.Key)) &&
                             !kvp.Key.Trim().StartsWith(Program.dashes) &&
                             !d.IsExclusion
                             )
@@ -1143,7 +1176,7 @@ namespace spotify_playlist_generator
                         parameterValues: x.ParameterValues,
                         likedTracks: spotifyWrapper.LikedTracks,
                         // TODO having this as a string isn't great
-                        exceptArtists: (x.Definition.ParameterName.Like("*ArtistFromPlaylist") ? playlistSpec.ExceptArtistFromPlaylist_Parsed : null)
+                        exceptArtists: (x.Definition.ParameterName.Like("*FromPlaylist") ? playlistSpec.ExceptArtistFromPlaylist_Parsed : null)
                         ))
                     .Distinct()
                     .ToList();
@@ -1154,7 +1187,7 @@ namespace spotify_playlist_generator
                     .SelectMany(kvp =>
                         PlaylistParameterDefinition.AllDefinitions
                         .Where(d =>
-                            d.ParameterName.Like(kvp.Key) &&
+                            (d.ParameterName.Like(kvp.Key) || d.Aliases.ContainsLike(kvp.Key)) &&
                             kvp.Key.Trim().StartsWith(Program.dashes) &&
                             d.IsExclusion
                             )
@@ -1313,6 +1346,23 @@ namespace spotify_playlist_generator
                     Console.WriteLine("playlistSpec.LikedBefore: " + playlistSpec.LikedBefore.Value.ToUniversalTime().ToString());
                     Console.WriteLine("playlistTracks.Max(t => t.LikedAt): " + playlistTracks.Max(t => t.LikedAt).ToString());
                 }
+
+                // ------------ length limits ------------
+
+                if (playlistSpec.LongerThan != 0)
+                {
+                    playlistTracks = playlistTracks
+                        .Where(t => t.DurationMinutes > playlistSpec.LongerThan)
+                        .ToList();
+                }
+
+                if (playlistSpec.ShorterThan != 0)
+                {
+                    playlistTracks = playlistTracks
+                        .Where(t => t.DurationMinutes < playlistSpec.ShorterThan)
+                        .ToList();
+                }
+
 
                 // ------------ sort ------------
 
@@ -1753,14 +1803,19 @@ namespace spotify_playlist_generator
             packageLinks.Add("SixLabors.ImageSharp", "https://github.com/SixLabors/ImageSharp");
             packageLinks.Add("SixLabors.ImageSharp.Drawing", "https://github.com/SixLabors/ImageSharp.Drawing");
             packageLinks.Add("SpotifyAPI.Web", "https://github.com/JohnnyCrazy/SpotifyAPI-NET");
+            packageLinks.Add("SpotifyAPI.Web.Auth", "https://github.com/JohnnyCrazy/SpotifyAPI-NET");
             packageLinks.Add("System.CommandLine.DragonFruit", "https://github.com/dotnet/command-line-api/blob/main/docs/Your-first-app-with-System-CommandLine-DragonFruit.md");
             packageLinks.Add("System.Drawing.Common", "https://www.nuget.org/packages/System.Drawing.Common/");
             packageLinks.Add("Unsplash.Net", "https://github.com/unsplash-net/unsplash-net");
 
             //add links in the names if available
-            packageNames = packageNames.Select(x => (packageLinks.ContainsKey(x)
-                ? "[" + x + "](" + packageLinks[x] + ")"
-                : x))
+            //draw names from the links dictionary as well so we can fix capitalization if desired
+            packageNames = packageNames.Select(x => packageLinks
+                .Where(link => link.Key.Like(x))
+                .Select(link => "[" + link.Key + "](" + link.Value + ")")
+                .FirstOrDefault()
+                ?? x
+                )
                 .ToArray();
 
             var packageText = new StringBuilder();
