@@ -161,7 +161,7 @@ namespace spotify_playlist_generator
 
             while (RetryErrorCodes.Contains(response.StatusCode) && triesLeft > 0)
             {
-                Console.WriteLine("Retrying http request...");
+                Console.WriteLine("Retrying http request" + response.StatusCode.ToString() + "...");
                 await _sleep(RetryAfter).ConfigureAwait(false);
                 response = await retry(request).ConfigureAwait(false);
                 return await HandleRetryInternally(request, response, retry, triesLeft - 1).ConfigureAwait(false);

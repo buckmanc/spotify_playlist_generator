@@ -266,7 +266,9 @@ namespace spotify_playlist_generator
                 //excludeCurrentTrack = true;
                 //playlistName = "master video game lofi";
                 //playlistName = "*no gamechops";
-                playlistName = "*dungeon*archives";
+                //playlistName = "*dungeon*archives";
+                //what = true;
+                //playlistName = "rec by Kelsey";
             }
 
             if (tabCompletionArgumentNames)
@@ -972,21 +974,28 @@ namespace spotify_playlist_generator
                     else if (string.IsNullOrWhiteSpace(line.Comment)) // and implicitly line is an ID
                     {
                         string name = null;
-                        if (line.SubjectType == ObjectType.Artist)
+                        try
                         {
-                            name = spotifyWrapper.GetArtists(new List<string> { line.ParameterValue }).FirstOrDefault()?.Name;
+                            if (line.SubjectType == ObjectType.Artist)
+                            {
+                                name = spotifyWrapper.GetArtists(new List<string> { line.ParameterValue }).FirstOrDefault()?.Name;
+                            }
+                            else if (line.SubjectType == ObjectType.Playlist)
+                            {
+                                name = spotifyWrapper.spotify.Playlists.Get(line.ParameterValue).Result.Name;
+                            }
+                            else if (line.SubjectType == ObjectType.Album)
+                            {
+                                name = spotifyWrapper.spotify.Albums.Get(line.ParameterValue).Result.Name;
+                            }
+                            else if (line.SubjectType == ObjectType.Track)
+                            {
+                                name = spotifyWrapper.spotify.Tracks.Get(line.ParameterValue).Result.Name;
+                            }
                         }
-                        else if (line.SubjectType == ObjectType.Playlist)
+                        catch(Exception ex) when (ex.Message.Contains("Non existing id"))
                         {
-                            name = spotifyWrapper.spotify.Playlists.Get(line.ParameterValue).Result.Name;
-                        }
-                        else if (line.SubjectType == ObjectType.Album)
-                        {
-                            name = spotifyWrapper.spotify.Albums.Get(line.ParameterValue).Result.Name;
-                        }
-                        else if (line.SubjectType == ObjectType.Track)
-                        {
-                            name = spotifyWrapper.spotify.Tracks.Get(line.ParameterValue).Result.Name;
+                           // bad ids are fine
                         }
 
                         if (line.SubjectType != ObjectType.None)

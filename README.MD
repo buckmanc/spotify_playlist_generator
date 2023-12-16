@@ -89,6 +89,7 @@ LikesByGenre is the most broadly useful playlist parameter.
     PlaylistTracks             Tracks in this playlist.
     TopByArtist                The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.
     TopByArtistFromPlaylist    The top five tracks on Spotify by every artist in this playlist.
+    Track                      Single track by ID.
     -Album                     Exclude all tracks matching this album.
     -Artist                    Exclude all tracks matching this artist.
     -From                      Exclude all tracks with a matching "from" clause in the track name. This is primarily useful for soundtrack and video game covers.

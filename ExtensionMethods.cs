@@ -330,7 +330,7 @@ namespace spotify_playlist_generator
         /// <param name="str">The string.</param>
         /// <param name="pattern">The pattern to match, where "*" means any sequence of characters, and "?" means any single character.</param>
         /// <returns><c>true</c> if the string matches the given pattern; otherwise <c>false</c>.</returns>
-        public static bool Like(this string str, string pattern)
+        public static bool Like(this string str, string pattern, bool NoWildCards = false)
         {
             if (string.IsNullOrWhiteSpace(str) || string.IsNullOrWhiteSpace(pattern))
                 return false;
@@ -553,13 +553,22 @@ namespace spotify_playlist_generator
         }
         public static DateOnly DateFromStringWithMissingParts(this string s)
         {
-
             var year = s.SoftSubstring(0, 4).NullIfEmpty() ?? "1900";
             var month = s.SoftSubstring(5, 2).NullIfEmpty() ?? "01";
             var day = s.SoftSubstring(8, 2).NullIfEmpty() ?? "01";
-            var output = new DateOnly(int.Parse(year), int.Parse(month), int.Parse(day));
+            DateOnly? output = null;
+            try
+            {
+                output = new DateOnly(int.Parse(year), int.Parse(month), int.Parse(day));
+            }
+            catch (System.ArgumentOutOfRangeException)
+            {
+                // album 24DERbhO0z1IdznVqJEFNs has "0000" for the release date
+                // ironically, the year is in the album title
+                output = DateOnly.Parse("1900-01-01");
+            }
 
-            return output;
+            return output.Value;
         }
 
         public static void ToCSV<T>(this IEnumerable<T> records, string path)

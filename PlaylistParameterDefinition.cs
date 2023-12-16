@@ -359,6 +359,16 @@ namespace spotify_playlist_generator
                             return tracks;
                         }
                     },
+                    new PlaylistParameterDefinition()
+                    {
+                        ParameterName = "Track",
+                        Description = "Single track by ID.",
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
+                        {
+                            var tracks = spotifyWrapper.GetTracks(parameterValues);
+                            return tracks;
+                        }
+                    },
 
 
                 };
