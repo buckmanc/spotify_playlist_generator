@@ -981,7 +981,8 @@ namespace spotify_playlist_generator
             var playlists = idPlaylists.Union(namePlaylists);
 
             var fullTracks = playlists
-                .SelectMany(p => spotify.Paginate(p.Tracks, new WaitPaginator(WaitTime: 500)).ToListAsync().Result)
+                .SelectMany(p => spotify.PaginateAll(p.Tracks, new WaitPaginator(WaitTime: 500)).Result)
+                .Where(p => p != null)
                 .Select(playableItem => ((FullTrack)playableItem.Track))
                 .Distinct()
                 .ToList();
@@ -1018,14 +1019,9 @@ namespace spotify_playlist_generator
 
             _GetFollowedPlaylistsRunning = true;
 
-             _followedPlaylists = this.spotify.Paginate(spotify.Playlists.CurrentUsers().Result).ToListAsync().Result
-                 .Select(p => Retry.Do(() =>
-                 {
-                     //errors encountered here:
-                     //timeout
-                     //not found
-                     return spotify.Playlists.Get(p.Id).Result;
-                 })) //re-get the playlist to convert from SimplePlaylist to FullPlaylist
+            // no longer need to re-get the playlist; "SimplePlaylist" is gone now and only "FullPlaylist" remains
+            // however, you now have to use spotify.Playlists.GetItems() to get playlist tracks
+            _followedPlaylists = this.spotify.PaginateAll(spotify.Playlists.CurrentUsers().Result, new WaitPaginator(WaitTime: 500)).Result
                  .ToConcurrentBag()
                  ;
 

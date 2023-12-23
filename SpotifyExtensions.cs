@@ -35,8 +35,8 @@ namespace spotify_playlist_generator
         {
             return Retry.Do(() =>
             {
-                var output = (spotifyWrapper.spotify.Paginate(value.Tracks).ToListAsync()).Result
-                        .Select(x => (FullTrack)x.Track)
+                var output = spotifyWrapper.spotify.PaginateAll(spotifyWrapper.spotify.Playlists.GetItems(value.Id).Result, paginator: new WaitPaginator(WaitTime: 500)).Result
+                        .Select(playableItem => ((FullTrack)playableItem.Track))
                         .ToList();
 
                 if (Program.Settings._VerboseDebug && output.Any(t => t == null))

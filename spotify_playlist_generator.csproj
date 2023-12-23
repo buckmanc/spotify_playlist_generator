@@ -20,8 +20,8 @@
     <PackageReference Include="MediaTypeMap" Version="2.1.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta15" />
-    <PackageReference Include="SpotifyAPI.Web" Version="7.0.0" />
-    <PackageReference Include="spotifyapi.web.auth" Version="7.0.0" />
+    <PackageReference Include="SpotifyAPI.Web" Version="7.0.2" />
+    <PackageReference Include="spotifyapi.web.auth" Version="7.0.2" />
     <PackageReference Include="System.CommandLine.DragonFruit" Version="0.4.0-alpha.22272.1" />
     <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
     <PackageReference Include="Unsplash.Net" Version="1.0.0" />

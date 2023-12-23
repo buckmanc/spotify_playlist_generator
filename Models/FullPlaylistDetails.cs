@@ -29,16 +29,16 @@ namespace spotify_playlist_generator.Models
         public FullPlaylistDetails()
         {
         }
-        public FullPlaylistDetails(SimplePlaylist simplePlaylist, Guid sessionID, List<FullTrackDetails> tracks)
+        public FullPlaylistDetails(FullPlaylist simplePlaylist, Guid sessionID, List<FullTrackDetails> tracks)
         {
             Initialize(simplePlaylist, sessionID, tracks.Select(t => t.TrackId).ToList());
         }
-        public FullPlaylistDetails(SimplePlaylist simplePlaylist, Guid sessionID, List<string> trackIds)
+        public FullPlaylistDetails(FullPlaylist simplePlaylist, Guid sessionID, List<string> trackIds)
         {
             Initialize(simplePlaylist, sessionID, trackIds);
         }
 
-        private void Initialize(SimplePlaylist simplePlaylist, Guid sessionID, List<string> trackIds)
+        private void Initialize(FullPlaylist simplePlaylist, Guid sessionID, List<string> trackIds)
         {
             Description = simplePlaylist.Description;
             Id = simplePlaylist.Id;

@@ -264,11 +264,7 @@ namespace spotify_playlist_generator
                 //testImages = 10;
                 //verbose = false;
                 //excludeCurrentTrack = true;
-                //playlistName = "master video game lofi";
-                //playlistName = "*no gamechops";
-                //playlistName = "*dungeon*archives";
-                //what = true;
-                //playlistName = "rec by Kelsey";
+                //playlistName = "test";
             }
 
             if (tabCompletionArgumentNames)

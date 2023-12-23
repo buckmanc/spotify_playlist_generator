@@ -99,6 +99,8 @@ namespace spotify_playlist_generator
             };
         }
 
+        private static int guessedWaitTime = 0;
+        private static int guessedWaitTimeMax = 60 * 60 * 24;
         private static TimeSpan? ParseTooManyRetries(IResponse response)
         {
             if (response.StatusCode != (HttpStatusCode)429)
@@ -112,8 +114,17 @@ namespace spotify_playlist_generator
                 //throw in a buffer
                 return TimeSpan.FromSeconds(secondsToWait * 1.1);
             }
+            else
+            {
+                Console.WriteLine("Received 429 error with no retry-after header! Guessing at wait time.");
+                guessedWaitTime += 60 * 10;
+                if (guessedWaitTime > guessedWaitTimeMax)
+                    throw new APIException("Repeated 429 errors received with no retry-after header; failed at guessing wait time."
+                        + Environment.NewLine + Environment.NewLine
+                        + "Response: " + response.ToString());
 
-            throw new APIException("429 received, but unable to parse Retry-After Header. This should not happen!");
+                return TimeSpan.FromSeconds(guessedWaitTime);
+            }
         }
 
         /// <summary>
