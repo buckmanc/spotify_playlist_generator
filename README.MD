@@ -245,6 +245,7 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 - [figgle](https://github.com/drewnoakes/figgle) - 0.5.1
 - [ini-parser](https://github.com/rickyah/ini-parser) - 2.5.2
 - [MediaTypeMap](https://github.com/samuelneff/MimeTypeMap) - 2.1.0
+- [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - 13.0.3
 - [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 2.1.3
 - [SixLabors.ImageSharp.Drawing](https://github.com/SixLabors/ImageSharp.Drawing) - 1.0.0-beta15
 - [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.2

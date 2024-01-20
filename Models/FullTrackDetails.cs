@@ -113,7 +113,7 @@ namespace spotify_playlist_generator.Models
             fullArtists = fullArtists.Where(a => fullTrack.Artists.Any(ax => ax.Id == a.Id)).ToArray();
 
             //map properties over to our wrapper
-            AlbumId = fullTrack.Album.Id;
+            AlbumId = fullTrack.Album?.Id ?? "null album";
             AlbumName = fullTrack.Album.Name;
             AlbumType = fullTrack.Album.AlbumType;
             ArtistGenres = fullArtists.SelectMany(a => a.Genres).ToList();

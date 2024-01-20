@@ -88,7 +88,7 @@ namespace spotify_playlist_generator
         public CustomRetryHandler(Func<TimeSpan, Task> sleep)
         {
             _sleep = sleep;
-            RetryAfter = TimeSpan.FromMilliseconds(50);
+            RetryAfter = TimeSpan.FromSeconds(30);
             RetryTimes = 10;
             TooManyRequestsConsumesARetry = false;
             RetryErrorCodes = new[]
@@ -172,7 +172,16 @@ namespace spotify_playlist_generator
 
             while (RetryErrorCodes.Contains(response.StatusCode) && triesLeft > 0)
             {
-                Console.WriteLine("Retrying http request" + response.StatusCode.ToString() + "...");
+                Console.WriteLine("Retrying http request due to error: " + response.StatusCode.ToString());
+                if (response.StatusCode == HttpStatusCode.InternalServerError)
+                {
+                    Console.WriteLine("Deets for internal server error");
+                    Console.WriteLine("   tries left: " + triesLeft.ToString("#,##0"));
+                    Console.WriteLine("   request endpoint: " + request.Endpoint.ToString());
+                    Console.WriteLine("   response body: " + response.Body);
+                    Console.WriteLine();
+                }
+
                 await _sleep(RetryAfter).ConfigureAwait(false);
                 response = await retry(request).ConfigureAwait(false);
                 return await HandleRetryInternally(request, response, retry, triesLeft - 1).ConfigureAwait(false);

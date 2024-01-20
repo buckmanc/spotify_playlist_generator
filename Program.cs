@@ -1805,6 +1805,7 @@ namespace spotify_playlist_generator
             packageLinks.Add("figgle", "https://github.com/drewnoakes/figgle");
             packageLinks.Add("ini-parser", "https://github.com/rickyah/ini-parser");
             packageLinks.Add("MediaTypeMap", "https://github.com/samuelneff/MimeTypeMap");
+            packageLinks.Add("Newtonsoft.Json", "https://github.com/JamesNK/Newtonsoft.Json");
             packageLinks.Add("SixLabors.ImageSharp", "https://github.com/SixLabors/ImageSharp");
             packageLinks.Add("SixLabors.ImageSharp.Drawing", "https://github.com/SixLabors/ImageSharp.Drawing");
             packageLinks.Add("SpotifyAPI.Web", "https://github.com/JohnnyCrazy/SpotifyAPI-NET");

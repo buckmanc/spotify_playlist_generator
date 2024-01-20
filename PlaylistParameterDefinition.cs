@@ -266,6 +266,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "-PlaylistTracks",
                         Description = "Exclude all tracks in this playlist.",
+                        Aliases = new string[] { "-TracksFromPlaylist" },
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var playlistTracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
@@ -398,7 +399,7 @@ namespace spotify_playlist_generator
 
                     // use this as a chance to check for alias collisions
                     if (aliases.Count() != aliases
-                        .SelectMany(x => x.Standardize())
+                        .Select(x => x.Standardize())
                         .Distinct().Count())
                         throw new Exception("Playlist parameter alias collision detected!");
 
