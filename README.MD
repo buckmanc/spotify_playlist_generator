@@ -139,40 +139,43 @@ Settings that apply globally to all playlists.
 Arguments for the program itself. These are not the primary function of the app but provide some nifty functionality.
 
     
-    --playlist-folder-path <playlist-folder-path>                            An alternate path for the playlists folder path. Overrides the value found in paths.ini.
-    --list-playlists                                                         List existing playlists from the playlists folder.
-    --playlist-name <playlist-name>                                          The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.
-    --playlist-spec <playlist-spec>                                          A playlist specification string for use when creating a new playlist from the command line.
-    --modify-playlist-file                                                   Exchange artist names for artist IDs. Saves time when running but looks worse.
-    --exclude-current-artist                                                 Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
-    --exclude-current-album                                                  Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
-    --exclude-current-track                                                  Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
-    --add-current-artist                                                     Adds a line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
-    --add-current-album                                                      Adds a line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
-    --add-current-track                                                      Adds a line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.
-    --image-add-photo                                                        Assign a new image to the playlist.
-    --image-add-text                                                         Add text to the playlist image. The playlist name is used if no --image-text is provided.
-    --image-text <image-text>                                                Custom text to use for --image-add-text.
-    --image-font <image-font>                                                Font to use for --image-add-text. Can use wildcards.
-    --image-backup                                                           Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.
-    --image-restore                                                          Restore a previously backed up image.
-    --image-text-alignment <BottomLeft|BottomRight|Center|TopLeft|TopRight>  Pick one of the corners or center. Defaults to bottom left.
-    --image-rotate-degrees <image-rotate-degrees>                            Rotate the image. You should really stick to 90 degree increments.
-    --image-clone <image-clone>                                              Clone the cover art from another of your playlists.
-    --image-nerd-font-glyph <image-nerd-font-glyph>                          Wildcard search for a Nerd Font glyph. Returns the symbol when used alone or used as the text with --image-add-text. You still have to specify an installed Nerd Font with --image-font.
-    --test-images <test-images>                                              Generate x test images instead of updating live playlists. Stored in the playlist folder.
-    --play                                                                   Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.
-    --skip-next                                                              Skip forward.
-    --skip-previous                                                          Skip backward.
-    --like                                                                   Like the current track.
-    --unlike                                                                 Unlike the current track.
-    --what                                                                   Print details about the current track.
-    --what-else                                                              Print more details about the current track.
-    --reports                                                                Run only the reports.
-    --lyrics                                                                 Pass currently playing info to an external lyrics app specified in the config file.
-    --tab-completion-argument-names                                          A space delimited list of these arguments to pass to the bash "complete" function.
-    --update-readme                                                          Update readme.md. Only used in development.
-    --verbose                                                                Print more logging messages. Pretty messy. Overrides the settings file.
+    --playlist-folder-path <playlist-folder-path>                            playlistFolderPath
+    --list-playlists                                                         listPlaylists
+    --playlist-name <playlist-name>                                          playlistName
+    --playlist-spec <playlist-spec>                                          playlistSpec
+    --modify-playlist-file                                                   modifyPlaylistFile
+    --exclude-current-artist                                                 excludeCurrentArtist
+    --exclude-current-album                                                  excludeCurrentAlbum
+    --exclude-current-track                                                  excludeCurrentTrack
+    --add-current-artist                                                     addCurrentArtist
+    --add-current-album                                                      addCurrentAlbum
+    --add-current-track                                                      addCurrentTrack
+    --image-add-photo                                                        imageAddPhoto
+    --image-add-text                                                         imageAddText
+    --image-text <image-text>                                                imageText
+    --image-font <image-font>                                                imageFont
+    --image-backup                                                           imageBackup
+    --image-restore                                                          imageRestore
+    --image-text-alignment <BottomLeft|BottomRight|Center|TopLeft|TopRight>  imageTextAlignment
+    --image-rotate-degrees <image-rotate-degrees>                            imageRotateDegrees
+    --image-clone <image-clone>                                              imageClone
+    --image-nerd-font-glyph <image-nerd-font-glyph>                          imageNerdFontGlyph
+    --test-images <test-images>                                              testImages
+    --play                                                                   play
+    --skip-next                                                              skipNext
+    --skip-previous                                                          skipPrevious
+    --like                                                                   like
+    --like-id <like-id>                                                      likeId
+    --unlike                                                                 unlike
+    --what                                                                   what
+    --what-else                                                              whatElse
+    --what-id                                                                whatId
+    --reports                                                                reports
+    --download-album-art                                                     downloadAlbumArt
+    --lyrics                                                                 lyrics
+    --tab-completion-argument-names                                          tabCompletionArgumentNames
+    --update-readme                                                          updateReadme
+    --verbose                                                                verbose
     --version                                                                Show version information
     -?, -h, --help                                                           Show help and usage information
 
@@ -241,17 +244,25 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 - [APOD.Net](https://github.com/MarcusOtter/APOD.Net) - 1.0.1
 - [colorthief.imagesharp](https://github.com/Corona-Studio/ColorThief.ImageSharp) - 1.0.0
 - [colorthief.imagesharp.shared](https://github.com/Corona-Studio/ColorThief.ImageSharp) - 1.0.0
-- [CsvHelper](https://github.com/JoshClose/CsvHelper) - 30.0.1
+- coverlet.collector - 6.0.1
+- [CsvHelper](https://github.com/JoshClose/CsvHelper) - 31.0.2
 - [figgle](https://github.com/drewnoakes/figgle) - 0.5.1
 - [ini-parser](https://github.com/rickyah/ini-parser) - 2.5.2
 - [MediaTypeMap](https://github.com/samuelneff/MimeTypeMap) - 2.1.0
+- MetaBrainz.MusicBrainz - 6.1.0
+- MetaBrainz.MusicBrainz.CoverArt - 6.0.0
+- microsoft.bcl.asyncinterfaces - 8.0.0
+- MSTest.TestFramework - 3.2.2
 - [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - 13.0.3
-- [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 2.1.3
-- [SixLabors.ImageSharp.Drawing](https://github.com/SixLabors/ImageSharp.Drawing) - 1.0.0-beta15
+- [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 3.1.3
+- [SixLabors.ImageSharp.Drawing](https://github.com/SixLabors/ImageSharp.Drawing) - 2.1.2
+- [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.1.1
+- [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.1.1
 - [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.2
 - [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.2
 - [System.CommandLine.DragonFruit](https://github.com/dotnet/command-line-api/blob/main/docs/Your-first-app-with-System-CommandLine-DragonFruit.md) - 0.4.0-alpha.22272.1
-- [System.Drawing.Common](https://www.nuget.org/packages/System.Drawing.Common/) - 7.0.0
+- [System.Drawing.Common](https://www.nuget.org/packages/System.Drawing.Common/) - 8.0.2
 - [Unsplash.Net](https://github.com/unsplash-net/unsplash-net) - 1.0.0
+- vadersharp2 - 3.3.2.1
 - ...and you as Mega Man X!
 

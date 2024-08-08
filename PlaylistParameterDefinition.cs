@@ -10,7 +10,7 @@ using static spotify_playlist_generator.Program;
 
 namespace spotify_playlist_generator
 {
-    internal class PlaylistParameterDefinition
+    public class PlaylistParameterDefinition
     {
         public string ParameterName { get; set; }
         public string[] Aliases { get; set; } = Array.Empty<string>();
@@ -78,6 +78,7 @@ namespace spotify_playlist_generator
                     {
                         ParameterName = "LikesFromPlaylist",
                         Description = "All liked tracks in this playlist.",
+                        Aliases = new string[] { "-LikesByPlaylist" },
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var tracks = spotifyWrapper.GetTracksByPlaylist(parameterValues)
@@ -172,6 +173,21 @@ namespace spotify_playlist_generator
                         TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
                         {
                             var artistIDs = spotifyWrapper.GetTracksByPlaylist(parameterValues)
+                                .GetArtistIDs(exceptArtists);
+
+                            var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs);
+
+                            return tracks;
+                        }
+                    },
+                    new PlaylistParameterDefinition()
+                    {
+                        ParameterName = "TopByArtistFromAlbum",
+                        Description = "The top five tracks on Spotify by every artist in this album.",
+                        Aliases = new string[] { "TopByArtistsFromAlbum" },
+                        TracksFunc = (spotifyWrapper, parameterValues, likedTracks, existingTracks, exceptArtists) =>
+                        {
+                            var artistIDs = spotifyWrapper.GetTracksByAlbum(parameterValues.ToList())
                                 .GetArtistIDs(exceptArtists);
 
                             var tracks = spotifyWrapper.GetTopTracksByArtists(artistIDs);

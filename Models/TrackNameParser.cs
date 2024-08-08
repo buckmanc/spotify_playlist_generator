@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace spotify_playlist_generator.Models
 {
-    internal class TrackNameParser
+    public class TrackNameParser
     {
         public TrackNameParser(string trackName, string albumName)
         {

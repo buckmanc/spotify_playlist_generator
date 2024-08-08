@@ -1,0 +1,339 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>spotify_playlist_generator</name>
+    </assembly>
+    <members>
+        <member name="M:spotify_playlist_generator.Program.Main(System.String,System.Boolean,System.String,System.String,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.String,System.String,System.Boolean,System.Boolean,spotify_playlist_generator.Program.TextAlignment,System.Int32,System.String,System.String,System.Int32,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.String,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Nullable{System.Boolean},System.Boolean)">
+            <summary>A file based way to add smart playlists to Spotify.</summary> //--help breaks without a summary
+            <param name="playlistFolderPath">An alternate path for the playlists folder path. Overrides the value found in paths.ini.</param>
+            <param name="listPlaylists">List existing playlists from the playlists folder.</param>
+            <param name="playlistName">The name of the playlist to run alone, unless combined with --playlist-specs. Supports wildcards.</param>
+            <param name="playlistSpec">A playlist specification string for use when creating a new playlist from the command line.</param>
+            <param name="modifyPlaylistFile">Exchange artist names for artist IDs. Saves time when running but looks worse.</param>
+            <param name="excludeCurrentArtist">Adds an exclusion line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+            <param name="excludeCurrentAlbum">Adds an exclusion line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+            <param name="excludeCurrentTrack">Adds an exclusion line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+            <param name="addCurrentArtist">Adds a line for the currenly playing artist into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+            <param name="addCurrentAlbum">Adds a line for the currenly playing album into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+            <param name="addCurrentTrack">Adds a line for the currenly playing track into the playlist. If no --playlist-name is specified the current playlist is used. Intended for refining playlists.</param>
+            <param name="imageAddPhoto">Assign a new image to the playlist.</param>
+            <param name="imageAddText">Add text to the playlist image. The playlist name is used if no --image-text is provided.</param>
+            <param name="imageText">Custom text to use for --image-add-text.</param>
+            <param name="imageFont">Font to use for --image-add-text. Can use wildcards.</param>
+            <param name="imageBackup">Happens automatically whenever modifying an image. Calling --image-backup directly overwrites previous backups.</param>
+            <param name="imageRestore">Restore a previously backed up image.</param>
+            <param name="imageTextAlignment">Pick one of the corners or center. Defaults to bottom left.</param>
+            <param name="imageRotateDegrees">Rotate the image. You should really stick to 90 degree increments.</param>
+            <param name="imageClone">Clone the cover art from another of your playlists.</param>
+            <param name="imageNerdFontGlyph">Wildcard search for a Nerd Font glyph. Returns the symbol when used alone or used as the text with --image-add-text. You still have to specify an installed Nerd Font with --image-font. </param>
+            <param name="testImages">Generate x test images instead of updating live playlists. Stored in the playlist folder.</param>
+            <param name="play">Play --playlist-name. If no playlist is provided, toggle playback. Can be used with --playlist-spec to build a new playlist and play it afterward.</param>
+            <param name="skipNext">Skip forward.</param>
+            <param name="skipPrevious">Skip backward.</param>
+            <param name="like">Like the current track.</param>
+            <param name="unlike">Unlike the current track.</param>
+            <param name="what">Print details about the current track.</param>
+            <param name="whatElse">Print more details about the current track.</param>
+            <param name="reports">Run only the reports.</param>
+            <param name="lyrics">Pass currently playing info to an external lyrics app specified in the config file.</param>
+            <param name="tabCompletionArgumentNames">A space delimited list of these arguments to pass to the bash "complete" function.</param>
+            <param name="updateReadme">Update readme.md. Only used in development.</param>
+            <param name="verbose">Print more logging messages. Pretty messy. Overrides the settings file.</param>
+            <param name="commitAnActOfUnspeakableViolence">I wouldn't really do it... would I?</param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.ToListAsync``1(System.Collections.Generic.IAsyncEnumerable{``0},System.Int32)">
+            <summary>
+            Forces iteration of an IAsyncEnumerable; a shortcut against a manual for each.
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="values"></param>
+            <param name="Take"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.Join(System.Collections.Generic.IEnumerable{System.String},System.String)">
+            <summary>
+            Returns a string of the contained elements joined with the specified separator.
+            </summary>
+            <param name="value"></param>
+            <param name="separator"></param>
+            <returns></returns>
+            emulates an old VB function, which was very convenient
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.Join(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Returns a string of the contained elements joined.
+            </summary>
+            <param name="value"></param>
+            <returns></returns>
+            emulates an old VB function, which was very convenient
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.TrimStart(System.String,System.String,System.StringComparison)">
+            <summary>
+            Removes the specified string from the beginning of a string.
+            </summary>
+            <param name="value"></param>
+            <param name="trimString"></param>
+            <param name="comparisonType"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.TrimEnd(System.String,System.String,System.StringComparison)">
+            <summary>
+            Removes the specified string from the beginning of a string.
+            </summary>
+            <param name="value"></param>
+            <param name="trimString"></param>
+            <param name="comparisonType"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.Trim(System.String,System.String,System.StringComparison)">
+            <summary>
+            Removes the specified string from the beginning of a string.
+            </summary>
+            <param name="value"></param>
+            <param name="trimString"></param>
+            <param name="comparisonType"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.CountOccurrences(System.String,System.String)">
+            <summary>
+            Count how often one string occurs in another.
+            </summary>
+            <param name="value"></param>
+            <param name="search"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.ChunkBy``1(System.Collections.Generic.IEnumerable{``0},System.Int32)">
+             <summary>
+            
+             </summary>
+             <typeparam name="T"></typeparam>
+             <param name="source"></param>
+             <param name="chunkSize"></param>
+             <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.RemoveRange``1(System.Collections.Generic.List{``0},System.Collections.Generic.IEnumerable{``0})">
+            <summary>
+            Removes the elements in the collection from the List&lt;T&gt;.
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="values"></param>
+            <param name="collection"></param>
+            Adding in the suspiciously missing RemoveRange, counterpart to AddRange
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.AddRange``2(System.Collections.Generic.IDictionary{``0,``1},System.Collections.Generic.IDictionary{``0,``1})">
+            <summary>
+            Add elements from one dictionary to another.
+            </summary>
+            <typeparam name="TKey"></typeparam>
+            <typeparam name="TValue"></typeparam>
+            <param name="dictionaryTo"></param>
+            <param name="dictionaryFrom"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.ExtensionMethods.Like(System.String,System.String,System.Boolean)">
+            <summary>
+            Compares the string against a given pattern.
+            </summary>
+            <param name="str">The string.</param>
+            <param name="pattern">The pattern to match, where "*" means any sequence of characters, and "?" means any single character.</param>
+            <returns><c>true</c> if the string matches the given pattern; otherwise <c>false</c>.</returns>
+        </member>
+        <member name="T:spotify_playlist_generator.CustomRetryHandler">
+            <summary>
+            copied from the API library for slightly more control
+            https://github.com/JohnnyCrazy/SpotifyAPI-NET/blob/master/SpotifyAPI.Web/RetryHandlers/SimpleRetryHandler.cs
+            </summary>
+        </member>
+        <member name="P:spotify_playlist_generator.CustomRetryHandler.RetryAfter">
+            <summary>
+                Specifies after how many milliseconds should a failed request be retried.
+            </summary>
+        </member>
+        <member name="P:spotify_playlist_generator.CustomRetryHandler.RetryTimes">
+            <summary>
+                Maximum number of tries for one failed request.
+            </summary>
+        </member>
+        <member name="P:spotify_playlist_generator.CustomRetryHandler.TooManyRequestsConsumesARetry">
+            <summary>
+                Whether a failure of type "Too Many Requests" should use up one of the allocated retry attempts.
+            </summary>
+        </member>
+        <member name="P:spotify_playlist_generator.CustomRetryHandler.RetryErrorCodes">
+            <summary>
+                Error codes that will trigger auto-retry
+            </summary>
+        </member>
+        <member name="M:spotify_playlist_generator.CustomRetryHandler.#ctor">
+            <summary>
+              A simple retry handler which retries a request based on status codes with a fixed sleep interval.
+              It also supports Retry-After headers sent by spotify. The execution will be delayed by the amount in
+              the Retry-After header
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.CustomRetryHandler.#ctor(System.Func{System.TimeSpan,System.Threading.Tasks.Task})">
+             <summary>
+            
+             </summary>
+             <param name="sleep"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.CustomRetryHandler.HandleRetry(SpotifyAPI.Web.Http.IRequest,SpotifyAPI.Web.Http.IResponse,SpotifyAPI.Web.Http.IRetryHandler.RetryFunc,System.Threading.CancellationToken)">
+             <summary>
+            
+             </summary>
+             <param name="request"></param>
+             <param name="response"></param>
+             <param name="retry"></param>
+             <param name="cancellationToken"></param>
+             <returns></returns>
+        </member>
+        <member name="T:spotify_playlist_generator.ProgressPrinter">
+            <summary>
+            A class for reporting progress to the console.
+            </summary>
+        </member>
+        <member name="M:spotify_playlist_generator.ProgressPrinter.#ctor(System.Int32,System.Action{System.String,System.String})">
+             <summary>
+            
+             </summary>
+             <param name="Total"></param>
+             <param name="Update"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.ProgressPrinter.#ctor(System.Int32,System.Action{System.String})">
+             <summary>
+            
+             </summary>
+             <param name="Total"></param>
+             <param name="Update"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.ProgressPrinter.PrintProgress">
+             <summary>
+            
+             </summary>
+             <returns></returns>
+        </member>
+        <member name="T:spotify_playlist_generator.Retry">
+            <summary>
+            A class to facilitate multiple attempts on API calls
+            </summary>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do(System.Action,System.Int32,System.Int32)">
+            <summary>
+            report on nothing, return nothing
+            </summary>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do(System.Action{System.Exception},System.Int32,System.Int32)">
+            <summary>
+            report on exceptions, return nothing
+            </summary>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do(System.Action{System.Int32},System.Int32,System.Int32)">
+            <summary>
+            report on attempts, return nothing
+            </summary>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do(System.Action{System.Int32,System.Exception},System.Int32,System.Int32)">
+            <summary>
+            report on attempts and exceptions, return nothing
+            </summary>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do``1(System.Func{``0},System.Int32,System.Int32)">
+            <summary>
+            report on nothing, return T
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do``1(System.Func{System.Exception,``0},System.Int32,System.Int32)">
+            <summary>
+            report on exceptions, return T
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do``1(System.Func{System.Int32,``0},System.Int32,System.Int32)">
+            <summary>
+            report on attempts, return T
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+            <returns></returns>
+        </member>
+        <member name="M:spotify_playlist_generator.Retry.Do``1(System.Func{System.Int32,System.Exception,``0},System.Int32,System.Int32)">
+            <summary>
+            report on attempts and exceptions, return T
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="action"></param>
+            <param name="retryIntervalMilliseconds"></param>
+            <param name="maxAttemptCount"></param>
+            <returns></returns>
+            <exception cref="T:System.AggregateException"></exception>
+        </member>
+        <member name="M:spotify_playlist_generator.Models.FullPlaylistDetails.#ctor">
+            <summary>
+            Don't use this constructor. This is only here for the JSON deserializer, not for you.
+            </summary>
+        </member>
+        <member name="M:spotify_playlist_generator.Models.FullTrackDetails.#ctor(SpotifyAPI.Web.FullTrack,System.Collections.Generic.IEnumerable{SpotifyAPI.Web.FullArtist},System.Guid,System.Boolean,System.Boolean)">
+             <summary>
+            
+             </summary>
+             <param name="fullTrack"></param>
+             <param name="fullArtists">Artists tied to this track. Can include extra artists without issue.</param>
+             <param name="topTrack"></param>
+             <param name="allTracksTrack"></param>
+             <param name="sessionID"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.Models.FullTrackDetails.#ctor(SpotifyAPI.Web.SavedTrack,System.Collections.Generic.IEnumerable{SpotifyAPI.Web.FullArtist},System.Guid)">
+             <summary>
+            
+             </summary>
+             <param name="savedTrack"></param>
+             <param name="fullArtists">Artists tied to this track. Can include extra artists without issue.</param>
+             <param name="sessionID"></param>
+        </member>
+        <member name="M:spotify_playlist_generator.Models.FullTrackDetails.#ctor">
+            <summary>
+            Don't use this constructor. This is only here for the JSON deserializer, not for you.
+            </summary>
+        </member>
+        <member name="M:spotify_playlist_generator.MySpotifyWrapper.GetArtists(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Returns artists from the local cache or the Spotify API.
+            </summary>
+            <param name="artistIDs"></param>
+            <returns>Returns a list of FullArtist</returns>
+        </member>
+        <member name="M:spotify_playlist_generator.MySpotifyWrapper.GetTracks(System.Collections.Generic.IEnumerable{System.String},System.Boolean)">
+            <summary>
+            Returns tracks from the local cache or the Spotify API.
+            </summary>
+            <param name="trackIDs"></param>
+            <param name="Source_AllTracks"></param>
+            <returns>Returns a list of FullTrack</returns>
+        </member>
+    </members>
+</doc>

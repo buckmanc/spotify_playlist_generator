@@ -56,19 +56,22 @@ namespace spotify_playlist_generator
 
         //heavily modified from
         //https://stackoverflow.com/a/71750158
-        public static void DownloadFile(string url, string path)
+        public static string DownloadFile(string url, string path, bool appendExtension = false)
         {
             using (var client = new HttpClient())
             using (var result = client.GetAsync(url).Result)
             {
                 if (!result.IsSuccessStatusCode)
-                    return;
+                    return null;
 
                 var ext = MimeTypes.MimeTypeMap.GetExtension(result.Content.Headers.ContentType.MediaType);
                 var fileExt = System.IO.Path.GetExtension(path);
                 if (fileExt.ToLower() != ext.ToLower())
                 {
-                    throw new Exception("Specified path file type does not match downloaded file type.");
+                    if (!appendExtension)
+                        throw new Exception("Specified path file type " + fileExt + " does not match downloaded file type " + ext + ".");
+
+                    path += ext;
                 }
 
                 var dir = System.IO.Path.GetDirectoryName(path);
@@ -76,6 +79,7 @@ namespace spotify_playlist_generator
                     System.IO.Directory.CreateDirectory(dir);
 
                 System.IO.File.WriteAllBytes(path, result.Content.ReadAsByteArrayAsync().Result);
+                return path;
             }
         }
 
@@ -343,7 +347,7 @@ namespace spotify_playlist_generator
 
             // save image
             var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-            jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
+            // jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
 
             var dir = System.IO.Path.GetDirectoryName(workingPath);
             if (!System.IO.Directory.Exists(dir))
@@ -617,7 +621,7 @@ namespace spotify_playlist_generator
             // intermittent bug occurs here when picking a random font
             // there's likely a font that's incompatible somehow
             img.Mutate(x => x.DrawText(
-                textOptions: new TextOptions(font)
+                textOptions: new RichTextOptions(font)
                 {
                     Origin = origin,
                     WrappingLength = textWrappingLength,

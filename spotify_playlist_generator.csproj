@@ -1,41 +1,58 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
-	<VersionPrefix>2.0.0</VersionPrefix>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <IsTestProject>false</IsTestProject>
+    <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <NoWarn>1701;1702;NU1701</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <NoWarn>1701;1702;NU1701</NoWarn>
+    <Optimize>True</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>./docu.xml</DocumentationFile>
+    <DocumentationMarkdown>./docu.md</DocumentationMarkdown>
+    <Optimize>False</Optimize>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="APOD.Net" Version="1.0.1" />
     <PackageReference Include="colorthief.imagesharp" Version="1.0.0" />
     <PackageReference Include="colorthief.imagesharp.shared" Version="1.0.0" />
-    <PackageReference Include="CsvHelper" Version="30.0.1" />
+    <PackageReference Include="coverlet.collector" Version="6.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="CsvHelper" Version="31.0.2" />
     <PackageReference Include="figgle" Version="0.5.1" />
     <PackageReference Include="ini-parser" Version="2.5.2" />
     <PackageReference Include="MediaTypeMap" Version="2.1.0" />
+    <PackageReference Include="MetaBrainz.MusicBrainz" Version="6.1.0" />
+    <PackageReference Include="MetaBrainz.MusicBrainz.CoverArt" Version="6.0.0" />
+    <PackageReference Include="microsoft.bcl.asyncinterfaces" Version="8.0.0" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.2.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta15" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.3" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.2" />
+    <PackageReference Include="SpotifyAPI.Web" Version="7.1.1" />
+    <PackageReference Include="SpotifyAPI.Web.Auth" Version="7.1.1" />
     <!-- <PackageReference Include="SpotifyAPI.Web" Version="7.0.2" /> -->
     <!-- <PackageReference Include="spotifyapi.web.auth" Version="7.0.2" /> -->
     <PackageReference Include="System.CommandLine.DragonFruit" Version="0.4.0-alpha.22272.1" />
-    <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.2" />
     <PackageReference Include="Unsplash.Net" Version="1.0.0" />
     <PackageReference Include="vadersharp2" Version="3.3.2.1" />
+    <PackageReference Include="vsxmd" Version="1.4.5">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Small Docs\" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="SpotifyAPI.Web">
-      <HintPath>..\TempDll\SpotifyAPI.Web.dll</HintPath>
-      <HintPath>..\TempDll\SpotifyAPI.Web.Auth.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="echo 'Updating readme.md...'" />

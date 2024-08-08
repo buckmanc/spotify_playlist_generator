@@ -8,6 +8,7 @@
     LikesFromPlaylist          All liked tracks in this playlist.
     PlaylistTracks             Tracks in this playlist.
     TopByArtist                The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.
+    TopByArtistFromAlbum       The top five tracks on Spotify by every artist in this album.
     TopByArtistFromPlaylist    The top five tracks on Spotify by every artist in this playlist.
     Track                      Single track by ID.
     -Album                     Exclude all tracks matching this album.

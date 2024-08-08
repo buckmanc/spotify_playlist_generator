@@ -9,10 +9,11 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using spotify_playlist_generator.Models;
 
 namespace spotify_playlist_generator
 {
-    static class ExtensionMethods
+    public static class ExtensionMethods
     {
         /// <summary>
         /// Forces iteration of an IAsyncEnumerable; a shortcut against a manual for each.
@@ -128,7 +129,7 @@ namespace spotify_playlist_generator
 
             return value;
         }
-        
+
         /// <summary>
         /// Count how often one string occurs in another.
         /// </summary>
@@ -631,6 +632,41 @@ namespace spotify_playlist_generator
             }
 
             return results;
+        }
+
+        private static ObjectType GetObjectType(string value)
+        {
+            //order here is quite important
+            var enumValues = Enum.GetValues(typeof(ObjectType)).Cast<ObjectType>();
+            foreach (var enumy in enumValues)
+            {
+                var enumName = Enum.GetName(enumy);
+                if (value.Like("*" + enumName + "*"))
+                return enumy;
+            }
+
+            return ObjectType.None;
+        }
+
+        public static ObjectType GetObjectType(this SpecLine value)
+        {
+            if (!value.IsValidParameter)
+                return ObjectType.None;
+
+            return GetObjectType(value.ParameterName);
+        }
+
+        public static ObjectType GetObjectType(this PlaylistParameterDefinition value)
+        {
+            return GetObjectType(value.ParameterName);
+        }
+
+        public static string ReplaceInvalidChars(this string filename, bool ExtraSafe = false)
+        {
+            var chars = Path.GetInvalidFileNameChars().ToList();
+            if (ExtraSafe)
+                    chars.AddRange(new char[] { '\'', '(', ')', '[', ']', ':', '>', '<', '/', '\\' , '*', '"', '#'});
+            return string.Join("_", filename.Split(chars.ToArray()));    
         }
     }
 }

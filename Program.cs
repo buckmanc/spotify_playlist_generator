@@ -17,10 +17,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using VaderSharp2;
+using MetaBrainz;
+using Swan;
 
 namespace spotify_playlist_generator
 {
-    partial class Program
+    public partial class Program
     {
 
         public static class Settings
@@ -46,6 +48,8 @@ namespace spotify_playlist_generator
             public static string _LyricFailText2;
             public static string _LyricFailText3;
 
+            public static string _DownloadAlbumArtPlaylistName = "Download Album Art";    //TODO consider pulling this from a config file
+
             public static string _ImageBackupFolderPath
             {
                 get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Images", "Backup"); }
@@ -58,6 +62,10 @@ namespace spotify_playlist_generator
             {
                 get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Images", "Test"); }
             }
+            public static string _ImageAlbumDownloadFolderPath
+            {
+                get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Images", "Albums"); }
+            }
             public static string _ReportsFolderPath
             {
                 get { return System.IO.Path.Join(Settings._PlaylistFolderPath, "Reports"); }
@@ -68,10 +76,10 @@ namespace spotify_playlist_generator
             }
             public static string _TokensIniPath
             {
-                get 
+                get
                 {
                     var assemblyTokensPath = System.IO.Path.Join(AssemblyDirectory, "tokens.ini");
-                    
+
                     // prefer the local tokens path if it exists
                     if (System.IO.File.Exists(assemblyTokensPath))
                     {
@@ -80,7 +88,7 @@ namespace spotify_playlist_generator
                         return assemblyTokensPath;
                     }
 
-                    return System.IO.Path.Join(Settings._PlaylistFolderPath, "tokens.ini"); 
+                    return System.IO.Path.Join(Settings._PlaylistFolderPath, "tokens.ini");
                 }
             }
 
@@ -120,7 +128,16 @@ namespace spotify_playlist_generator
                 //UriBuilder uri = new UriBuilder(loc); //causes error on linux
                 //string path = Uri.UnescapeDataString(uri.Path);
                 //return System.IO.Path.GetDirectoryName(path);
-                return System.IO.Path.GetDirectoryName(loc);
+                //return System.IO.Path.GetDirectoryName(loc);
+                var path = System.IO.Path.GetDirectoryName(loc);
+
+                //if (path.Contains("tests_redux"))
+                //{
+                //    path = path.Replace("spotify_playlist_generator_tests_redux/", string.Empty);
+                //    path = path.Replace("spotify_playlist_generator_tests_redux\\", string.Empty);
+                //}
+
+                return path;
             }
         }
         public static string ProjectPath
@@ -244,8 +261,9 @@ namespace spotify_playlist_generator
             string imageText, string imageFont,
             bool imageBackup, bool imageRestore, TextAlignment imageTextAlignment, int imageRotateDegrees, string imageClone, string imageNerdFontGlyph,
             int testImages,
-            bool play, bool skipNext, bool skipPrevious, bool like, bool unlike, bool what, bool whatElse,
+            bool play, bool skipNext, bool skipPrevious, bool like, string likeId, bool unlike, bool what, bool whatElse, bool whatId,
             bool reports,
+            bool downloadAlbumArt,
             bool lyrics,
             bool tabCompletionArgumentNames, bool updateReadme,
             bool? verbose,
@@ -265,6 +283,9 @@ namespace spotify_playlist_generator
                 //verbose = false;
                 //excludeCurrentTrack = true;
                 //playlistName = "test";
+                //downloadAlbumArt = true;
+                //throw new Exception("should break here, why isn't it?");
+                playlistName = "pvgc auto can*";
             }
 
             if (tabCompletionArgumentNames)
@@ -284,10 +305,10 @@ namespace spotify_playlist_generator
 
             var playerCommand = new bool[] {
                 (play && string.IsNullOrEmpty(playlistSpec)),
-                skipNext, skipPrevious, like, unlike, what, whatElse, lyrics, excludeAddCurrent
+                skipNext, skipPrevious, like, unlike, likeId != null, what, whatElse, whatId, lyrics, excludeAddCurrent
                 }.Any(x => x);
             var shortRun = new bool[] {
-                modifyPlaylistFile, excludeAddCurrent, imageCommand, testImages > 0, !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, commitAnActOfUnspeakableViolence
+                modifyPlaylistFile, excludeAddCurrent, imageCommand, testImages > 0, !string.IsNullOrWhiteSpace(imageNerdFontGlyph), lyrics, reports, downloadAlbumArt, commitAnActOfUnspeakableViolence
                 }.Any(x => x);
 
             if (!playerCommand)
@@ -313,6 +334,16 @@ namespace spotify_playlist_generator
             if (!string.IsNullOrWhiteSpace(playlistFolderPath))
             {
                 Settings._PlaylistFolderPath = playlistFolderPath;
+            }
+
+            // validate likeId
+            if (likeId != null)
+            {
+                if (string.IsNullOrWhiteSpace(likeId) || !Program.idRegex.Match(likeId).Success)
+                {
+                    Console.WriteLine("invalid track ID");
+                    Environment.Exit(-1);
+                }
             }
 
 
@@ -395,11 +426,14 @@ namespace spotify_playlist_generator
             if (like)
                 spotifyWrapper.LikeCurrent(like: true);
 
+            if (likeId != null)
+                spotifyWrapper.LikeTrack(likeId);
+
             if (unlike)
                 spotifyWrapper.LikeCurrent(like: false);
 
-            if (what || whatElse)
-                spotifyWrapper.PrintCurrent(whatElse);
+            if (what || whatElse || whatId)
+                spotifyWrapper.PrintCurrent(verbose: whatElse, idOnly: whatId);
 
             if (skipNext)
                 spotifyWrapper.SkipNext();
@@ -418,6 +452,9 @@ namespace spotify_playlist_generator
             if (reports)
                 RunReports(spotifyWrapper);
 
+            if (downloadAlbumArt)
+                DownloadAlbumArt(spotifyWrapper);
+
             if (commitAnActOfUnspeakableViolence)
                 CommitAnActOfUnspeakableViolence(spotifyWrapper);
 
@@ -432,7 +469,10 @@ namespace spotify_playlist_generator
                 UpdatePlaylists(spotifyWrapper, playlistSpecs, out newPlaylists);
 
                 if (string.IsNullOrWhiteSpace(playlistName))
+                {
                     RunReports(spotifyWrapper);
+                    DownloadAlbumArt(spotifyWrapper);
+                }
 
                 //refresh the users playlist cache before doing more playlist operations
                 //as new playlists won't be in it
@@ -503,7 +543,7 @@ namespace spotify_playlist_generator
             }
         }
 
-        static void GetConfig()
+        public static void GetConfig()
         {
             var pathsIniPath = System.IO.Path.Join(Settings._PathsIniFolderPath, "paths.ini");
             var iniParser = new FileIniDataParser();
@@ -989,7 +1029,7 @@ namespace spotify_playlist_generator
                                 name = spotifyWrapper.spotify.Tracks.Get(line.ParameterValue).Result.Name;
                             }
                         }
-                        catch(Exception ex) when (ex.Message.Contains("Non existing id"))
+                        catch(Exception ex) when (ex.Message.Contains("Non existing id") || ex.Message.Contains("Resource not found"))
                         {
                            // bad ids are fine
                         }
@@ -1011,7 +1051,7 @@ namespace spotify_playlist_generator
                     //slap any existing comment on the end, adding the comment character if necessary
                     if (!string.IsNullOrWhiteSpace(line.Comment))
                         newLines = newLines.Select(newLine =>
-                            newLine.Trim() + 
+                            newLine.Trim() +
                             (newLine.Contains(Program.Settings._CommentString) ? String.Empty : "  ") +
                             Program.Settings._CommentString + " " + line.Comment.Trim()
                         ).ToList();
@@ -1250,7 +1290,7 @@ namespace spotify_playlist_generator
                 }
 
                 // ------------ no explicit------------
-                
+
                 if (playlistSpec.NoExplicit)
                     playlistTracks.Remove(t => t.Explicit);
 
@@ -1491,7 +1531,7 @@ namespace spotify_playlist_generator
             newPlaylists = new();
 
             playlistSpecs = playlistSpecs
-                .Where(playlistSpec => 
+                .Where(playlistSpec =>
                             !playlistSpec.DontRun &&
                             !(playlistSpec.DeleteIfEmpty && !playlistSpec.Tracks.Any()
                              ))
@@ -1923,8 +1963,8 @@ namespace spotify_playlist_generator
                 var artistNames = tracks.SelectMany(t => t.ArtistNames).ToArray();
                 var genreNames = tracks.SelectMany(t => t.ArtistGenres).ToArray();
 
-                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name.Where(c => !invalidFilenameChars.Contains(c)) + " - top artists"));
-                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name.Where(c => !invalidFilenameChars.Contains(c)) + " - top genres"));
+                WriteGroupyReport(artistNames, System.IO.Path.Join(dir, playlist.Name.Where(c => !invalidFilenameChars.Contains(c)).Join() + " - top artists"));
+                WriteGroupyReport(genreNames, System.IO.Path.Join(dir, playlist.Name.Where(c => !invalidFilenameChars.Contains(c)).Join() + " - top genres"));
             }
 
         }
@@ -2004,6 +2044,45 @@ namespace spotify_playlist_generator
             }).ToArray();
 
             records.ToCSV(path);
+        }
+
+        static void DownloadAlbumArt(MySpotifyWrapper spotifyWrapper)
+        {
+            Console.WriteLine("---downloading album art---");
+            var playlist = spotifyWrapper.GetUsersPlaylists(Settings._DownloadAlbumArtPlaylistName).FirstOrDefault();
+
+            if (playlist == null)
+            {
+                Console.WriteLine("To download album art automatically, create a playlist named" + Settings._DownloadAlbumArtPlaylistName + ".");
+                return;
+            }
+
+            var albums = playlist.GetTracks(spotifyWrapper)
+                .Select(t => t.Album)
+                .Distinct()
+                .ToArray();
+
+            var existingFilesNoExt = new List<string>();
+            if (System.IO.Directory.Exists(Settings._ImageAlbumDownloadFolderPath))
+            {
+                var fileList = System.IO.Directory.GetFiles(Settings._ImageAlbumDownloadFolderPath).Select(filePath => System.IO.Path.GetFileNameWithoutExtension(filePath)).ToArray();
+                existingFilesNoExt.AddRange(fileList);
+            }
+
+            foreach(var album in albums)
+            {
+                var fileNameNoExt = album.Artists.First().Name + " - " + album.Name;
+                fileNameNoExt = fileNameNoExt
+                    .ReplaceInvalidChars(ExtraSafe: true)
+                    ;
+                var path = System.IO.Path.Join(Settings._ImageAlbumDownloadFolderPath, fileNameNoExt);
+
+                if (!existingFilesNoExt.Any(dirFileName => dirFileName.Like(fileNameNoExt)))
+                {
+                    Console.WriteLine(fileNameNoExt);
+                    spotifyWrapper.DownloadAlbumImage(album, path);
+                }
+            }
         }
     }
 }

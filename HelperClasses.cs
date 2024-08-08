@@ -55,9 +55,10 @@ namespace spotify_playlist_generator
         private readonly Func<TimeSpan, Task> _sleep;
 
         /// <summary>
-        ///     Specifies after how many miliseconds should a failed request be retried.
+        ///     Specifies after how many milliseconds should a failed request be retried.
         /// </summary>
         public TimeSpan RetryAfter { get; set; }
+        public TimeSpan RetryAfter_Long { get; set; }
 
         /// <summary>
         ///     Maximum number of tries for one failed request.
@@ -89,6 +90,7 @@ namespace spotify_playlist_generator
         {
             _sleep = sleep;
             RetryAfter = TimeSpan.FromSeconds(30);
+            RetryAfter_Long = TimeSpan.FromSeconds(180);
             RetryTimes = 10;
             TooManyRequestsConsumesARetry = false;
             RetryErrorCodes = new[]
@@ -182,7 +184,12 @@ namespace spotify_playlist_generator
                     Console.WriteLine();
                 }
 
-                await _sleep(RetryAfter).ConfigureAwait(false);
+                // attempt to remediate a recurring bad gateway issue by waiting longer
+                if (response.StatusCode == HttpStatusCode.BadGateway)
+                    await _sleep(RetryAfter_Long).ConfigureAwait(false);
+                else
+                    await _sleep(RetryAfter).ConfigureAwait(false);
+
                 response = await retry(request).ConfigureAwait(false);
                 return await HandleRetryInternally(request, response, retry, triesLeft - 1).ConfigureAwait(false);
             }

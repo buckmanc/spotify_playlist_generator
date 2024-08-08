@@ -19,7 +19,7 @@ using static SpotifyAPI.Web.PlaylistRemoveItemsRequest;
 namespace spotify_playlist_generator
 {
     //TODO make an interface for this so you can support unit tests
-    internal class MySpotifyWrapper : IDisposable
+    public class MySpotifyWrapper : IDisposable
     {
         private SpotifyClient _spotify;
         public SpotifyClient spotify
@@ -475,7 +475,10 @@ namespace spotify_playlist_generator
         /// <returns>Returns a list of FullTrack</returns>
         public List<FullTrackDetails> GetTracks(IEnumerable<string> trackIDs, bool Source_AllTracks = false)
         {
-            trackIDs = trackIDs.Distinct().ToArray();
+            trackIDs = trackIDs
+                .Distinct()
+                .Where(x => Program.idRegex.Match(x).Success)
+                .ToArray();
 
             var apiTracks = new List<FullTrackDetails>();
             var cacheTracks = new List<FullTrackDetails>();
@@ -778,7 +781,10 @@ namespace spotify_playlist_generator
 
             //TODO scope problem with this ID regex
             var albumIDs = albumNamesOrIDs
-                .Where(x => Program.idRegex.Match(x).Success)
+                .Where(x => 1 == 1
+                    && Program.idRegex.Match(x).Success
+                    && !Program.dashes.Any(d => x.Contains(d)) // lines with ids and filters means we've got an artist id
+                )
                 .ToList();
 
             var names = albumNamesOrIDs
@@ -981,9 +987,9 @@ namespace spotify_playlist_generator
             var playlists = idPlaylists.Union(namePlaylists);
 
             var fullTracks = playlists
-                .SelectMany(p => spotify.PaginateAll(p.Tracks, new WaitPaginator(WaitTime: 500)).Result)
+                .SelectMany(p => spotify.PaginateAll(spotify.Playlists.GetItems(p.Id).Result , new WaitPaginator(WaitTime: 500)).Result)
                 .Where(p => p != null)
-                .Select(playableItem => ((FullTrack)playableItem.Track))
+                .Select(playableItem => (playableItem.Track as FullTrack))
                 .Distinct()
                 .ToList();
 
@@ -1063,6 +1069,8 @@ namespace spotify_playlist_generator
             return playlists;
         }
 
+        // TODO abstract this
+        // should this all be extension methods?
         public void DownloadPlaylistImage(FullPlaylist playlist, string path)
         {
             var folderPath = System.IO.Path.GetDirectoryName(path);
@@ -1071,9 +1079,41 @@ namespace spotify_playlist_generator
                 System.IO.Directory.CreateDirectory(folderPath);
 
             // .images is sorted by size, so the first is the largest
-            var image = playlist.Images.First();
+            var image = playlist.Images.OrderByDescending(i => i.Height).First();
 
             ImageTools.DownloadFile(image.Url, path);
+        }
+
+        public void DownloadAlbumImage(SimpleAlbum album, string path)
+        {
+            var folderPath = System.IO.Path.GetDirectoryName(path);
+            string outPath = null;
+
+            if (!System.IO.Directory.Exists(folderPath))
+                System.IO.Directory.CreateDirectory(folderPath);
+
+            // .images is sorted by size, so the first is the largest
+            var spotImage = album.Images.OrderByDescending(i => i.Height).First();
+            var coverArtArchiveUrl = album.GetCoverArtArchiveCoverUrl();
+            if (coverArtArchiveUrl != null)
+            {
+                outPath = ImageTools.DownloadFile(coverArtArchiveUrl, path, appendExtension: true);
+                if (outPath != null)
+                {
+                    // we can't get the resolution of the cover art archive image prior to download
+                    // so after download make sure it isn't smaller than what spotify has
+                    // (yes, this is confirmed to happen)
+                    var img = SixLabors.ImageSharp.Image.Load(outPath);
+                    if (img.Width < spotImage.Width && img.Height < spotImage.Height)
+                    {
+                        System.IO.File.Delete(outPath);
+                        outPath = null;
+                    }
+                }
+            }
+
+            if (outPath == null)
+                outPath = ImageTools.DownloadFile(spotImage.Url, path, appendExtension: true);
         }
 
         public bool UploadPlaylistImage(FullPlaylist playlist, string imagePath)
@@ -1106,7 +1146,7 @@ namespace spotify_playlist_generator
                         img.Mutate(i => i.Resize(resizeSize));
 
                         var jpgEncoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder();
-                        jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
+                        // jpgEncoder.ColorType = SixLabors.ImageSharp.Formats.Jpeg.JpegColorType.Rgb;
 
                         // drop the encoding quality every attempt
                         //jpgEncoder.Quality = (int)Math.Round((jpgEncoder.Quality ?? 75) * attemptRatio, 0);
@@ -1280,6 +1320,20 @@ namespace spotify_playlist_generator
             var track = this.GetCurrentTrack();
             if (track == null) return false;
 
+            return LikeTrack(track, like);
+        }
+
+        public bool LikeTrack(string trackId, bool like = true)
+        {
+            var track = this.spotify.Tracks.Get(trackId).Result;
+            return LikeTrack(track, like);
+        }
+
+        public bool LikeTrack(FullTrack track, bool like = true)
+        {
+            if (track == null)
+                return false;
+
             var liked = this.spotify.Library.CheckTracks(new LibraryCheckTracksRequest(new List<string>() { track.Id })).Result.FirstOrDefault();
 
             if (like && liked)
@@ -1300,9 +1354,12 @@ namespace spotify_playlist_generator
             return false;
         }
 
-        public void PrintCurrent(bool verbose = false){
+        public void PrintCurrent(bool verbose = false, bool idOnly = false)
+        {
+            if (idOnly)
+                Console.WriteLine(this.GetCurrentTrack()?.Id ?? "unable to get current track");
+            else
                 Console.WriteLine("|> " + this.GetCurrentTrack()?.PrettyString(verbose) ?? "unknown track");
-
         }
 
         public FullPlaylist GetCurrentPlaylist()

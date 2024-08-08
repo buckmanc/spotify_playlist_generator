@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31019.35
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "spotify_playlist_generator", "spotify_playlist_generator.csproj", "{882E2B73-9E72-4606-896F-1892E3C06C05}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "spotify_playlist_generator_tests_redux", "spotify_playlist_generator_tests_redux\spotify_playlist_generator_tests_redux.csproj", "{05502012-A9DD-45DC-A3AC-6A78A3AFB8E4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{882E2B73-9E72-4606-896F-1892E3C06C05}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{882E2B73-9E72-4606-896F-1892E3C06C05}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{882E2B73-9E72-4606-896F-1892E3C06C05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05502012-A9DD-45DC-A3AC-6A78A3AFB8E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05502012-A9DD-45DC-A3AC-6A78A3AFB8E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05502012-A9DD-45DC-A3AC-6A78A3AFB8E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05502012-A9DD-45DC-A3AC-6A78A3AFB8E4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

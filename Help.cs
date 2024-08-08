@@ -48,7 +48,7 @@ namespace spotify_playlist_generator
                 var options = typeof(PlaylistSpec).GetProperties()
                     .Select(prop => new {
                         OptionName = prop.Name,
-                        Description = (prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description,
+                        Description = (prop.GetCustomAttribute(typeof(System.ComponentModel.DescriptionAttribute), true) as System.ComponentModel.DescriptionAttribute)?.Description,
                         OptionType = prop.PropertyType
                     })
                     .Where(x => !string.IsNullOrWhiteSpace(x.Description))

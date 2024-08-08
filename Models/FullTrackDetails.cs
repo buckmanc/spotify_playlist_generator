@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace spotify_playlist_generator.Models
 {
     [Serializable]
-    internal class FullTrackDetails
+    public class FullTrackDetails
     {
         public string AlbumId { get; set; }
         public string AlbumName { get; set; }

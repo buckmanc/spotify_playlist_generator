@@ -1,3 +1,4 @@
+using MetaBrainz.MusicBrainz.CoverArt.Interfaces;
 using spotify_playlist_generator.Models;
 using SpotifyAPI.Web;
 using System;
@@ -37,15 +38,16 @@ namespace spotify_playlist_generator
             {
                 var output = spotifyWrapper.spotify.PaginateAll(spotifyWrapper.spotify.Playlists.GetItems(value.Id).Result, paginator: new WaitPaginator(WaitTime: 500)).Result
                         .Select(playableItem => ((FullTrack)playableItem.Track))
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
+                        .Where(t => t != null)
                         .ToList();
-
-                if (Program.Settings._VerboseDebug && output.Any(t => t == null))
-                {
-                    Console.WriteLine("Spotify returned null tracks from a playlist!");
-                    Console.WriteLine("Playlist: " + (value?.Name ?? "null"));
-                    Console.WriteLine("Tracks: " + (output?.Count() ?? 0).ToString("#,##0"));
-                    throw new Exception("Spotify returned null tracks from a playlist!");
-                }
 
                 return output;
             });
@@ -168,6 +170,46 @@ namespace spotify_playlist_generator
             };
 
             return output;
+        }
+
+        public static string GetCoverArtArchiveCoverUrl(this SimpleAlbum album)
+        {
+            var artistName = album.Artists.First().Name;
+            var mbq = new MetaBrainz.MusicBrainz.Query(Program.AssemblyName, "1.0");
+
+            var albumSearch = mbq.FindReleases("\"" + album.Name.Remove("\"") + "\" AND artist:\"" + artistName.Remove("\"") + "\"");
+            foreach (var result in albumSearch.Results)
+            {
+                if (result.Score >= 95 ||
+                    (result.Item.ArtistCredit.FirstOrDefault().Name.Like(artistName)
+                    && result.Item.Title.Like(album.Name)))
+                {
+                    var mbcq = new MetaBrainz.MusicBrainz.CoverArt.CoverArt(Program.AssemblyName, "1.0");
+
+                    IRelease coverArtRelease = null;
+                    try
+                    {
+                        // docs say this returns null if not available
+                        // but it throws a 404 instead
+                        coverArtRelease = mbcq.FetchReleaseIfAvailable(result.Item.Id);
+                    }
+                    catch (MetaBrainz.Common.HttpError) // eat it!
+                    {
+
+                    }
+
+                    if (coverArtRelease == null)
+                        continue;
+
+                    var mbCover = coverArtRelease.Images.Where(i => i.Front).FirstOrDefault();
+                    if (mbCover == null)
+                        continue;
+
+                    return mbCover.Location.ToString();
+                }
+            }
+
+            return null;
         }
     }
 }

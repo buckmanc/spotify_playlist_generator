@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using Desc = System.ComponentModel.DescriptionAttribute;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -11,7 +12,7 @@ using static spotify_playlist_generator.Program;
 
 namespace spotify_playlist_generator.Models
 {
-    enum PlaylistType
+    public enum PlaylistType
     {
         Likes,
         AllByArtist,
@@ -19,10 +20,11 @@ namespace spotify_playlist_generator.Models
         None,
     }
 
-    enum ObjectType
+    public enum ObjectType
     {
-        Artist,
+        // this order is important
         Playlist,
+        Artist,
         Genre,
         Album,
         Track,
@@ -49,17 +51,17 @@ namespace spotify_playlist_generator.Models
                 return (Settings._StartPlaylistsWith ?? string.Empty) + this.PlaylistName;
             }
         }
-        [Description("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
+        [Desc("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
         public bool AddParameterIDs { get; set; }
-        [Description("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
+        [Desc("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
         public string Default { get; set; }
-        [Description("If the playlist has no tracks, delete it.")]
+        [Desc("If the playlist has no tracks, delete it.")]
         public bool DeleteIfEmpty { get; set; }
-        [Description("If tracks no longer fall within the scope of the playlist leave them anyway.")]
+        [Desc("If tracks no longer fall within the scope of the playlist leave them anyway.")]
         public bool DontRemoveTracks { get; set; }
-        [Description("Don't modify the playlist spec file, even if told to.")]
+        [Desc("Don't modify the playlist spec file, even if told to.")]
         public bool DontModify { get; set; }
-        [Description("A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.")]
+        [Desc("A comma delimited list of artists to not actively include when using one of the ArtistFromPlaylist parameters.")]
         public String ExceptArtistFromPlaylist{ get; set; }
         public IList<String> ExceptArtistFromPlaylist_Parsed{
             get
@@ -69,40 +71,40 @@ namespace spotify_playlist_generator.Models
                 return this.ExceptArtistFromPlaylist.Split(",").Distinct().ToList();
             }
         }
-        [Description("Actively keep this playlist sorted. Can also be set globally in config.ini")]
+        [Desc("Actively keep this playlist sorted. Can also be set globally in config.ini")]
         public bool UpdateSort { get; set; }
-        [Description("Exclude tracks marked explicit.")]
+        [Desc("Exclude tracks marked explicit.")]
         public bool NoExplicit { get; set; }
-        [Description("Exclude liked songs from this playlist.")]
+        [Desc("Exclude liked songs from this playlist.")]
         public bool NoLikes { get; set; }
-        [Description("Limit the amount of tracks per artist, prioritizing by popularity.")]
+        [Desc("Limit the amount of tracks per artist, prioritizing by popularity.")]
         public int LimitPerArtist { get; set; }
-        [Description("Limit the amount of tracks per album, prioritizing by popularity.")]
+        [Desc("Limit the amount of tracks per album, prioritizing by popularity.")]
         public int LimitPerAlbum { get; set; }
-        [Description("Don't touch the artwork, even if told to.")]
+        [Desc("Don't touch the artwork, even if told to.")]
         public bool LeaveImageAlone { get; set; }
-        [Description("Don't run again after the playlist has been created. This can be reset by removing the @ID from the file.")]
+        [Desc("Don't run again after the playlist has been created. This can be reset by removing the @ID from the file.")]
         public bool OnlyCreatePlaylist { get; set; }
-        [Description("The date of last run. Only updated when OnlyRunIfModified is set.")]
+        [Desc("The date of last run. Only updated when OnlyRunIfModified is set.")]
         public DateTime? LastRun { get; set; }
-        [Description("Don't run again unless the file has been modified.")]
+        [Desc("Don't run again unless the file has been modified.")]
         public bool OnlyRunIfModified { get; set; }
-        [Description("Limit to tracks released before this date.")]
+        [Desc("Limit to tracks released before this date.")]
         public DateOnly? ReleasedBefore { get; set; }
-        [Description("Limit to tracks released after this date.")]
+        [Desc("Limit to tracks released after this date.")]
         public DateOnly? ReleasedAfter { get; set; }
-        [Description("Limit to tracks shorter than X minutes.")]
+        [Desc("Limit to tracks shorter than X minutes.")]
         public double LongerThan { get; set; }
-        [Description("Limit to tracks longer than X minutes.")]
+        [Desc("Limit to tracks longer than X minutes.")]
         public double ShorterThan { get; set; }
-        [Description("Limit to tracks liked before this date/time.")]
+        [Desc("Limit to tracks liked before this date/time.")]
         public DateTime? LikedBefore { get; set; }
-        [Description("Limit to tracks liked after this date/time.")]
+        [Desc("Limit to tracks liked after this date/time.")]
         public DateTime? LikedAfter { get; set; }
         private DateOnly startOfTime = DateOnly.Parse("1900-01-01");
-        [Description("Limit to tracks released in the last X days.")]
+        [Desc("Limit to tracks released in the last X days.")]
         public int LastXDays { get; set; }
-        [Description("The Spotify ID of this playlist after creation. Generally an output.")]
+        [Desc("The Spotify ID of this playlist after creation. Generally an output.")]
         public string ID { get; set; }
         public DateOnly? ReleasedAfterCalc
         {
@@ -149,7 +151,7 @@ namespace spotify_playlist_generator.Models
         }
         private bool _sortSet;
         private Sort _sort;
-        [Description("How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are [enum values].")]
+        [Desc("How to sort the playlist. If not supplied this is decided based on playlist parameters. Options are [enum values].")]
         public Sort Sort
         {
             get { return _sort; }
@@ -425,7 +427,7 @@ namespace spotify_playlist_generator.Models
         public void ParseOptions(string[] lines)
         {
             var optionProps = typeof(PlaylistSpec).GetProperties()
-                                .Where(prop => !string.IsNullOrWhiteSpace((prop.GetCustomAttribute(typeof(DescriptionAttribute), true) as DescriptionAttribute)?.Description))
+                                .Where(prop => !string.IsNullOrWhiteSpace((prop.GetCustomAttribute(typeof(System.ComponentModel.DescriptionAttribute), true) as System.ComponentModel.DescriptionAttribute)?.Description))
                                 .ToArray();
 
             var parsedLines = lines
@@ -543,7 +545,7 @@ namespace spotify_playlist_generator.Models
     }
 
 
-    internal class SpecLine
+    public class SpecLine
     {
         public string Comment { get; set; }
         public string RawLine { get; set; }
@@ -592,21 +594,7 @@ namespace spotify_playlist_generator.Models
         {
             get
             {
-                //order here is quite important
-                if (!this.IsValidParameter)
-                    return ObjectType.None;
-                else if (this.ParameterName.Like("*playlist*"))
-                    return ObjectType.Playlist;
-                else if (this.ParameterName.Like("*artist*"))
-                    return ObjectType.Artist;
-                else if (this.ParameterName.Like("*genre*"))
-                    return ObjectType.Genre;
-                else if (this.ParameterName.Like("*album*"))
-                    return ObjectType.Album;
-                else if (this.ParameterName.Like("*track*"))
-                    return ObjectType.Track;
-                else
-                    return ObjectType.None;
+                return this.GetObjectType();
             }
         }
 
