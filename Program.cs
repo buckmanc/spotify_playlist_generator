@@ -285,7 +285,7 @@ namespace spotify_playlist_generator
                 //playlistName = "test";
                 //downloadAlbumArt = true;
                 //throw new Exception("should break here, why isn't it?");
-                playlistName = "pvgc auto can*";
+                //playlistName = "pvgc auto can*";
             }
 
             if (tabCompletionArgumentNames)

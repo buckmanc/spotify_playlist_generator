@@ -9,7 +9,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -633,7 +635,7 @@ namespace spotify_playlist_generator
             //TODO add caching here for even better failure recovery
             var albums = Retry.Do((Exception ex) =>
             {
-                if (ex?.ToString()?.Like("*access token expired*") ?? false)
+                if (ex?.ToString()?.Like(new string[] {"*access token expired*", "*string is empty or null*refreshToken*"}) ?? false)
                     this.RefreshSpotifyClient();
 
                 return artistIDs.Select(artistID => spotify.Artists.GetAlbums(artistID, new ArtistsAlbumsRequest() { Limit = 50, Market = this.CurrentUser.Country ?? "US" }).Result)
@@ -694,7 +696,7 @@ namespace spotify_playlist_generator
             foreach (var albumIDChunk in albumIDs.ChunkBy(20))
                 Retry.Do((Exception ex) =>
                 {
-                    if (ex?.ToString()?.Like("*access token expired*") ?? false)
+                    if (ex?.ToString()?.Like(new string[] {"*access token expired*", "*string is empty or null*refreshToken*"}) ?? false)
                         this.RefreshSpotifyClient();
 
                     //create this weird anonymous type as we need to preserve the album/track relationship temporarily
@@ -832,7 +834,7 @@ namespace spotify_playlist_generator
             foreach (var albumIDChunk in albumIDs.ChunkBy(20))
                 Retry.Do((Exception ex) =>
                 {
-                    if (ex?.ToString()?.Like("*access token expired*") ?? false)
+                    if (ex?.ToString()?.Like(new string[] {"*access token expired*", "*string is empty or null*refreshToken*"}) ?? false)
                         this.RefreshSpotifyClient();
 
                     var chunkAlbums = this.spotify.Albums.GetSeveral(new AlbumsRequest(albumIDChunk)).Result
@@ -986,14 +988,23 @@ namespace spotify_playlist_generator
 
             var playlists = idPlaylists.Union(namePlaylists);
 
-            var fullTracks = playlists
-                .SelectMany(p => spotify.PaginateAll(spotify.Playlists.GetItems(p.Id).Result , new WaitPaginator(WaitTime: 500)).Result)
-                .Where(p => p != null)
-                .Select(playableItem => (playableItem.Track as FullTrack))
-                .Distinct()
-                .ToList();
+            // TODO catch this globally somewhere else
+            // doesn't the library handle token refresh automatically now?
+            var fullTracks = Retry.Do((Exception ex) =>
+			{
+				if (ex?.ToString()?.Like(new string[] { "*access token expired*", "*string is empty or null*refreshToken*" }) ?? false)
+					this.RefreshSpotifyClient();
 
-            var artists = this.GetArtists(fullTracks);
+                return playlists
+				.SelectMany(p => spotify.PaginateAll(spotify.Playlists.GetItems(p.Id).Result, new WaitPaginator(WaitTime: 500)).Result)
+				.Where(p => p != null)
+				.Select(playableItem => (playableItem.Track as FullTrack))
+				.Distinct()
+				.ToList();
+
+			}, maxAttemptCount: 4);
+
+			var artists = this.GetArtists(fullTracks);
 
 
             var errorTracks = fullTracks.Where(t => t is null).ToArray();

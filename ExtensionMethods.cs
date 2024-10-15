@@ -351,6 +351,11 @@ namespace spotify_playlist_generator
             return output;
         }
 
+        public static bool Like(this string str, IEnumerable<string> patterns, bool NoWildCards = false)
+        {
+            return patterns.Any(p => str.Like(p, NoWildCards:NoWildCards));
+        }
+
         public static bool ContainsLike(this IEnumerable<string> value, string str)
         {
             return value.Any(x => x.Like(str));

@@ -88,6 +88,7 @@ LikesByGenre is the most broadly useful playlist parameter.
     LikesFromPlaylist          All liked tracks in this playlist.
     PlaylistTracks             Tracks in this playlist.
     TopByArtist                The top five tracks on Spotify by this artist. Has the same performance issues as AllByArtist.
+    TopByArtistFromAlbum       The top five tracks on Spotify by every artist in this album.
     TopByArtistFromPlaylist    The top five tracks on Spotify by every artist in this playlist.
     Track                      Single track by ID.
     -Album                     Exclude all tracks matching this album.
@@ -254,7 +255,7 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 - microsoft.bcl.asyncinterfaces - 8.0.0
 - MSTest.TestFramework - 3.2.2
 - [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - 13.0.3
-- [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 3.1.3
+- [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 3.1.4
 - [SixLabors.ImageSharp.Drawing](https://github.com/SixLabors/ImageSharp.Drawing) - 2.1.2
 - [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.1.1
 - [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.1.1
@@ -263,6 +264,5 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 - [System.CommandLine.DragonFruit](https://github.com/dotnet/command-line-api/blob/main/docs/Your-first-app-with-System-CommandLine-DragonFruit.md) - 0.4.0-alpha.22272.1
 - [System.Drawing.Common](https://www.nuget.org/packages/System.Drawing.Common/) - 8.0.2
 - [Unsplash.Net](https://github.com/unsplash-net/unsplash-net) - 1.0.0
-- vadersharp2 - 3.3.2.1
 - ...and you as Mega Man X!
 
