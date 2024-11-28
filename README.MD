@@ -258,10 +258,8 @@ Find an [albums of the year list](https://forum.metal-archives.com/viewtopic.php
 - [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json) - 13.0.3
 - [SixLabors.ImageSharp](https://github.com/SixLabors/ImageSharp) - 3.1.4
 - [SixLabors.ImageSharp.Drawing](https://github.com/SixLabors/ImageSharp.Drawing) - 2.1.2
-- [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.1.1
-- [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.1.1
-- [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.2
-- [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.0.2
+- [SpotifyAPI.Web](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.2.1
+- [SpotifyAPI.Web.Auth](https://github.com/JohnnyCrazy/SpotifyAPI-NET) - 7.2.1
 - [System.CommandLine.DragonFruit](https://github.com/dotnet/command-line-api/blob/main/docs/Your-first-app-with-System-CommandLine-DragonFruit.md) - 0.4.0-alpha.22272.1
 - [System.Drawing.Common](https://www.nuget.org/packages/System.Drawing.Common/) - 8.0.2
 - [Unsplash.Net](https://github.com/unsplash-net/unsplash-net) - 1.0.0
