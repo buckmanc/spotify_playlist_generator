@@ -1042,6 +1042,16 @@ namespace spotify_playlist_generator
                  .ToConcurrentBag()
                  ;
 
+            var nullJank = _followedPlaylists.Where(p => p == null).ToList();
+
+            if (nullJank.Any())
+            {
+                if (Program.Settings._VerboseDebug)
+                    Console.WriteLine("Ignoring " + nullJank.Count().ToString("#,##0") + " null playlists in followed playlists.");
+
+                _followedPlaylists = _followedPlaylists.Where(p => p != null).ToConcurrentBag();
+            }
+
             _GetFollowedPlaylistsRunning = false;
 
             return _followedPlaylists;

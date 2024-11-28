@@ -1258,12 +1258,12 @@ namespace spotify_playlist_generator
                     .Where(group =>
                         group.Count() > 1 && // only dupes
                         group.Select(track => track.AlbumId).Distinct().Count() > 1 // not from the same album
-                                                                                     //do a time comparison as well to test for fundamental differences, but think about how this effects live albums
+                                                                                    //do a time comparison as well to test for fundamental differences, but think about how this effects live albums
                         )
                     .Select(group => group
                         .OrderByDescending(track => track.AlbumType == "album") //albums first
                         .ThenBy(track => track.ReleaseDate) // older albums first; this should help de-prioritize deluxe releases and live albums
-                        //TODO put some serious thought into how to best handle live albums
+                                                            //TODO put some serious thought into how to best handle live albums
                         .ThenBy(track => track.AlbumId) // all other things the same, de-dupe to the same album
                         .ThenBy(track => track.TrackId) // one last sort to make this deterministic
                         .ToList()
@@ -1342,7 +1342,7 @@ namespace spotify_playlist_generator
                             .Take(playlistSpec.LimitPerAlbum)
                         )
                         // handle duplicate albums that are really the same
-                        .GroupBy(x => (x.ArtistNames.FirstOrDefault() ?? string.Empty)+ "$$$" + x.AlbumName, t => t)
+                        .GroupBy(x => (x.ArtistNames.FirstOrDefault() ?? string.Empty) + "$$$" + x.AlbumName, t => t)
                         .SelectMany(g => g
                             .Distinct()
                             .OrderByDescending(t => t.Popularity)
