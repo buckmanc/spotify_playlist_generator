@@ -1301,10 +1301,22 @@ namespace spotify_playlist_generator
 
             var oldTrack = this.GetCurrentTrack();
             var output = false;
-            if (next)
-                output = this.spotify.Player.SkipNext().Result;
-            else
-                output = this.spotify.Player.SkipPrevious().Result;
+
+            try
+            {
+                if (next)
+                    output = this.spotify.Player.SkipNext().Result;
+                else
+                    output = this.spotify.Player.SkipPrevious().Result;
+            }
+            catch (System.AggregateException aggEx) when (aggEx.InnerException is Newtonsoft.Json.JsonReaderException ex)
+            {
+				// if this is a json parsing exception, assume success
+				output = true;
+
+                if (Program.Settings._VerboseDebug)
+                    Console.WriteLine("Json parsing error: " + ex.Message);
+			}
 
             //wait for the CurrentTrack to actually be updated for the track skip
             FullTrack newTrack = null;
