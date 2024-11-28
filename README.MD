@@ -105,6 +105,7 @@ LikesByGenre is the most broadly useful playlist parameter.
 Playlist options are preceded by "@" and affect the playlist as a whole.
 
     AddParameterIDs           Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file
+    ContainsString            Only tracks with, in some fashion, contain this string. (ex, "Instrumental")
     Default                   Assume any lines with no parameter are this parameter. Great for pasting lists of artists.
     DeleteIfEmpty             If the playlist has no tracks, delete it.
     DontModify                Don't modify the playlist spec file, even if told to.

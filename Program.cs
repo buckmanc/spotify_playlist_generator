@@ -1392,9 +1392,22 @@ namespace spotify_playlist_generator
                     Console.WriteLine("playlistTracks.Max(t => t.LikedAt): " + playlistTracks.Max(t => t.LikedAt).ToString());
                 }
 
-                // ------------ length limits ------------
+                // ------------ string limits ------------
 
-                if (playlistSpec.LongerThan != 0)
+                if (!String.IsNullOrWhiteSpace(playlistSpec.ContainsString))
+                {
+                    playlistTracks = playlistTracks
+                        .Where(t => 1 == 2
+							|| t.Name.Like(playlistSpec.ContainsString)
+							|| t.AlbumName.Like(playlistSpec.ContainsString)
+							|| t.ArtistNames.Any(a => a.Like(playlistSpec.ContainsString))
+							)
+                        .ToList();
+                }
+
+				// ------------ length limits ------------
+
+				if (playlistSpec.LongerThan != 0)
                 {
                     playlistTracks = playlistTracks
                         .Where(t => t.DurationMinutes > playlistSpec.LongerThan)

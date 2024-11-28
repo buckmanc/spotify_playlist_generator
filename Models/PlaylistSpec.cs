@@ -50,10 +50,13 @@ namespace spotify_playlist_generator.Models
             {
                 return (Settings._StartPlaylistsWith ?? string.Empty) + this.PlaylistName;
             }
-        }
-        [Desc("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
-        public bool AddParameterIDs { get; set; }
-        [Desc("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
+		}
+		[Desc("Exchange artist names for artist IDs. Saves time when running but looks worse. Same behaviour as --modify-playlist-file")]
+		public bool AddParameterIDs { get; set; }
+
+		[Desc("Only tracks with, in some fashion, contain this string. (ex, \"Instrumental\")")]
+		public string ContainsString { get; set; }
+		[Desc("Assume any lines with no parameter are this parameter. Great for pasting lists of artists.")]
         public string Default { get; set; }
         [Desc("If the playlist has no tracks, delete it.")]
         public bool DeleteIfEmpty { get; set; }
